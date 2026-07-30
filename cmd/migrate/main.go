@@ -1,0 +1,89 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/joho/godotenv"
+)
+
+func main() {
+	_ = godotenv.Load()
+
+	dsn := buildDSN()
+	migrationsDir := getEnv("MIGRATIONS_DIR", "migrations")
+
+	m, err := migrate.New("file://"+migrationsDir, dsn)
+	if err != nil {
+		log.Fatalf("gagal inisialisasi migrasi: %v", err)
+	}
+	defer m.Close()
+
+	args := os.Args[1:]
+	if len(args) == 0 {
+		log.Fatal("perintah diperlukan: up, down, fresh, version, force")
+	}
+
+	switch args[0] {
+	case "up":
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("migrasi up gagal: %v", err)
+		}
+		log.Println("migrasi up berhasil")
+	case "down":
+		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("migrasi down gagal: %v", err)
+		}
+		log.Println("migrasi down berhasil")
+	case "fresh":
+		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("migrasi down gagal: %v", err)
+		}
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("migrasi up gagal: %v", err)
+		}
+		log.Println("migrasi fresh berhasil")
+	case "version":
+		version, dirty, err := m.Version()
+		if err != nil {
+			log.Fatalf("gagal mendapatkan versi: %v", err)
+		}
+		log.Printf("versi: %d, dirty: %v\n", version, dirty)
+	case "force":
+		if len(args) < 2 {
+			log.Fatal("perintah force memerlukan nomor versi")
+		}
+		v, err := strconv.Atoi(args[1])
+		if err != nil {
+			log.Fatalf("versi tidak valid: %v", err)
+		}
+		if err := m.Force(v); err != nil {
+			log.Fatalf("force gagal: %v", err)
+		}
+		log.Printf("force ke versi %d berhasil\n", v)
+	default:
+		log.Fatalf("perintah tidak dikenal: %s", args[0])
+	}
+}
+
+func buildDSN() string {
+	host := getEnv("DB_HOST", "localhost")
+	port := getEnv("DB_PORT", "5432")
+	user := getEnv("DB_USER", "sipon")
+	pass := getEnv("DB_PASS", "secret")
+	name := getEnv("DB_NAME", "sipon")
+	sslmode := getEnv("DB_SSLMODE", "disable")
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, pass, host, port, name, sslmode)
+}
+
+func getEnv(key, defaultVal string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultVal
+}

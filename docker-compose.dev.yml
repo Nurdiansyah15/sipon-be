@@ -1,0 +1,140 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-sipon}
+      POSTGRES_PASSWORD: ${DB_PASS:-secret}
+      POSTGRES_DB: ${DB_NAME:-sipon}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sipon} -d ${DB_NAME:-sipon}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sipon-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - sipon-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      APP_PORT: "${APP_PORT:-8080}"
+      APP_ENV: "${APP_ENV:-development}"
+      LOG_FORMAT: "${LOG_FORMAT:-text}"
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: "${DB_USER:-sipon}"
+      DB_PASS: "${DB_PASS:-secret}"
+      DB_NAME: "${DB_NAME:-sipon}"
+      DB_SSLMODE: "${DB_SSLMODE:-disable}"
+      JWT_SECRET_KEY: "${JWT_SECRET_KEY:-change-me-in-production}"
+      JWT_ACCESS_TTL: "${JWT_ACCESS_TTL:-1440}"
+      JWT_REFRESH_TTL: "${JWT_REFRESH_TTL:-43200}"
+      SMTP_HOST: "${SMTP_HOST:-}"
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_USERNAME: "${SMTP_USERNAME:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-noreply@sipon.dev}"
+      FONNTE_TOKEN: "${FONNTE_TOKEN:-}"
+      FONNTE_URL: "${FONNTE_URL:-https://api.fonnte.com/send}"
+      REDIS_ADDR: "redis:6379"
+      RATE_LIMIT_ENABLED: "${RATE_LIMIT_ENABLED:-true}"
+      MIGRATIONS_DIR: "migrations"
+      MINIO_ENDPOINT: "${MINIO_ENDPOINT:-}"
+      MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-}"
+      MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-}"
+      MINIO_BUCKET: "${MINIO_BUCKET:-sipon-public}"
+      MINIO_PRIVATE_BUCKET: "${MINIO_PRIVATE_BUCKET:-sipon-private}"
+      MINIO_USE_SSL: "${MINIO_USE_SSL:-false}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - sipon-net
+
+  migrate:
+    image: golang:1.25-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: go run ./cmd/migrate up
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: "${DB_USER:-sipon}"
+      DB_PASS: "${DB_PASS:-secret}"
+      DB_NAME: "${DB_NAME:-sipon}"
+      DB_SSLMODE: "${DB_SSLMODE:-disable}"
+      MIGRATIONS_DIR: "migrations"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sipon-net
+    profiles:
+      - tooling
+
+  seeder:
+    image: golang:1.25-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    command: go run ./cmd/seeder all
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: "${DB_USER:-sipon}"
+      DB_PASS: "${DB_PASS:-secret}"
+      DB_NAME: "${DB_NAME:-sipon}"
+      DB_SSLMODE: "${DB_SSLMODE:-disable}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - sipon-net
+    profiles:
+      - tooling
+
+  devtools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: devtools
+    working_dir: /app
+    volumes:
+      - .:/app
+    profiles:
+      - tooling
+
+networks:
+  sipon-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS verification_codes;
+DROP TABLE IF EXISTS user_roles;
+DROP TABLE IF EXISTS user_identities;
+DROP TABLE IF EXISTS credentials;
+DROP TABLE IF EXISTS roles;
+DROP TABLE IF EXISTS users;
