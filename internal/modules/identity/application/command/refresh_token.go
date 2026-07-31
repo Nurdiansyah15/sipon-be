@@ -5,6 +5,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/domain"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
@@ -13,19 +14,25 @@ import (
 type RefreshTokenUseCase struct {
 	tokenGen               application.TokenGenerator
 	sessionRevocationStore application.SessionRevocationStore
+	userRepo               domain.UserRepository
+	fileUploader           application.FileUploader
 }
 
 func NewRefreshTokenUseCase(
 	tokenGen application.TokenGenerator,
 	sessionRevocationStore application.SessionRevocationStore,
+	userRepo domain.UserRepository,
+	fileUploader application.FileUploader,
 ) *RefreshTokenUseCase {
 	return &RefreshTokenUseCase{
 		tokenGen:               tokenGen,
 		sessionRevocationStore: sessionRevocationStore,
+		userRepo:               userRepo,
+		fileUploader:           fileUploader,
 	}
 }
 
-func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
+func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshTokenRequest) (*dto.LoginResponse, error) {
 	claims, err := uc.tokenGen.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
@@ -60,10 +67,47 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		return nil, err
 	}
 
-	return &dto.RefreshTokenResponse{
-		AccessToken:  accessToken,
+	user, err := uc.userRepo.FindByID(ctx, claims.UserID)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
+	}
+
+	phoneStr := (*string)(nil)
+	if user.PhoneNumber != nil {
+		s := user.PhoneNumber.String()
+		phoneStr = &s
+	}
+
+	isEmailVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
+		isEmailVerified = li.IsVerified()
+	}
+	isPhoneVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
+		isPhoneVerified = li.IsVerified()
+	}
+
+	avatarURL := (*string)(nil)
+	if user.AvatarKey != nil && *user.AvatarKey != "" && uc.fileUploader != nil {
+		url := uc.fileUploader.PublicURL(*user.AvatarKey)
+		avatarURL = &url
+	}
+
+	return &dto.LoginResponse{
+		Token:        accessToken,
 		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+		User: dto.UserMe{
+			ID:              user.ID,
+			Username:        user.Username.String(),
+			Email:           user.Email.String(),
+			IsEmailVerified: isEmailVerified,
+			Fullname:        user.Fullname,
+			Phone:           phoneStr,
+			IsPhoneVerified: isPhoneVerified,
+			Status:          string(user.Status),
+			CreatedAt:       user.CreatedAt,
+			HasPassword:     user.HasLocalPassword(),
+			AvatarURL:       avatarURL,
+		},
 	}, nil
 }

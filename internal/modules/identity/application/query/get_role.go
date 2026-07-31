@@ -30,26 +30,21 @@ func (uc *GetRoleUseCase) Execute(ctx context.Context, roleID string) (*dto.Role
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	rps, err := uc.rolePermRepo.ListByRoleID(ctx, roleID)
-	if err != nil {
-		return nil, err
-	}
-
-	permItems := make([]dto.PermissionItem, 0, len(rps))
-	for _, rp := range rps {
-		for _, def := range domain.AllPermissionDefinitions {
-			if def.Key == rp.PermissionKey {
-				permItems = append(permItems, dto.PermissionItem{
-					Key:         string(def.Key),
-					DisplayName: def.DisplayName,
-					Description: def.Description,
-				})
-				break
-			}
+	var permKeys []string
+	if role.IsSystem() {
+		for _, pk := range domain.PermissionsForRole(role.Name) {
+			permKeys = append(permKeys, string(pk))
+		}
+	} else {
+		rps, err := uc.rolePermRepo.ListByRoleID(ctx, roleID)
+		if err != nil {
+			return nil, err
+		}
+		permKeys = make([]string, 0, len(rps))
+		for _, rp := range rps {
+			permKeys = append(permKeys, string(rp.PermissionKey))
 		}
 	}
-
-	_ = permItems
 
 	return &dto.RoleItem{
 		ID:          role.ID,
@@ -61,5 +56,6 @@ func (uc *GetRoleUseCase) Execute(ctx context.Context, roleID string) (*dto.Role
 		Assignable:  role.Assignable,
 		CreatedAt:   role.CreatedAt,
 		UpdatedAt:   role.UpdatedAt,
+		Permissions: permKeys,
 	}, nil
 }

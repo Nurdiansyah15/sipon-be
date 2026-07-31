@@ -38,7 +38,7 @@ func NewRequestIdentityOTPUseCase(
 }
 
 func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) error {
-	identifier, err := domain.NewLoginIdentifier(req.Identity)
+	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {

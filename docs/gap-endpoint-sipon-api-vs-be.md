@@ -4,6 +4,16 @@
 > Sumber:[sipon-api `internal/interfaces/http/router/router.go`](../../sipon-api/internal/interfaces/http/router/router.go) & [sipon-be `internal/modules/identity/interfaces/http/router.go`](../internal/modules/identity/interfaces/http/router.go).
 > Mode: harus sama persis. Status `BEDA` = ada perbedaan logic/guard/input/response/error. Status `BELUM ADA` = endpoint tidak terdaftar di sipon-be.
 
+> ## 🔧 Status Remediasi (update setelah perbaikan)
+>
+> Setiap **Verdict** di bawah sekarang punya baris **Status Perbaikan** tepat di bawahnya:
+> - ✅ **SUDAH DIPERBAIKI** — gap ditutup, kontrak sekarang sama persis dengan sipon-api.
+> - ⚠️ **SEBAGIAN DIPERBAIKI** — sebagian aspek gap sudah ditutup, sisanya masih terbuka (dijelaskan di catatan).
+> - ❌ **BELUM DIPERBAIKI** — belum disentuh, masih terbuka.
+> - 📝 **KLAIM DOC KELIRU** — riset ulang ke source sipon-api saat ini membuktikan klaim gap di baris tsb tidak akurat (sudah SAMA dari awal, atau sebaliknya).
+>
+> Yang **sengaja tidak disentuh** (di luar scope perbaikan ini, lihat §8 & catatan masing-masing): perbedaan `message` string (kosmetik, §6.7), anomali `:role_id` diabaikan pada delete role-scope (sama-sama ada di kedua sisi, bukan bug baru), kode error `MISSING_TOKEN`/`INVALID_TOKEN` dsb pada `JWTAuth` (di luar audit awal), dan revoke-session pada change-password/admin-reset/deactivate (klaim doc soal ini **keliru** — sipon-api sendiri tidak melakukan revoke di flow-flow itu; lihat §6.6).
+
 ---
 
 ## Ringkasan Eksekutif
@@ -11,34 +21,35 @@
 | Metrik | Nilai |
 |---|---|
 | Total endpoint non-santri di sipon-api | **46** |
-| Total endpoint terdaftar di sipon-be | **45** |
-| Endpoint BELUM ADA di sipon-be | **1** (`GET /role-permission/user-roles/:user_role_id`) |
-| Endpoint BEDA guard | 11 route (5 read role-permission + 6 users group) |
-| Endpoint BEDA input body | 6 (AssignUserRole, CreateUser, AvatarConfirm, UpdateProfile, CheckUsername, ChangeUsername) |
-| Endpoint BEDA response field/strukture | hampir semua (message string, payload field) |
-| Endpoint BEDA error status code | 8 (UpdateUserRole, Deactivate/ReactivateUserRole, CheckUsername, ForgotPassword, Delete* family, dll) |
-| Handler kosong/stub hilang di sipon-be | 0 (semua 45 route punya implementasi di `handler.go`) |
+| Total endpoint terdaftar di sipon-be | **46** (setelah perbaikan; route `GetUserRole` ditambahkan) |
+| Endpoint BELUM ADA di sipon-be | **0** ✅ (sebelumnya 1: `GET /role-permission/user-roles/:user_role_id`) |
+| Endpoint BEDA guard | **0** ✅ (11 route sebelumnya — 5 read role-permission + 6 users group — semua sudah diperbaiki) |
+| Endpoint BEDA input body | **0** ✅ (6 endpoint sebelumnya — AssignUserRole, CreateUser, AvatarConfirm, UpdateProfile, CheckUsername, ChangeUsername — semua sudah diperbaiki) |
+| Endpoint BEDA response field/struktur | Sebagian besar sudah diperbaiki (struktur/field); **message string sengaja dibiarkan beda** (kosmetik, §6.7) |
+| Endpoint BEDA error status code | Sebagian besar sudah diperbaiki; sisa terbuka: Login 404→401, UpdateRole 400/403, ReactivateUserRole 410 — lihat §8 "Item yang masih terbuka" |
+| Handler kosong/stub hilang di sipon-be | 0 (semua route punya implementasi di `handler.go`) |
+| **Status remediasi keseluruhan** | **~40 dari ~46 verdict BEDA/BELUM ADA sudah ✅ SUDAH DIPERBAIKI**; sisanya ⚠️ sebagian, 📝 klaim doc keliru (dikoreksi, bukan gap nyata), atau ❌ sengaja/belum disentuh — lihat §8 untuk daftar lengkap item yang masih terbuka |
 
 ### Temuan Kritis (prioritas perbaikan)
 
-1. **1 endpoint belum diimplementasikan**: `GET /api/v1/web/role-permission/user-roles/:user_role_id` (GetUserRole). Route tidak terdaftar di router sipon-be. Lihat §3.
-2. **Guard AND vs OR**: sipon-be menempatkan `RequirePermission("manage_users")` di **group** `/users` + `RequirePermission(...)` lagi di **route**. Karena middlewareGun Gin `c.Abort()` pada gagal, efektif user harus punya **kedua** permission (AND). Sipon-api hanya route-level tunggal (OR antar listed perms. Lihat §4.2.
-3. **5 route read role-permission TANPA guard permission**: `ListRoles`, `GetRole`, `ListPermissions`, `ListUserRoles`, `ListScopes` di sipon-be hanya `JWTAuth + PrincipalLoad`, tanpa `RequirePermission`. Sipon-api memasang `readRoleGuard` (= `manage_roles` | `manage_role_permissions` | `assign_role`). Lihat §5.
-4. **Rate limiter tidak dipasang**: `mb.RateLimitByIP()/ByUser()/ByAuth()` tersedia sebagai builder di sipon-be tetapi tidak dipasang di route mana pun. Sipon-api memasang rate-limit by-IP di public-auth dan by-user di protected. Lihat §6.
-5. **Response message string semuanya beda**: setiap endpoint memakai kalimat message berbeda (mis. api `"login success"` vs be `"login success"` ada yang sama, tapi banyak beda: api `"change password success"` vs be `"Password changed successfully"`). Frontend yang hardcode match akan break.
-6. **GetRole membuang permission list** (`handler.go:556`): `rolePermRepo.ListByRoleID` dipanggil lalu hasilnya `_ = permItems` di-drop. Response tidak menyertakan `permissions[]`. Sipon-api mengembalikan `permissions []string`. Lihat §5.2.
-7. **CreateUser body beda**: sipon-api hanya `{username, fullname?, email, phone?}` (password auto-generated, return `generated_password` sekali). sipon-be mewajibkan `password` + `role_name`, response `data:null` (no generated_password). Lihat §4.3.
-8. **AssignUserRole body beda**: api `role_id` + `scope_type` required enum `global|region|community` + `notes`. be `role_name` + `scope_type` opsional (default global) + tanpa `notes`. Lihat §5.10.
-9. **AvatarConfirm input beda**: api pakai query `?key=`, be pakai JSON body `{key}`. Lihat §3.13.
-10. **UpdateProfile behavior beda**: api hanya ijinkan ubah email/phone bila belum verified (di-guard di usecase); be langsung ubah tanpa OTP. Field juga beda: api semua opsional pointer; be `fullname` & `email` required. Lihat §3.9.
-11. **CheckUsername error beda**: username kosong → api 422, be 400. Username invalid format → api 422, be `available:false` (no error). Be juga tidak exclude self (tidak kirim userID ke usecase). Lihat §3.10.
-12. **ForgotPassword anti-enumeration beda**: api selalu 200 (anti-enumeration ketat). Be bisa 404 email-tidak-ditemukan (bocor enumeration). Lihat §1.6.
-13. **UpdateUserRole/Deactivate/ReactivateUserRole not-found → 400 (bukan 404)** di be (mapping `ErrCodeBadRequest`). api 404. Lihat §5.11/5.12/5.13.
-14. **ReactivateUserRole expired → 410 Gone** di be, tidak ada padanan di api. §5.13.
-15. **Delete family (RolePermission/UserRole/RoleScope) di be langsung delete tanpa cek eksistensi** → error repo diteruskan sebagai 500 (no 404). api memvalidasi 404. §5.7/§5.14/§5.17.
-16. **DeleteRoleScope di be pakai `:scope_id` saja, `:role_id` diabaikan** → deletion tidak scoped ke role (risiko silang-scope). api juga hanya pakai `:scope_id` (sama — bukan gap, namun dua-duanya berisiko). §5.17.
-17. **Session revoke pada change-password/reset-password admin TIDAK dilakukan** di be. api me-revoke session aktif setelah change-password, dan me-revoke all session user target setelah admin reset-password/deactivate. §3.3 & §4.4 & §4.5.
-18. **Error code string beda untuk forbidden**: api `ERR_FORBIDDEN`; be middleware `FORBIDDEN` (no principal) / `INSUFFICIENT_PERMISSION` (perm missing). Frontend yang match string akan break. §6.3.
+1. ✅ **SUDAH DIPERBAIKI** — **1 endpoint belum diimplementasikan**: `GET /api/v1/web/role-permission/user-roles/:user_role_id` (GetUserRole). Route tidak terdaftar di router sipon-be. Lihat §3.
+2. ✅ **SUDAH DIPERBAIKI** — **Guard AND vs OR**: sipon-be menempatkan `RequirePermission("manage_users")` di **group** `/users` + `RequirePermission(...)` lagi di **route**. Karena middlewareGun Gin `c.Abort()` pada gagal, efektif user harus punya **kedua** permission (AND). Sipon-api hanya route-level tunggal (OR antar listed perms. Lihat §4.2.
+3. ✅ **SUDAH DIPERBAIKI** — **5 route read role-permission TANPA guard permission**: `ListRoles`, `GetRole`, `ListPermissions`, `ListUserRoles`, `ListScopes` di sipon-be hanya `JWTAuth + PrincipalLoad`, tanpa `RequirePermission`. Sipon-api memasang `readRoleGuard` (= `manage_roles` | `manage_role_permissions` | `assign_role`). Lihat §5.
+4. ✅ **SUDAH DIPERBAIKI** — **Rate limiter tidak dipasang**: `mb.RateLimitByIP()/ByUser()/ByAuth()` tersedia sebagai builder di sipon-be tetapi tidak dipasang di route mana pun. Sipon-api memasang rate-limit by-IP di public-auth dan by-user di protected. Lihat §6. (Catatan: global by-IP di root ternyata sudah terpasang dari awal di `cmd/api/main.go` — yang hilang hanya limiter auth-group & by-user, sekarang sudah dipasang.)
+5. ❌ **BELUM DIPERBAIKI (sengaja, di luar scope)** — **Response message string semuanya beda**: setiap endpoint memakai kalimat message berbeda (mis. api `"login success"` vs be `"login success"` ada yang sama, tapi banyak beda: api `"change password success"` vs be `"Password changed successfully"`). Frontend yang hardcode match akan break. Perbaikan struktur/field data sudah dilakukan; kalimat message dibiarkan (kosmetik, lihat §6.7).
+6. ✅ **SUDAH DIPERBAIKI** — **GetRole membuang permission list** (`handler.go:556`): `rolePermRepo.ListByRoleID` dipanggil lalu hasilnya `_ = permItems` di-drop. Response tidak menyertakan `permissions[]`. Sipon-api mengembalikan `permissions []string`. Lihat §5.2.
+7. ✅ **SUDAH DIPERBAIKI** — **CreateUser body beda**: sipon-api hanya `{username, fullname?, email, phone?}` (password auto-generated, return `generated_password` sekali). sipon-be mewajibkan `password` + `role_name`, response `data:null` (no generated_password). Lihat §4.3.
+8. ✅ **SUDAH DIPERBAIKI** — **AssignUserRole body beda**: api `role_id` + `scope_type` required enum `global|region|community` + `notes`. be `role_name` + `scope_type` opsional (default global) + tanpa `notes`. Lihat §5.10.
+9. ✅ **SUDAH DIPERBAIKI** — **AvatarConfirm input beda**: api pakai query `?key=`, be pakai JSON body `{key}`. Lihat §3.13.
+10. ✅ **SUDAH DIPERBAIKI** — **UpdateProfile behavior beda**: api hanya ijinkan ubah email/phone bila belum verified (di-guard di usecase); be langsung ubah tanpa OTP. Field juga beda: api semua opsional pointer; be `fullname` & `email` required. Lihat §3.9.
+11. ✅ **SUDAH DIPERBAIKI** — **CheckUsername error beda**: username kosong → api 422, be 400. Username invalid format → api 422, be `available:false` (no error). Be juga tidak exclude self (tidak kirim userID ke usecase). Lihat §3.10.
+12. ✅ **SUDAH DIPERBAIKI** — **ForgotPassword anti-enumeration beda**: api selalu 200 (anti-enumeration ketat). Be bisa 404 email-tidak-ditemukan (bocor enumeration). Lihat §1.6.
+13. ✅ **SUDAH DIPERBAIKI** — **UpdateUserRole/Deactivate/ReactivateUserRole not-found → 400 (bukan 404)** di be (mapping `ErrCodeBadRequest`). api 404. Lihat §5.11/5.12/5.13.
+14. ⚠️ **SEBAGIAN** — **ReactivateUserRole expired → 410 Gone** di be, tidak ada padanan di api (verifikasi ulang ke source api: `ReactivateUserRole` di api memang tidak mengecek expiry sama sekali, cuma not-found → 404). Not-found sudah diperbaiki ke 404; perilaku "expired → 410" di be **masih ada** dan belum dilepas — ini fitur ekstra be yang tidak dimiliki api. §5.13.
+15. ✅ **SUDAH DIPERBAIKI** — **Delete family (RolePermission/UserRole/RoleScope) di be langsung delete tanpa cek eksistensi** → error repo diteruskan sebagai 500 (no 404). api memvalidasi 404. §5.7/§5.14/§5.17.
+16. 📝 **BUKAN GAP (sudah benar dari awal)** — **DeleteRoleScope di be pakai `:scope_id` saja, `:role_id` diabaikan** → deletion tidak scoped ke role (risiko silang-scope). api juga hanya pakai `:scope_id` (sama — bukan gap, namun dua-duanya berisiko). Dibiarkan sesuai keputusan awal (anomali ada di kedua sisi, bukan sesuatu yang perlu "diperbaiki sepihak"). §5.17.
+17. 📝 **KLAIM DOC KELIRU** — **Session revoke pada change-password/reset-password admin TIDAK dilakukan** di be. Riset ulang ke source sipon-api saat ini membuktikan **sipon-api sendiri juga tidak melakukan revoke** di flow-flow ini (`RevokeAllBefore` ada di port tapi tidak pernah dipanggil usecase manapun). Klaim gap ini keliru — **tidak ditambahkan** ke sipon-be karena itu justru akan membuatnya menyimpang dari sipon-api, bukan menyamakannya. §3.3 & §4.4 & §4.5 & §6.6.
+18. ✅ **SUDAH DIPERBAIKI** — **Error code string beda untuk forbidden**: api `ERR_FORBIDDEN`; be middleware `FORBIDDEN` (no principal) / `INSUFFICIENT_PERMISSION` (perm missing). Frontend yang match string akan break. §6.3.
 
 ---
 
@@ -57,6 +68,8 @@
 
 **Verdict: BEDA** — rate-limit hilang, input `device_id` hilang, `fullname` jadi required, struktur response `token`→`access_token`.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `RateLimitByAuth` dipasang di grup `/auth`; `device_id` ditambahkan; `fullname` jadi `*string` opsional; response direstrukturisasi jadi `{user_id, token, refresh_token, user: UserMe}`.
+
 ### 1.2 POST `/auth/login`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -68,6 +81,8 @@
 | Errors | 401, 403, 422, 500 | 401, 403, 429 (locked), 404 (user not found), 422, 500 | **BEDA** (be ekspos 404 & 429; api bungkam) |
 
 **Verdict: BEDA** — field name `identifier`, struktur response, status code 404/429.
+
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — rate-limit dipasang, field `identity`→`identifier`, response direstrukturisasi jadi `{token, refresh_token, user: UserMe}`. **Belum**: verifikasi ulang ke source api menunjukkan user-tidak-ditemukan seharusnya **401** di api (bukan 404) — be masih mengembalikan 404 untuk kasus ini (perbedaan ini tidak eksplisit ada di rencana perbaikan awal dan terlewat).
 
 ### 1.3 POST `/auth/request-otp`
 
@@ -81,6 +96,8 @@
 
 **Verdict: BEDA** — field name, payload, cooldown handling.
 
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — field `identity`→`identifier` sudah diperbaiki. **Belum**: payload sukses masih `data:null` (bukan `{message}`), dan cooldown 409 belum diimplementasikan (di luar scope perbaikan yang direncanakan).
+
 ### 1.4 POST `/auth/verify-otp`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -92,6 +109,8 @@
 | Errors | 404, 422, 500 | 404, 400 (mismatch), 410 (expired), 409 (used), 403 (identity not found), 422, 500 | **BEDA** (be ekspos 400/410/409) |
 
 **Verdict: BEDA** — field name, payload, error code lebih granular di be.
+
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — field `identity`/`code`→`identifier`/`otp` sudah diperbaiki. **Belum**: payload sukses masih `data:null` (bukan `{message}`); granularitas error tambahan di be (400/410/409) dibiarkan (bukan regresi, hanya lebih detail dari api).
 
 ### 1.5 POST `/auth/refresh-token`
 
@@ -105,6 +124,8 @@
 
 **Verdict: BEDA** — response tidak menyertakan `user`, field `token`→`access_token`.
 
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — response direstrukturisasi jadi `{token, refresh_token, user: UserMe}` (sekarang menyertakan `user`), rate-limit dipasang. **Belum**: error 403 (deleted/banned) & 422 belum ditambahkan secara eksplisit di flow refresh-token be.
+
 ### 1.6 POST `/auth/password/forgot`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -117,6 +138,8 @@
 
 **Verdict: BEDA KRITIS** — be tidak konsisten dengan anti-enumeration; mengembalikan 404 untuk email tidak terdaftar.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — email tidak ditemukan sekarang di-swallow dan tetap mengembalikan 200 (tidak lagi 404), sama seperti sipon-api.
+
 ### 1.7 POST `/auth/password/reset`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -128,6 +151,8 @@
 | Errors | 404 (token/email invalid/expired), 422, 500 | 404, 400 (mismatch / credential-not-local), 410 (expired), 409 (used), 422, 500 | **BEDA** (granularitas) |
 
 **Verdict: BEDA** — field name, message, revoke session, error granularitas.
+
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — field `code`→`token` sudah diperbaiki (tanpa tag `len=6`, sesuai kontrak api). Revoke-session **tidak ditambahkan** — klaim ini keliru, sipon-api juga tidak melakukan revoke di flow ini (lihat §6.6). Message/payload masih beda (kosmetik, di luar scope).
 
 ---
 
@@ -146,6 +171,8 @@
 
 **Verdict: BEDA** — struktur response nested vs flatten, error 404.
 
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — response direstrukturisasi jadi nested `{user: SessionUser, roles[]: {name,role_type,scope_type,scope_id}, permissions[]: {key,scope}, scopes[]}`, sama seperti struktur api. **Catatan**: field-level exact shape `SessionUser`/`SessionRole`/`SessionPermission` direkonstruksi dari riset yang tidak sempat memverifikasi teks source api secara literal untuk 3 struct ini — cek ulang sebelum FE integrasi penuh. Error 404-vs-500 pada user-not-found (quirk di api: raw error → 500) **tidak direplikasi** (be tetap 404, dianggap lebih benar).
+
 ### 2.2 POST `/auth/logout`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -157,6 +184,8 @@
 | Errors | 401 (`"sesi tidak ditemukan"`), 500 | 401 (token hilang/invalid), 500 | SAMA |
 
 **Verdict: BEDA** — middleware PrincipalLoad, message string, revoke-all/device tidak ekspos.
+
+**Status Perbaikan: 📝 KLAIM DOC SEBAGIAN KELIRU** — riset ulang membuktikan sipon-api **juga tidak** mengekspos route revoke-all/revoke-device (usecase-nya ada tapi tidak dipasang di route manapun di sipon-api juga), jadi ini bukan gap nyata. PrincipalLoad middleware & message string dibiarkan tidak berubah (tidak fungsional, di luar scope).
 
 ---
 
@@ -174,6 +203,8 @@
 
 **Verdict: BEDA** — field response banyak beda, message string.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `Me` sekarang mengembalikan `UserMe{id,username,email,is_email_verified,fullname,phone,is_phone_verified,status,created_at,has_password,avatar_url}`, field-for-field sama dengan api (tidak lagi memakai `ProfileResponse`).
+
 ### 3.2 GET `/auth/profile`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -185,6 +216,8 @@
 | Errors | 401, 500 | 401, 404, 500 | **BEDA** (be ekspos 404) |
 
 **Verdict: BEDA** — field response (verified flags, has_password, scopes), message string.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `ProfileResponse` sekarang punya `is_email_verified`, `is_phone_verified`, `has_password`, dan `scopes[]`, plus `roles[]`/`permissions[]` sebagai rich object (bukan string array) — sama seperti struktur api.
 
 ### 3.3 POST `/auth/change-password`
 
@@ -198,6 +231,8 @@
 
 **Verdict: BEDA KRITIS** — revoke session tidak dilakukan be, field name, error code.
 
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — field `old_password`→`current_password` sudah diperbaiki. Revoke-session **tidak ditambahkan** — klaim ini keliru, sipon-api juga tidak melakukan revoke di flow ini (lihat §6.6). Kode error spesifik (`PASSWORD_SAME_AS_CURRENT`/`INVALID_CURRENT_PASSWORD`) belum diselaraskan, masih generik.
+
 ### 3.4 POST `/auth/set-password`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -209,6 +244,8 @@
 | Errors | 401, 404, 409, 422, 500 | 409, 400 (credential-not-local), 404, 422, 500 | **BEDA** (be ekspos 400) |
 
 **Verdict: BEDA** — field name, message, payload, error 400.
+
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — field `password`→`new_password` sudah diperbaiki. Message/payload/error 400 dibiarkan (kosmetik & quirk internal, di luar scope).
 
 ### 3.5 POST `/auth/change-email/request`
 
@@ -222,6 +259,8 @@
 
 **Verdict: BEDA** — field name, validasi email format hilang, payload.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — dipecah jadi `RequestChangeEmailRequest{new_email binding:"required,email"}` tersendiri (tidak lagi auto-detect kind dari `new_value` generik); field name & validasi format email sekarang sama dengan api.
+
 ### 3.6 POST `/auth/change-email/confirm`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -234,6 +273,8 @@
 
 **Verdict: BEDA** — field name, payload, error granularitas.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — dipecah jadi `ConfirmChangeEmailRequest{otp}` tersendiri (field `code`→`otp`), sama dengan api.
+
 ### 3.7 POST `/auth/change-phone/request`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -245,6 +286,8 @@
 
 **Verdict: BEDA** — field name, payload, error.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — dipecah jadi `RequestChangePhoneRequest{new_phone}` tersendiri (field `new_value`→`new_phone`), sama dengan api.
+
 ### 3.8 POST `/auth/change-phone/confirm`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -255,6 +298,8 @@
 | Errors | 401, 404, 422, 500 | 404, 400, 410, 409, 422, 500 | **BEDA** |
 
 **Verdict: BEDA** — field name, payload, error.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — dipecah jadi `ConfirmChangePhoneRequest{otp}` tersendiri (field `code`→`otp`), sama dengan api.
 
 ### 3.9 PUT `/auth/profile`
 
@@ -268,6 +313,8 @@
 
 **Verdict: BEDA KRITIS** — required-ness input beda, validasi verified-flag hilang di be, message.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — semua field (`fullname`/`email`/`phone`) sekarang opsional pointer; usecase mengecek status verified identity saat ini sebelum mengizinkan perubahan email/phone (409 bila sudah verified), sama seperti api.
+
 ### 3.10 GET `/auth/check-username`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -280,6 +327,8 @@
 
 **Verdict: BEDA KRITIS** — be tidak exclude user sendiri (akan return false untuk username milik sendiri), invalid format → false (silent), status code 422→400.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `userID` sekarang dikirim ke usecase dan dipakai untuk exclude-self; username kosong → 422 (bukan 400); format invalid → 422 nyata (bukan silent `available:false`).
+
 ### 3.11 POST `/auth/change-username`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -290,6 +339,8 @@
 | Errors | 401, 404, 409, 422, 500 | 409, 404, 422, 500 | SAMA |
 
 **Verdict: BEDA** — validasi panjang username hilang, response tidak return `username`.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — tag `min=3,max=30` ditambahkan; response sekarang `{message, username}`, menyertakan `username` baru.
 
 ### 3.12 POST `/auth/profile/avatar/presign`
 
@@ -302,6 +353,8 @@
 
 **Verdict: BEDA** — response tidak ada `expires_in`, message.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `expires_in` ditambahkan ke response (600 detik, sesuai TTL presign yang sudah dipakai).
+
 ### 3.13 POST `/auth/profile/avatar/confirm`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -313,6 +366,8 @@
 
 **Verdict: BEDA KRITIS** — input source beda (query vs body), response tidak return `avatar_url`.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — handler sekarang membaca `key` dari query param (bukan JSON body), 422 bila kosong; response mengembalikan `{avatar_url}`.
+
 ### 3.14 DELETE `/auth/profile/avatar`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -323,6 +378,8 @@
 | Errors | 401, 404 (avatar tidak ada), 500 | 404 (user not found), 500 (tidak ada 404 khusus "avatar tidak ada") | **BEDA** (be tidak ekspos 404 avatar-not-exist) |
 
 **Verdict: BEDA** — no-op bila avatar kosong (api raising 404), message.
+
+**Status Perbaikan: 📝 KLAIM DOC KELIRU** — riset ulang ke source sipon-api membuktikan api **juga** no-op (200) bila `AvatarKey` kosong, tidak raise 404. Klaim "api raising 404" di baris ini keliru — perilaku be sudah benar sejak awal, tidak ada yang perlu diubah.
 
 ---
 
@@ -350,6 +407,8 @@
 
 **Verdict: BEDA** — roles terisi vs kosong, struktur meta field, message.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (+ 📝 klaim doc sebagian keliru)** — riset ulang membuktikan sipon-api **juga** mengisi `roles[]` di endpoint list (komentar "anti-N+1" di api adalah komentar basi, kode aktualnya tetap mengisi) — jadi "roles kosong vs terisi" bukan gap nyata. Yang benar-benar diperbaiki: struktur response sekarang `SuccessWithMeta{data:[UserManagementResponse], meta}` di top-level dengan field `current_page/per_page/total/total_pages`, sama seperti api (bukan lagi `{users:[...], meta}` nested dengan `page/limit/total_items`).
+
 ### 4.2 GET `/users/:user_id`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -361,6 +420,8 @@
 | Errors | 401, 403, 404, 500 | 401, 403, 404, 500 | SAMA |
 
 **Verdict: BEDA** — struktur response & message.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — response sekarang `UserManagementResponse` dengan `roles: []UserRoleSummaryResponse` (bukan lagi `UserItem` dengan `roles: []string`), sama seperti struktur api.
 
 ### 4.3 POST `/users` — CreateUser
 
@@ -374,6 +435,8 @@
 
 **Verdict: BEDA KRITIS** — input wajib password + role_name, response tidak ada generated_password, message.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `password` dan `role_name` dihapus dari request; password sekarang auto-generated (12 karakter, min 1 huruf besar + 1 digit) dan tidak ada role yang di-assign saat pembuatan (admin assign lewat `/role-permission/user-roles` terpisah, sama seperti api); response sekarang `{...UserManagementResponse, generated_password}`.
+
 ### 4.4 POST `/users/:user_id/reset-password`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -385,6 +448,8 @@
 | Errors | 401, 403, 404, 500 | 403, 404, 422, 500 | **BEDA** (be ekspos 422) |
 
 **Verdict: BEDA KRITIS** — guard AND, input body, revoke session, response generated_password.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (kecuali revoke-session)** — guard diubah ke route-level tunggal (OR); body dihapus, password sekarang auto-generated di server; response `{generated_password}`. Revoke-session **tidak ditambahkan** — klaim ini keliru, sipon-api juga tidak melakukan revoke di flow ini (lihat §6.6).
 
 ### 4.5 POST `/users/:user_id/deactivate`
 
@@ -398,6 +463,8 @@
 
 **Verdict: BEDA KRITIS** — guard AND, revoke session, payload.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (kecuali revoke-session)** — guard diubah ke route-level tunggal (OR); payload sekarang mengembalikan `UserManagementResponse` (status baru), bukan `null`. Revoke-session **tidak ditambahkan** — klaim ini keliru, sipon-api juga tidak melakukan revoke di flow ini (lihat §6.6).
+
 ### 4.6 POST `/users/:user_id/reactivate`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -409,6 +476,8 @@
 | Errors | 401, 403, 404, 409 (bukan deactivated), 500 | 403, 404, 409, 500 | SAMA |
 
 **Verdict: BEDA** — guard AND, payload, message.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — guard diubah ke route-level tunggal (OR); payload sekarang mengembalikan `UserManagementResponse`, bukan `null`.
 
 ---
 
@@ -437,6 +506,8 @@
 
 **Verdict: BEDA KRITIS** — guard hilang, struktur response.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `readRoleGuard` (OR `manage_roles`/`manage_role_permissions`/`assign_role`) dipasang; response sekarang `SuccessWithMeta{data:[RoleItem], meta}` di top-level, sama seperti api.
+
 ### 5.2 GET `/role-permission/roles/:role_id`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -448,6 +519,8 @@
 | Errors | 401, 403, 404 (`DOMAIN_ROLE_NOT_FOUND`), 500 | 401, 404, 500 (no 403) | **BEDA** |
 
 **Verdict: BEDA KRITIS** — guard hilang, permissions[] tidak dikembalikan (bug drop `permItems`).
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `readRoleGuard` dipasang; bug `_ = permItems` dihapus, `RoleItem.Permissions` sekarang terisi (system role dari konstanta, custom role dari `rolePermRepo.ListByRoleID`).
 
 ### 5.3 GET `/role-permission/permission-keys`
 
@@ -461,6 +534,8 @@
 
 **Verdict: BEDA KRITIS** — guard hilang, struktur response (array vs object).
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `readRoleGuard` dipasang; handler sekarang mengembalikan bare array langsung sebagai `data` (bukan `{permissions:[...]}`), sama seperti api.
+
 ### 5.4 POST `/role-permission/roles`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -472,6 +547,8 @@
 | Errors | 400, 401, 403, 409 (`DOMAIN_ROLE_DUPLICATE_NAME`), 422 (enum), 500 | 403, 422 (`INVALID_SCOPE_TYPE`), 500 — **tidak ada 409 duplicate name** | **BEDA** (be tidak cek duplikat nama) |
 
 **Verdict: BEDA** — input `role_type` & enum `scope_type` hilang, tidak ada cek duplikat nama 409.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `role_type` (`oneof=system custom`) ditambahkan ke DTO dan dihormati usecase (tidak lagi hardcode custom); `scope_type` diberi `oneof=global region community`; cek duplikat nama ditambahkan → 409 sebelum `Save`.
 
 ### 5.5 PUT `/role-permission/roles/:role_id`
 
@@ -485,6 +562,8 @@
 
 **Verdict: BEDA** — struktur response, error system-role (400 vs 403).
 
+**Status Perbaikan: ❌ BELUM DIPERBAIKI** — tidak disentuh pada perbaikan ini; `UpdateRole` masih memetakan `EnsureCustom()` fail ke 400 (invalid role type) / 403 (fallback), belum diselaraskan ke perilaku api.
+
 ### 5.6 POST `/role-permission/roles/:role_id/permissions`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -496,6 +575,8 @@
 | Errors | 400, 401, 403, 404, 409 (`DOMAIN_ROLE_PERMISSION_REQUIRES_CUSTOM_ROLE`, `DOMAIN_ROLE_PERMISSION_DUPLICATE`), 422, 500 | 403, 400 (system), 404, 422 (`INVALID_PERMISSION_KEY`), 500 — **tidak ada 409 duplicate eksplisit** | **BEDA** |
 
 **Verdict: BEDA** — status code 201→200, payload, 409 duplicate.
+
+**Status Perbaikan: ❌ BELUM DIPERBAIKI** — tidak disentuh pada perbaikan ini; masih 200 (bukan 201), payload masih `null`, 409 duplicate belum eksplisit.
 
 ### 5.7 DELETE `/role-permission/roles/:role_id/permissions/:permission_key`
 
@@ -509,6 +590,8 @@
 
 **Verdict: BEDA KRITIS** — be langsung delete tanpa validasi system role & eksistensi.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — usecase sekarang `roleRepo.FindByID` (404 bila role tidak ada) → `role.EnsureCustom()` (409 bila system role) → cek permission benar-benar assigned ke role tsb (404 bila tidak) → baru `Delete`.
+
 ### 5.8 GET `/role-permission/user-roles`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -521,6 +604,8 @@
 
 **Verdict: BEDA KRITIS** — guard hilang, filter `scope_id` hilang, struktur response.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `userRoleReadGuard` (OR `assign_role`/`manage_users`) dipasang; filter `scope_id` ditambahkan (DTO + repo query + usecase); response sekarang `SuccessWithMeta{data:[UserRoleItem], meta}` top-level, sama seperti api.
+
 ### 5.9 GET `/role-permission/user-roles/:user_role_id` — **BELUM ADA**
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -531,6 +616,8 @@
 | Errors | 401, 403, 404, 500 | — | — |
 
 **Verdict: BELUM ADA** — klien harus filter via `ListUserRoles?...` di be. Tidak ada padanan detail-by-id.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — route ditambahkan (`rp.GET("/user-roles/:user_role_id", userRoleReadGuard, handler.GetUserRole)`), lengkap dengan `GetUserRoleUseCase` baru yang mengembalikan `UserRoleItem` penuh (termasuk `permissions[]`), 404 bila tidak ditemukan.
 
 ### 5.10 POST `/role-permission/user-roles` — AssignUserRole
 
@@ -544,6 +631,8 @@
 
 **Verdict: BEDA KRITIS** — input `role_id`→`role_name`, `scope_type` required→optional, `notes` hilang, payload.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `role_name`→`role_id` (lookup by ID via `roleAssignment.AssignByRoleID`, method baru); `scope_type` jadi `binding:"required,oneof=global region community"`; `notes` ditambahkan dan diteruskan ke `NewUserRole`.
+
 ### 5.11 PUT `/role-permission/user-roles/:user_role_id`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -555,6 +644,8 @@
 | Errors | 401, 403, 404, 422, 500 | 403, 400, 500 | **BEDA** |
 
 **Verdict: BEDA** — not-found 404→400, payload.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — not-found sekarang 404 (bukan 400), sama seperti api.
 
 ### 5.12 POST `/role-permission/user-roles/:user_role_id/deactivate`
 
@@ -568,6 +659,8 @@
 
 **Verdict: BEDA** — not-found 404→400, sudah-inactive handling, payload.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — not-found sekarang 404 (bukan 400), sama seperti api.
+
 ### 5.13 POST `/role-permission/user-roles/:user_role_id/reactivate`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -579,6 +672,8 @@
 | Errors | 401, 403, 404, 500 | 403, 400, 410, 500 | **BEDA** |
 
 **Verdict: BEDA** — not-found 404→400, expired→410 (baru), payload.
+
+**Status Perbaikan: ⚠️ SEBAGIAN DIPERBAIKI** — not-found sekarang 404 (bukan 400), sama seperti api. **Belum**: perilaku `expired → 410 Gone` masih ada di be (fitur ekstra yang tidak dimiliki api, yang hanya cek not-found); tidak dilepas pada perbaikan ini.
 
 ### 5.14 DELETE `/role-permission/user-roles/:user_role_id`
 
@@ -592,6 +687,8 @@
 
 **Verdict: BEDA** — be tidak ekspos 404, payload beda.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — usecase sekarang `FindByID` dulu (404 bila tidak ada) sebelum `Delete`. Payload (`null` vs `{message:...}`) dibiarkan (kosmetik, di luar scope).
+
 ### 5.15 GET `/role-permission/roles/:role_id/scopes`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -603,6 +700,8 @@
 | Errors | 401, 403, 404 (role), 500 | 401, 500 — **tidak ada 403 & 404** | **BEDA** |
 
 **Verdict: BEDA KRITIS** — guard hilang, struktur array vs object, 404 role hilang.
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (+ 📝 klaim doc sebagian keliru)** — `readRoleGuard` dipasang; response sekarang bare array, sama seperti api. Soal "404 role hilang": riset ulang membuktikan sipon-api **juga** tidak mengecek eksistensi role di endpoint ini (langsung query `roleScopeRepo.FindByRoleID` tanpa `FindByID` dulu) — jadi klaim itu keliru, tidak ada yang perlu diubah di sisi ini.
 
 ### 5.16 POST `/role-permission/roles/:role_id/scopes`
 
@@ -616,6 +715,8 @@
 
 **Verdict: BEDA** — validasi enum hilang di DTO, payload.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `scope_type` diberi `binding:"required,oneof=gender"`, `scope_value` diberi `binding:"required,oneof=male female"`, sama seperti api.
+
 ### 5.17 DELETE `/role-permission/roles/:role_id/scopes/:scope_id`
 
 | Aspek | sipon-api | sipon-be | Status |
@@ -627,6 +728,8 @@
 | Errors | 401, 403, 404, 500 | 403, 500 — **tidak ada 404** | **BEDA** |
 
 **Verdict: BEDA** — be tidak ekspos 404, message. Anomali `:role_id` diabaikan ada di kedua sisi (risiko silang-scope deletion — perlu fix di kedua codebase).
+
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (untuk existence-check)** — usecase sekarang `roleScopeRepo.FindByID` dulu (404 bila tidak ada) sebelum `Delete`. Anomali `:role_id` diabaikan **sengaja dibiarkan** (ada di kedua sisi, bukan regresi sepihak — lihat catatan status di §16 Temuan Kritis).
 
 ---
 
@@ -642,6 +745,8 @@
 
 **Gap**: be menyediakan builder rate-limit tetapi tidak memasang di router identity. Public-auth rentan brute-force.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `mb.RateLimitByAuth()` dipasang di grup `/auth` public, `mb.RateLimitByUser()` dipasang di grup `/web` protected. (Global by-IP di root ternyata sudah terpasang dari awal di `cmd/api/main.go:58-61`, jadi bukan gap baru — hanya dua limiter tambahan ini yang perlu dipasang.)
+
 ### 6.2 Middleware Global
 
 | Middleware | sipon-api | sipon-be |
@@ -651,6 +756,8 @@
 | RequestLogger | dipasang | (perlu cek root wiring) |
 | httperror.Middleware | dipasang | (perlu cek root wiring) |
 | Swagger dev | dipasang bila `appEnv=="development"` | tidak ada di modul identity |
+
+**Status Perbaikan: ❌ TIDAK DISENTUH** — di luar scope modul identity (root wiring `cmd/api/main.go` sudah punya RequestID/CORS/RequestLogger/ErrorHandler; Swagger dev belum ada tapi bukan bagian dari perbaikan kontrak endpoint).
 
 ### 6.3 Error Code String
 
@@ -667,6 +774,8 @@
 
 **Gap**: kode forbidden pecah (`ERR_FORBIDDEN` vs `FORBIDDEN`/`INSUFFICIENT_PERMISSION`). Frontend yang match string wajib sesuaikan.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI** — `middleware/auth.go` (`RequireRole`, `RequirePermission`) sekarang memakai `ERR_FORBIDDEN` untuk kedua kasus (no principal & insufficient permission), sama seperti api.
+
 ### 6.4 Response Envelope
 
 | Sisi | Sukses | Error |
@@ -676,10 +785,14 @@
 
 Envelope SAMA. Yang beda adalah **isi `data`** (struktur nested vs flatten) dan **`message` string** per endpoint.
 
+**Status Perbaikan: ✅ SUDAH DIPERBAIKI (untuk struktur `data`)** — lihat perbaikan per-endpoint di §1-§5 (Session/Profile/Me nested, list endpoints pakai `SuccessWithMeta`, dll). `message` string dibiarkan (lihat §6.7).
+
 ### 6.5 Domain Error Code Mapping
 
 - sipon-api mendefinisikan kode domain spesifik (`DOMAIN_ROLE_NOT_FOUND`, `DOMAIN_USER_ROLE_DUPLICATE`, `DOMAIN_ROLE_PERMISSION_REQUIRES_CUSTOM_ROLE`, dll) di `role_constant.go` → dipetakan ke HTTP via `apperror`.
 - sipon-be pakai `kernel.Code` generik (`ERR_NOT_FOUND`, `ERR_CONFLICT`, `ERR_BAD_REQUEST`, `ERR_GONE`, `ERR_UNPROCESSABLE_ENTITY`) — kode domain spesifik (`DOMAIN_*`) **tidak dipakai**. Frontend yang match kode domain akan kehilangan granularitas.
+
+**Status Perbaikan: ❌ BELUM DIPERBAIKI** — tidak disentuh; be masih memakai kode generik `ERR_*`, bukan `DOMAIN_*` spesifik. Ini perubahan besar (nambah konstanta domain-specific dan pemetaan HTTP-nya di seluruh modul) yang belum termasuk dalam perbaikan ini.
 
 ### 6.6 Session Revocation Side-Effect
 
@@ -690,6 +803,8 @@ Envelope SAMA. Yang beda adalah **isi `data`** (struktur nested vs flatten) dan 
 | `deactivate` user | revoke all session user target | **tidak revoke** |
 
 **Gap kritis**: setelah password change/admin-reset/deactivate, session lama di be **masih valid**. Risiko keamanan.
+
+**Status Perbaikan: 📝 KLAIM DOC KELIRU** — riset ulang langsung ke source sipon-api saat ini (grep semua usecase untuk `Revoke`/`RevokeAllBefore`/`RevokeDeviceBefore`) membuktikan **sipon-api sendiri tidak pernah memanggil revoke di flow-flow ini**. `RevokeAllBefore` didefinisikan di port & diimplementasikan di Redis, tapi tidak dipanggil oleh usecase manapun (`change_password_local.go`, `reset_user_password.go`, `deactivate_user.go` di sipon-api semuanya tanpa panggilan revoke). Tabel di atas keliru — kolom "sipon-api" seharusnya juga "tidak revoke". **Tidak ditambahkan** ke sipon-be karena menambahkannya justru membuat sipon-be menyimpang dari sipon-api (lebih aman, tapi tidak "sama persis").
 
 ### 6.7 Message String (perbedaan kalimat)
 
@@ -722,6 +837,8 @@ Setiap endpoint memakai kalimat `message` berbeda antara dua sisi. Daftar singka
 
 Pattern: api pakai lowercase + verb-noun, be pakai Title Case + Verb-noun-`successfully`. Konsisten frontend wajib baca dari field `message` secara soft (display), tidak boleh match string.
 
+**Status Perbaikan: ❌ SENGAJA TIDAK DIPERBAIKI** — keputusan eksplisit sebelum eksekusi: perbaikan struktur/field/status-code/guard diprioritaskan; kalimat message dibiarkan berbeda karena murni kosmetik (tidak memengaruhi FE selama FE tidak hardcode match string, sesuai catatan pattern di atas). Bisa diseragamkan di iterasi berikutnya bila diperlukan.
+
 ---
 
 ## §7. Daftar Endpoint yang BELUM Diimplementasikan di sipon-be (Non-Santri)
@@ -730,7 +847,7 @@ Hanya **1 endpoint** belum ada route di sipon-be:
 
 | # | Method | Path | Handler api | Status be |
 |---|---|---|---|---|
-| 1 | GET | `/api/v1/web/role-permission/user-roles/:user_role_id` | `RolePermissionHandler.GetUserRole` (router.go:155) | **BELUM ADA** — tidak ada route di `router.go` sipon-be |
+| 1 | GET | `/api/v1/web/role-permission/user-roles/:user_role_id` | `RolePermissionHandler.GetUserRole` (router.go:155) | ✅ **SUDAH DIPERBAIKI** — route + handler + `GetUserRoleUseCase` ditambahkan |
 
 **Catatan**: tidak ada handler stub/hilang. Semua 45 route yang terdaftar di router sipon-be punya definisi `func (h *IdentityHandler) X` di `handler.go`. Yang "belum" di sisi be hanya berupa route yang tidak didaftarkan (1 endpoint di atas) plus sejumlah behavior gap (§3-§5) di mana handler ada tetapi flow tidak setara (`GetRole` membuang permissions, `Logout` tidak ekspos revoke-all/device, `Delete*` family tanpa validasi, `ForgotPassword` tidak anti-enumeration, `CheckUsername` tidak exclude-self, `UpdateProfile` tanpa cek verified).
 
@@ -750,29 +867,42 @@ Hanya **1 endpoint** belum ada route di sipon-be:
 
 ## §8. Ringkas Perbaikan Prioritas
 
-| Prioritas | Item | Lokasi be |
+| Status | Prioritas | Item | Lokasi be |
+|---|---|---|---|
+| ✅ | P0 | Tambah route `GET /user-roles/:user_role_id` + handler | `router.go`, `handler.go` |
+| ✅ | P0 | Pasang `RequirePermission` read guard di 5 route read role-permission (roles, roles/:id, permission-keys, user-roles, scopes) | `router.go:113-128` |
+| 📝 | P0 | ~~Revoke session pada change-password / admin reset-password / deactivate user~~ — **klaim keliru**, sipon-api juga tidak melakukan ini (lihat §6.6). Tidak diimplementasikan. | usecase `change_password.go`, `manage_user.go` |
+| ✅ | P0 | ForgotPassword anti-enumeration: selalu 200 walau email tidak ada | `command/forgot_password.go` |
+| ✅ | P0 | CheckUsername: kirim userID ke usecase (exclude self); invalid format → 422 (bukan `available:false`); username kosong → 422 (bukan 400) | `handler.go:407`, `query/check_username.go` |
+| ✅ | P1 | GetRole: return `permissions[]` (jangan drop `permItems`) | `query/get_role.go` |
+| ✅ | P1 | Rate-limit: pasang `RateLimitByIP` di public-auth + `RateLimitByUser` di protected | `router.go` |
+| ✅ | P1 | Guard users group: ubah ke route-level tunggal (OR) atau dokumentasikan AND | `router.go:99-108` |
+| ✅ | P1 | CreateUser: auto-generate password + return `generated_password` | `application/dto/auth_dto.go`, `command/manage_user.go` |
+| ✅ | P1 | AssignUserRole: ganti `role_name` → `role_id`; `scope_type` required enum; tambah `notes` | `application/dto/auth_dto.go:290` |
+| ✅ | P1 | AvatarConfirm: input `?key=` query (bukan body) + return `avatar_url` | `application/dto/auth_dto.go:151`, `handler.go:449` |
+| ✅ | P2 | UpdateProfile: cek verified-flag sebelum ubah email/phone; fullname+email opsional | `command/update_profile.go` |
+| ✅ | P2 | Not-found error di Update/Deactivate/ReactivateUserRole → 404 (bukan 400) | usecase `manage_role.go` |
+| ✅ | P2 | Delete family (RolePermission/UserRole/RoleScope): validasi eksistensi → 404 bila tidak ada | `command/manage_permission.go`, `manage_role.go`, `manage_scope.go` |
+| ✅ | P2 | RevokeRolePermission: tolak 409 untuk system role | `command/manage_permission.go` |
+| ✅ | P2 | CreateRole: cek duplikat nama → 409 | `command/manage_role.go` |
+| ✅ | P2 | AssignRoleScope: enum `oneof=gender`/`oneof=male|female` di DTO | `application/dto/auth_dto.go` |
+| ✅ | P3 | Seragamkan struktur response `data` (nested vs flatten) & meta field (`page`/`limit` vs `current_page`/`per_page`) | semua DTO |
+| ✅ | P3 | Seragamkan error code forbidden (`ERR_FORBIDDEN` vs `FORBIDDEN`/`INSUFFICIENT_PERMISSION`) | `shared/middleware/auth.go` |
+| ✅ | P3 | Tambah field `expires_in` di AvatarPresign response | `command/avatar.go` |
+| 📝 | P3 | ~~Logout: ekspos `revoke-all`/`revoke-device`~~ — **klaim keliru**, sipon-api juga tidak mengeksposnya di route manapun. Tidak diimplementasikan. | `router.go`, `handler.go` |
+
+### Item yang masih terbuka (belum termasuk perbaikan ini)
+
+| Item | Lokasi be | Catatan |
 |---|---|---|
-| P0 | Tambah route `GET /user-roles/:user_role_id` + handler | `router.go`, `handler.go` |
-| P0 | Pasang `RequirePermission` read guard di 5 route read role-permission (roles, roles/:id, permission-keys, user-roles, scopes) | `router.go:113-128` |
-| P0 | Revoke session pada change-password / admin reset-password / deactivate user | usecase `change_password.go`, `manage_user.go` |
-| P0 | ForgotPassword anti-enumeration: selalu 200 walau email tidak ada | `command/forgot_password.go` |
-| P0 | CheckUsername: kirim userID ke usecase (exclude self); invalid format → 422 (bukan `available:false`); username kosong → 422 (bukan 400) | `handler.go:407`, `query/check_username.go` |
-| P1 | GetRole: return `permissions[]` (jangan drop `permItems`) | `query/get_role.go` |
-| P1 | Rate-limit: pasang `RateLimitByIP` di public-auth + `RateLimitByUser` di protected | `router.go` |
-| P1 | Guard users group: ubah ke route-level tunggal (OR) atau dokumentasikan AND | `router.go:99-108` |
-| P1 | CreateUser:如意 generates password + return `generated_password` (atau bytebin API kontrak) | `application/dto/auth_dto.go:184`, `command/manage_user.go` |
-| P1 | AssignUserRole: ganti `role_name` → `role_id`; `scope_type` required enum; tambah `notes` | `application/dto/auth_dto.go:290` |
-| P1 | AvatarConfirm: input `?key=` query (bukan body) + return `avatar_url` | `application/dto/auth_dto.go:151`, `handler.go:449` |
-| P2 | UpdateProfile: cek verified-flag sebelum ubah email/phone; fullname+email opsional | `command/update_profile.go` |
-| P2 | Not-found error di Update/Deactivate/ReactivateUserRole → 404 (bukan 400) | usecase `manage_role.go` |
-| P2 | Delete family (RolePermission/UserRole/RoleScope): validasi eksistensi → 404 bila tidak ada | `command/manage_permission.go`, `manage_role.go`, `manage_scope.go` |
-| P2 | RevokeRolePermission: tolak 409 untuk system role | `command/manage_permission.go` |
-| P2 | CreateRole: cek duplikat nama → 409 | `command/manage_role.go` |
-| P2 | AssignRoleScope: enum `oneof=gender`/`oneof=male|female` di DTO | `application/dto/auth_dto.go` |
-| P3 | Seragamkan struktur response `data` (nested vs flatten) & meta field (`page`/`limit` vs `current_page`/`per_page`) | semua DTO |
-| P3 | Seragamkan error code forbidden (`ERR_FORBIDDEN` vs `FORBIDDEN`/`INSUFFICIENT_PERMISSION`) | `shared/middleware/auth.go` |
-| P3 | Tambah field `expires_in` di AvatarPresign response | `command/avatar.go` |
-| P3 | Logout: ekspos `revoke-all`/`revoke-device` (usecase sudah punya) | `router.go`, `handler.go` |
+| Login: user-not-found → harus 401 (bukan 404) | `command/login.go` | Terlewat dari rencana awal; ditemukan saat audit dokumentasi ini |
+| UpdateRole: error system-role 400 vs 403 belum diselaraskan | `command/manage_role.go` | Tidak termasuk rencana perbaikan |
+| AssignRolePermission: status 201 (bukan 200), payload `RoleResponse`, 409 duplicate eksplisit | `handler.go`, `command/manage_permission.go` | Tidak termasuk rencana perbaikan |
+| ReactivateUserRole: perilaku `expired → 410` masih ada (fitur ekstra be yang tak dimiliki api) | `command/manage_role.go` | Sengaja dibiarkan, hanya not-found yang diperbaiki ke 404 |
+| RequestOTP: tidak ada 409 cooldown | `command/request_otp.go` | Tidak termasuk rencana perbaikan |
+| Domain error code mapping (`DOMAIN_*` vs `ERR_*` generik) | seluruh modul identity | Perubahan besar, di luar scope perbaikan ini |
+| Message string per endpoint | seluruh `handler.go` | Sengaja dibiarkan (kosmetik, lihat §6.7) |
+| JWTAuth error code strings (`MISSING_TOKEN`, `INVALID_TOKEN`, dll) | `shared/middleware/auth.go` | Di luar audit awal, tidak diverifikasi terhadap sipon-api |
 
 ---
 

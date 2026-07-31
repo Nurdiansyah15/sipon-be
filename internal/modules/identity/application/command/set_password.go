@@ -40,7 +40,7 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 		return kernel.New(application.ErrCodeConflict)
 	}
 
-	plainPw, err := domain.NewPlainPassword(req.Password)
+	plainPw, err := domain.NewPlainPassword(req.NewPassword)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {

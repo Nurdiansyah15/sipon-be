@@ -24,27 +24,16 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	newEmail, err := domain.NewEmail(req.Email)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+	if req.Fullname != nil {
+		user.Fullname = req.Fullname
 	}
 
-	if newEmail.String() != user.Email.String() {
-		emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindEmail, newEmail.String())
-		if err != nil {
-			return err
-		}
-		if emailExists {
+	if req.Email != nil {
+		if emailLI := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); emailLI != nil && emailLI.IsVerified() {
 			return kernel.New(application.ErrCodeConflict)
 		}
-	}
 
-	if req.Phone != "" {
-		newPhone, err := domain.NewPhoneNumber(req.Phone)
+		newEmail, err := domain.NewEmail(*req.Email)
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
@@ -53,27 +42,52 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 			return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
 
-		currentPhone := ""
-		if user.PhoneNumber != nil {
-			currentPhone = user.PhoneNumber.String()
-		}
-
-		if newPhone.String() != currentPhone {
-			phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindPhone, newPhone.String())
+		if newEmail.String() != user.Email.String() {
+			emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindEmail, newEmail.String())
 			if err != nil {
 				return err
 			}
-			if phoneExists {
+			if emailExists {
 				return kernel.New(application.ErrCodeConflict)
 			}
-			user.PhoneNumber = &newPhone
+			user.Email = newEmail
 		}
-	} else {
-		user.PhoneNumber = nil
 	}
 
-	user.Email = newEmail
-	user.Fullname = strPtr(req.Fullname)
+	if req.Phone != nil {
+		if phoneLI := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); phoneLI != nil && phoneLI.IsVerified() {
+			return kernel.New(application.ErrCodeConflict)
+		}
+
+		if *req.Phone == "" {
+			user.PhoneNumber = nil
+		} else {
+			newPhone, err := domain.NewPhoneNumber(*req.Phone)
+			if err != nil {
+				var ke *kernel.AppError
+				if errors.As(err, &ke) {
+					return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				}
+				return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			}
+
+			currentPhone := ""
+			if user.PhoneNumber != nil {
+				currentPhone = user.PhoneNumber.String()
+			}
+
+			if newPhone.String() != currentPhone {
+				phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindPhone, newPhone.String())
+				if err != nil {
+					return err
+				}
+				if phoneExists {
+					return kernel.New(application.ErrCodeConflict)
+				}
+				user.PhoneNumber = &newPhone
+			}
+		}
+	}
 
 	return uc.userRepo.Update(ctx, user)
 }

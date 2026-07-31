@@ -63,13 +63,39 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 }
 
 type DeleteRolePermissionUseCase struct {
+	roleRepo     domain.RoleRepository
 	rolePermRepo domain.RolePermissionRepository
 }
 
-func NewDeleteRolePermissionUseCase(rolePermRepo domain.RolePermissionRepository) *DeleteRolePermissionUseCase {
-	return &DeleteRolePermissionUseCase{rolePermRepo: rolePermRepo}
+func NewDeleteRolePermissionUseCase(roleRepo domain.RoleRepository, rolePermRepo domain.RolePermissionRepository) *DeleteRolePermissionUseCase {
+	return &DeleteRolePermissionUseCase{roleRepo: roleRepo, rolePermRepo: rolePermRepo}
 }
 
 func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, permissionKey string) error {
+	role, err := uc.roleRepo.FindByID(ctx, roleID)
+	if err != nil {
+		return kernel.Wrap(application.ErrCodeNotFound, err)
+	}
+
+	if err := role.EnsureCustom(); err != nil {
+		return kernel.New(application.ErrCodeConflict)
+	}
+
+	rps, err := uc.rolePermRepo.ListByRoleID(ctx, roleID)
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for _, rp := range rps {
+		if string(rp.PermissionKey) == permissionKey {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return kernel.New(application.ErrCodeNotFound)
+	}
+
 	return uc.rolePermRepo.Delete(ctx, roleID, domain.PermissionKey(permissionKey))
 }

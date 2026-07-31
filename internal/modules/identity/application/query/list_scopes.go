@@ -15,7 +15,7 @@ func NewListScopesUseCase(roleScopeRepo domain.RoleScopeRepository) *ListScopesU
 	return &ListScopesUseCase{roleScopeRepo: roleScopeRepo}
 }
 
-func (uc *ListScopesUseCase) Execute(ctx context.Context, roleID string) (*dto.ListScopesResponse, error) {
+func (uc *ListScopesUseCase) Execute(ctx context.Context, roleID string) ([]dto.ScopeItem, error) {
 	scopes, err := uc.roleScopeRepo.FindByRoleID(ctx, roleID)
 	if err != nil {
 		return nil, err
@@ -30,5 +30,5 @@ func (uc *ListScopesUseCase) Execute(ctx context.Context, roleID string) (*dto.L
 		})
 	}
 
-	return &dto.ListScopesResponse{Scopes: items}, nil
+	return items, nil
 }

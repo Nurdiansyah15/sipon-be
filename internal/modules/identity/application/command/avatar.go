@@ -21,9 +21,11 @@ func NewAvatarPresignUseCase(fileUploader application.FileUploader) *AvatarPresi
 	return &AvatarPresignUseCase{fileUploader: fileUploader}
 }
 
+const avatarPresignTTL = 10 * time.Minute
+
 func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresignRequest) (*dto.AvatarPresignResponse, error) {
 	objectName := fmt.Sprintf("avatars/%s", uuid.NewString())
-	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, req.ContentType, 10*time.Minute, application.PrivacyPublic)
+	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, req.ContentType, avatarPresignTTL, application.PrivacyPublic)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -31,6 +33,7 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 	return &dto.AvatarPresignResponse{
 		PresignURL: presignURL,
 		Key:        key,
+		ExpiresIn:  int(avatarPresignTTL.Seconds()),
 	}, nil
 }
 
@@ -49,27 +52,27 @@ func NewAvatarConfirmUseCase(
 	}
 }
 
-func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID string, req dto.AvatarConfirmRequest) error {
+func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string) (*dto.AvatarConfirmResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if user.AvatarKey != nil && *user.AvatarKey != "" {
 		_ = uc.fileUploader.MarkDeleted(ctx, *user.AvatarKey)
 	}
 
-	if err := uc.fileUploader.ConfirmUpload(ctx, req.Key); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+	if err := uc.fileUploader.ConfirmUpload(ctx, key); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	user.AvatarKey = &req.Key
+	user.AvatarKey = &key
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	return nil
+	return &dto.AvatarConfirmResponse{AvatarURL: uc.fileUploader.PublicURL(key)}, nil
 }
 
 type AvatarDeleteUseCase struct {

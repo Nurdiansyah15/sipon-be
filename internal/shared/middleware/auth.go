@@ -156,7 +156,7 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		p := GetPrincipal(c)
 		if p == nil {
-			respond.AbortWithError(c, http.StatusForbidden, "FORBIDDEN", "No principal loaded; authentication required")
+			respond.AbortWithError(c, http.StatusForbidden, "ERR_FORBIDDEN", "No principal loaded; authentication required")
 			return
 		}
 
@@ -172,7 +172,7 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 			}
 		}
 
-		respond.AbortWithError(c, http.StatusForbidden, "INSUFFICIENT_ROLE", fmt.Sprintf("Required one of roles: %s", strings.Join(roles, ", ")))
+		respond.AbortWithError(c, http.StatusForbidden, "ERR_FORBIDDEN", fmt.Sprintf("Required one of roles: %s", strings.Join(roles, ", ")))
 	}
 }
 
@@ -180,7 +180,7 @@ func RequirePermission(permissions ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		p := GetPrincipal(c)
 		if p == nil {
-			respond.AbortWithError(c, http.StatusForbidden, "FORBIDDEN", "No principal loaded; authentication required")
+			respond.AbortWithError(c, http.StatusForbidden, "ERR_FORBIDDEN", "No principal loaded; authentication required")
 			return
 		}
 
@@ -196,7 +196,7 @@ func RequirePermission(permissions ...string) gin.HandlerFunc {
 			}
 		}
 
-		respond.AbortWithError(c, http.StatusForbidden, "INSUFFICIENT_PERMISSION", fmt.Sprintf("Required one of permissions: %s", strings.Join(permissions, ", ")))
+		respond.AbortWithError(c, http.StatusForbidden, "ERR_FORBIDDEN", fmt.Sprintf("Required one of permissions: %s", strings.Join(permissions, ", ")))
 	}
 }
 

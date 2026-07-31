@@ -75,8 +75,8 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	}
 
 	var phone *domain.PhoneNumber
-	if req.Phone != "" {
-		pn, err := domain.NewPhoneNumber(req.Phone)
+	if req.Phone != nil && *req.Phone != "" {
+		pn, err := domain.NewPhoneNumber(*req.Phone)
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
@@ -139,9 +139,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	userID := uuid.NewString()
 	credentialID := uuid.NewString()
 
-	fullname := strPtr(req.Fullname)
-
-	user, err := domain.NewUser(userID, username, fullname, email, phone)
+	user, err := domain.NewUser(userID, username, req.Fullname, email, phone)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -258,7 +256,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 			return
 		}
 		_ = uc.verifRepo.Save(bgCtx, verifCode)
-		_ = uc.emailSender.SendOTP(email.String(), req.Fullname, otpCode)
+		_ = uc.emailSender.SendOTP(email.String(), username.String(), otpCode)
 	}()
 
 	phoneStr := (*string)(nil)
@@ -267,16 +265,27 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		phoneStr = &s
 	}
 
+	_ = roleName
+
 	return &dto.RegisterResponse{
-		UserID:       userID,
-		Username:     username.String(),
-		Email:        email.String(),
-		Phone:        phoneStr,
-		Roles:        []string{roleName},
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+		UserID: userID,
+		LoginResponse: dto.LoginResponse{
+			Token:        accessToken,
+			RefreshToken: refreshToken,
+			User: dto.UserMe{
+				ID:              userID,
+				Username:        username.String(),
+				Email:           email.String(),
+				IsEmailVerified: false,
+				Fullname:        req.Fullname,
+				Phone:           phoneStr,
+				IsPhoneVerified: false,
+				Status:          string(domain.UserStatusActive),
+				CreatedAt:       user.CreatedAt,
+				HasPassword:     true,
+				AvatarURL:       nil,
+			},
+		},
 	}, nil
 }
 

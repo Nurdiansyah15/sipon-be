@@ -2,9 +2,12 @@ package query
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
+	"sipon-be/internal/shared/kernel"
 )
 
 type CheckUsernameUseCase struct {
@@ -15,16 +18,28 @@ func NewCheckUsernameUseCase(userRepo domain.UserRepository) *CheckUsernameUseCa
 	return &CheckUsernameUseCase{userRepo: userRepo}
 }
 
-func (uc *CheckUsernameUseCase) Execute(ctx context.Context, username string) (*dto.CheckUsernameResponse, error) {
-	_, err := domain.NewUsername(username)
+func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username string) (*dto.CheckUsernameResponse, error) {
+	newUsername, err := domain.NewUsername(username)
 	if err != nil {
-		return &dto.CheckUsernameResponse{Available: false}, nil
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
-	exists, err := uc.userRepo.ExistsByUsername(ctx, username)
+	existingUser, err := uc.userRepo.FindByUsername(ctx, newUsername.String())
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == domain.ErrCodeUserNotActive {
+			return &dto.CheckUsernameResponse{Available: true}, nil
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	return &dto.CheckUsernameResponse{Available: !exists}, nil
+	if existingUser.ID == userID {
+		return &dto.CheckUsernameResponse{Available: true}, nil
+	}
+
+	return &dto.CheckUsernameResponse{Available: false}, nil
 }

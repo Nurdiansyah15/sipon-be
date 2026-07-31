@@ -46,17 +46,18 @@ type IdentityHandler struct {
 	listUsersUC         *query.ListUsersUseCase
 	getUserUC           *query.GetUserUseCase
 
-	listRolesUC       *query.ListRolesUseCase
-	getRoleUC         *query.GetRoleUseCase
-	listPermissionsUC *query.ListPermissionsUseCase
-	createRoleUC      *command.CreateRoleUseCase
-	updateRoleUC      *command.UpdateRoleUseCase
-	assignUserRoleUC  *command.AssignUserRoleUseCase
-	updateUserRoleUC  *command.UpdateUserRoleUseCase
+	listRolesUC          *query.ListRolesUseCase
+	getRoleUC            *query.GetRoleUseCase
+	listPermissionsUC    *query.ListPermissionsUseCase
+	createRoleUC         *command.CreateRoleUseCase
+	updateRoleUC         *command.UpdateRoleUseCase
+	assignUserRoleUC     *command.AssignUserRoleUseCase
+	updateUserRoleUC     *command.UpdateUserRoleUseCase
 	deactivateUserRoleUC *command.DeactivateUserRoleUseCase
 	reactivateUserRoleUC *command.ReactivateUserRoleUseCase
 	deleteUserRoleUC     *command.DeleteUserRoleUseCase
 	listUserRolesUC      *query.ListUserRolesUseCase
+	getUserRoleUC        *query.GetUserRoleUseCase
 
 	assignRolePermissionUC *command.AssignRolePermissionUseCase
 	deleteRolePermissionUC *command.DeleteRolePermissionUseCase
@@ -104,6 +105,7 @@ func NewIdentityHandler(
 	reactivateUserRoleUC *command.ReactivateUserRoleUseCase,
 	deleteUserRoleUC *command.DeleteUserRoleUseCase,
 	listUserRolesUC *query.ListUserRolesUseCase,
+	getUserRoleUC *query.GetUserRoleUseCase,
 	assignRolePermissionUC *command.AssignRolePermissionUseCase,
 	deleteRolePermissionUC *command.DeleteRolePermissionUseCase,
 	listScopesUC *query.ListScopesUseCase,
@@ -149,6 +151,7 @@ func NewIdentityHandler(
 		reactivateUserRoleUC:    reactivateUserRoleUC,
 		deleteUserRoleUC:        deleteUserRoleUC,
 		listUserRolesUC:         listUserRolesUC,
+		getUserRoleUC:           getUserRoleUC,
 		assignRolePermissionUC:  assignRolePermissionUC,
 		deleteRolePermissionUC:  deleteRolePermissionUC,
 		listScopesUC:            listScopesUC,
@@ -336,12 +339,12 @@ func (h *IdentityHandler) SetPassword(c *gin.Context) {
 
 func (h *IdentityHandler) RequestChangeIdentityEmail(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	var req dto.ChangeIdentityRequest
+	var req dto.RequestChangeEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, req); err != nil {
+	if err := h.requestChangeIdentityUC.ExecuteEmail(c.Request.Context(), userID, req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -350,12 +353,12 @@ func (h *IdentityHandler) RequestChangeIdentityEmail(c *gin.Context) {
 
 func (h *IdentityHandler) ConfirmChangeIdentityEmail(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	var req dto.ChangeIdentityConfirmRequest
+	var req dto.ConfirmChangeEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.PurposeChangeEmail, req); err != nil {
+	if err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.PurposeChangeEmail, req.OTP); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -364,12 +367,12 @@ func (h *IdentityHandler) ConfirmChangeIdentityEmail(c *gin.Context) {
 
 func (h *IdentityHandler) RequestChangeIdentityPhone(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	var req dto.ChangeIdentityRequest
+	var req dto.RequestChangePhoneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, req); err != nil {
+	if err := h.requestChangeIdentityUC.ExecutePhone(c.Request.Context(), userID, req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -378,12 +381,12 @@ func (h *IdentityHandler) RequestChangeIdentityPhone(c *gin.Context) {
 
 func (h *IdentityHandler) ConfirmChangeIdentityPhone(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	var req dto.ChangeIdentityConfirmRequest
+	var req dto.ConfirmChangePhoneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.PurposeChangePhone, req); err != nil {
+	if err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.PurposeChangePhone, req.OTP); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -405,12 +408,13 @@ func (h *IdentityHandler) UpdateProfile(c *gin.Context) {
 }
 
 func (h *IdentityHandler) CheckUsername(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	username := c.Query("username")
 	if username == "" {
-		httperror.Handle(c, kernel.New(application.ErrCodeBadRequest))
+		httperror.Handle(c, kernel.New(application.ErrCodeUnprocessableEntity))
 		return
 	}
-	resp, err := h.checkUsernameUC.Execute(c.Request.Context(), username)
+	resp, err := h.checkUsernameUC.Execute(c.Request.Context(), userID, username)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -425,11 +429,12 @@ func (h *IdentityHandler) ChangeUsername(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.changeUsernameUC.Execute(c.Request.Context(), userID, req); err != nil {
+	resp, err := h.changeUsernameUC.Execute(c.Request.Context(), userID, req)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "Username changed successfully", nil)
+	respond.OK(c, "change username success", resp)
 }
 
 func (h *IdentityHandler) AvatarPresign(c *gin.Context) {
@@ -448,16 +453,17 @@ func (h *IdentityHandler) AvatarPresign(c *gin.Context) {
 
 func (h *IdentityHandler) AvatarConfirm(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	var req dto.AvatarConfirmRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	key := c.Query("key")
+	if key == "" {
+		httperror.Handle(c, kernel.New(application.ErrCodeUnprocessableEntity))
+		return
+	}
+	resp, err := h.avatarConfirmUC.Execute(c.Request.Context(), userID, key)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.avatarConfirmUC.Execute(c.Request.Context(), userID, req); err != nil {
-		httperror.Handle(c, err)
-		return
-	}
-	respond.OK(c, "Avatar confirmed successfully", nil)
+	respond.OK(c, "Avatar confirmed successfully", resp)
 }
 
 func (h *IdentityHandler) AvatarDelete(c *gin.Context) {
@@ -475,12 +481,12 @@ func (h *IdentityHandler) ListUsers(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.listUsersUC.Execute(c.Request.Context(), req)
+	items, meta, err := h.listUsersUC.Execute(c.Request.Context(), req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "users retrieved", resp)
+	respond.SuccessWithMeta(c, 200, "users retrieved", items, meta)
 }
 
 func (h *IdentityHandler) GetUser(c *gin.Context) {
@@ -500,43 +506,42 @@ func (h *IdentityHandler) CreateUser(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.createUserUC.Execute(c.Request.Context(), req, createdBy); err != nil {
+	resp, err := h.createUserUC.Execute(c.Request.Context(), req, createdBy)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.Created(c, "User created successfully", nil)
+	respond.Created(c, "User created successfully", resp)
 }
 
 func (h *IdentityHandler) ResetUserPassword(c *gin.Context) {
 	userID := c.Param("user_id")
-	var req dto.ResetUserPasswordRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	resp, err := h.resetUserPasswordUC.Execute(c.Request.Context(), userID)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.resetUserPasswordUC.Execute(c.Request.Context(), userID, req); err != nil {
-		httperror.Handle(c, err)
-		return
-	}
-	respond.OK(c, "User password reset successfully", nil)
+	respond.OK(c, "User password reset successfully", resp)
 }
 
 func (h *IdentityHandler) DeactivateUser(c *gin.Context) {
 	userID := c.Param("user_id")
-	if err := h.deactivateUserUC.Execute(c.Request.Context(), userID); err != nil {
+	resp, err := h.deactivateUserUC.Execute(c.Request.Context(), userID)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "User deactivated successfully", nil)
+	respond.OK(c, "User deactivated successfully", resp)
 }
 
 func (h *IdentityHandler) ReactivateUser(c *gin.Context) {
 	userID := c.Param("user_id")
-	if err := h.reactivateUserUC.Execute(c.Request.Context(), userID); err != nil {
+	resp, err := h.reactivateUserUC.Execute(c.Request.Context(), userID)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "User reactivated successfully", nil)
+	respond.OK(c, "User reactivated successfully", resp)
 }
 
 func (h *IdentityHandler) ListRoles(c *gin.Context) {
@@ -545,12 +550,12 @@ func (h *IdentityHandler) ListRoles(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.listRolesUC.Execute(c.Request.Context(), req)
+	items, meta, err := h.listRolesUC.Execute(c.Request.Context(), req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "roles retrieved", resp)
+	respond.SuccessWithMeta(c, 200, "roles retrieved", items, meta)
 }
 
 func (h *IdentityHandler) GetRole(c *gin.Context) {
@@ -569,7 +574,7 @@ func (h *IdentityHandler) ListPermissions(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "permissions retrieved", gin.H{"permissions": items})
+	respond.OK(c, "permissions retrieved", items)
 }
 
 func (h *IdentityHandler) CreateRole(c *gin.Context) {
@@ -632,12 +637,22 @@ func (h *IdentityHandler) ListUserRoles(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.listUserRolesUC.Execute(c.Request.Context(), req)
+	items, meta, err := h.listUserRolesUC.Execute(c.Request.Context(), req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "user roles retrieved", resp)
+	respond.SuccessWithMeta(c, 200, "user roles retrieved", items, meta)
+}
+
+func (h *IdentityHandler) GetUserRole(c *gin.Context) {
+	userRoleID := c.Param("user_role_id")
+	resp, err := h.getUserRoleUC.Execute(c.Request.Context(), userRoleID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "user role retrieved", resp)
 }
 
 func (h *IdentityHandler) AssignUserRole(c *gin.Context) {
@@ -697,12 +712,12 @@ func (h *IdentityHandler) DeleteUserRole(c *gin.Context) {
 
 func (h *IdentityHandler) ListScopes(c *gin.Context) {
 	roleID := c.Param("role_id")
-	resp, err := h.listScopesUC.Execute(c.Request.Context(), roleID)
+	items, err := h.listScopesUC.Execute(c.Request.Context(), roleID)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "scopes retrieved", resp)
+	respond.OK(c, "scopes retrieved", items)
 }
 
 func (h *IdentityHandler) AssignRoleScope(c *gin.Context) {

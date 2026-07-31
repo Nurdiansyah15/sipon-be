@@ -44,9 +44,10 @@ func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.S
 		return nil, err
 	}
 
-	roleNames := make([]string, 0, len(userRoles))
-	permSet := make(map[string]struct{})
-	scopes := make([]dto.ScopeResponse, 0)
+	roles := make([]dto.SessionRole, 0, len(userRoles))
+	permKeySet := make(map[string]struct{})
+	permissions := make([]dto.SessionPermission, 0)
+	scopes := make([]dto.SessionUserScope, 0)
 
 	for _, ur := range userRoles {
 		if !ur.IsUsable() {
@@ -58,45 +59,58 @@ func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.S
 			continue
 		}
 
-		roleNames = append(roleNames, string(role.Name))
+		roles = append(roles, dto.SessionRole{
+			Name:      string(role.Name),
+			RoleType:  string(role.RoleType),
+			ScopeType: string(ur.ScopeType),
+			ScopeID:   ur.ScopeID,
+		})
 
+		permKeys := make(map[string]struct{})
 		for _, pk := range domain.PermissionsForRole(role.Name) {
-			permSet[string(pk)] = struct{}{}
+			permKeys[string(pk)] = struct{}{}
 		}
 
 		rps, _ := uc.rolePermRepo.ListByRoleID(ctx, ur.RoleID)
 		for _, rp := range rps {
-			permSet[string(rp.PermissionKey)] = struct{}{}
+			permKeys[string(rp.PermissionKey)] = struct{}{}
+		}
+
+		for key := range permKeys {
+			dedupeKey := key + "|" + string(ur.ScopeType)
+			if _, seen := permKeySet[dedupeKey]; seen {
+				continue
+			}
+			permKeySet[dedupeKey] = struct{}{}
+			permissions = append(permissions, dto.SessionPermission{
+				Key:   key,
+				Scope: string(ur.ScopeType),
+			})
 		}
 
 		rs, _ := uc.roleScopeRepo.FindByRoleID(ctx, ur.RoleID)
 		for _, scope := range rs {
-			scopes = append(scopes, dto.ScopeResponse{
-				ScopeType: string(scope.ScopeType),
-				ScopeID:   &scope.ScopeValue,
+			scopes = append(scopes, dto.SessionUserScope{
+				ScopeType:  string(scope.ScopeType),
+				ScopeValue: scope.ScopeValue,
 			})
 		}
 	}
 
-	permList := make([]string, 0, len(permSet))
-	for p := range permSet {
-		permList = append(permList, p)
-	}
-
-	phoneStr := (*string)(nil)
-	if user.PhoneNumber != nil {
-		s := user.PhoneNumber.String()
-		phoneStr = &s
+	name := user.Username.String()
+	if user.Fullname != nil && *user.Fullname != "" {
+		name = *user.Fullname
 	}
 
 	return &dto.SessionResponse{
-		UserID:      user.ID,
-		Username:    user.Username.String(),
-		Fullname:    user.Fullname,
-		Email:       user.Email.String(),
-		Phone:       phoneStr,
-		Roles:       roleNames,
-		Permissions: permList,
+		User: dto.SessionUser{
+			ID:       user.ID,
+			Name:     name,
+			Email:    user.Email.String(),
+			Username: user.Username.String(),
+		},
+		Roles:       roles,
+		Permissions: permissions,
 		Scopes:      scopes,
 	}, nil
 }

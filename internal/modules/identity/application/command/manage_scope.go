@@ -67,5 +67,8 @@ func NewDeleteRoleScopeUseCase(roleScopeRepo domain.RoleScopeRepository) *Delete
 }
 
 func (uc *DeleteRoleScopeUseCase) Execute(ctx context.Context, scopeID string) error {
+	if _, err := uc.roleScopeRepo.FindByID(ctx, scopeID); err != nil {
+		return kernel.Wrap(application.ErrCodeNotFound, err)
+	}
 	return uc.roleScopeRepo.Delete(ctx, scopeID)
 }

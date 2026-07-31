@@ -46,7 +46,9 @@ func (uc *ForgotPasswordUseCase) Execute(ctx context.Context, req dto.ForgotPass
 
 	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, email.String())
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		// Anti-enumeration: a nonexistent email must look identical to a
+		// successful request, so this is not a NotFound error to the caller.
+		return nil
 	}
 
 	otpCode, err := uc.otpGen.Generate()

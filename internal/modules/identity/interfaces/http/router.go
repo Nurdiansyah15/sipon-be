@@ -57,6 +57,7 @@ func RegisterRoutes(
 	mb *MiddlewareBuilder,
 ) {
 	auth := router.Group("/api/v1/web/auth")
+	auth.Use(mb.RateLimitByAuth())
 	{
 		auth.POST("/register", handler.Register)
 		auth.POST("/login", handler.Login)
@@ -76,6 +77,7 @@ func RegisterRoutes(
 
 	web := router.Group("/api/v1/web")
 	web.Use(mb.JWTAuth())
+	web.Use(mb.RateLimitByUser())
 	{
 		authGroup := web.Group("/auth")
 		authGroup.Use(mb.PrincipalLoad())
@@ -97,11 +99,11 @@ func RegisterRoutes(
 		}
 
 		users := web.Group("/users")
-		users.Use(mb.PrincipalLoad(), mb.RequirePermission("manage_users"))
+		users.Use(mb.PrincipalLoad())
 		{
-			users.GET("", handler.ListUsers)
-			users.GET("/:user_id", handler.GetUser)
-			users.POST("", handler.CreateUser)
+			users.GET("", mb.RequirePermission("manage_users"), handler.ListUsers)
+			users.GET("/:user_id", mb.RequirePermission("manage_users"), handler.GetUser)
+			users.POST("", mb.RequirePermission("manage_users"), handler.CreateUser)
 			users.POST("/:user_id/reset-password", mb.RequirePermission("reset_user_password"), handler.ResetUserPassword)
 			users.POST("/:user_id/deactivate", mb.RequirePermission("deactivate_user"), handler.DeactivateUser)
 			users.POST("/:user_id/reactivate", mb.RequirePermission("deactivate_user"), handler.ReactivateUser)
@@ -110,20 +112,24 @@ func RegisterRoutes(
 		rp := web.Group("/role-permission")
 		rp.Use(mb.PrincipalLoad())
 		{
-			rp.GET("/roles", handler.ListRoles)
-			rp.GET("/roles/:role_id", handler.GetRole)
-			rp.GET("/permission-keys", handler.ListPermissions)
+			readRoleGuard := mb.RequirePermission("manage_roles", "manage_role_permissions", "assign_role")
+			userRoleReadGuard := mb.RequirePermission("assign_role", "manage_users")
+
+			rp.GET("/roles", readRoleGuard, handler.ListRoles)
+			rp.GET("/roles/:role_id", readRoleGuard, handler.GetRole)
+			rp.GET("/permission-keys", readRoleGuard, handler.ListPermissions)
 			rp.POST("/roles", mb.RequirePermission("manage_roles"), handler.CreateRole)
 			rp.PUT("/roles/:role_id", mb.RequirePermission("manage_roles"), handler.UpdateRole)
 			rp.POST("/roles/:role_id/permissions", mb.RequirePermission("manage_role_permissions"), handler.AssignRolePermission)
 			rp.DELETE("/roles/:role_id/permissions/:permission_key", mb.RequirePermission("manage_role_permissions"), handler.DeleteRolePermission)
-			rp.GET("/user-roles", handler.ListUserRoles)
+			rp.GET("/user-roles", userRoleReadGuard, handler.ListUserRoles)
+			rp.GET("/user-roles/:user_role_id", userRoleReadGuard, handler.GetUserRole)
 			rp.POST("/user-roles", mb.RequirePermission("assign_role"), handler.AssignUserRole)
 			rp.PUT("/user-roles/:user_role_id", mb.RequirePermission("assign_role"), handler.UpdateUserRole)
 			rp.POST("/user-roles/:user_role_id/deactivate", mb.RequirePermission("assign_role"), handler.DeactivateUserRole)
 			rp.POST("/user-roles/:user_role_id/reactivate", mb.RequirePermission("assign_role"), handler.ReactivateUserRole)
 			rp.DELETE("/user-roles/:user_role_id", mb.RequirePermission("assign_role"), handler.DeleteUserRole)
-			rp.GET("/roles/:role_id/scopes", handler.ListScopes)
+			rp.GET("/roles/:role_id/scopes", readRoleGuard, handler.ListScopes)
 			rp.POST("/roles/:role_id/scopes", mb.RequirePermission("manage_role_permissions"), handler.AssignRoleScope)
 			rp.DELETE("/roles/:role_id/scopes/:scope_id", mb.RequirePermission("manage_role_permissions"), handler.DeleteRoleScope)
 		}

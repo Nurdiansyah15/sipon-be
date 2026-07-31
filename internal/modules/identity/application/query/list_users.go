@@ -27,7 +27,7 @@ func NewListUsersUseCase(
 	}
 }
 
-func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersRequest) (*dto.ListUsersResponse, error) {
+func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersRequest) ([]dto.UserManagementResponse, dto.Meta, error) {
 	if req.Page == 0 {
 		req.Page = 1
 	}
@@ -37,21 +37,30 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersReques
 
 	users, total, err := uc.userListRepo.List(ctx, req.Status, req.RoleID, req.Search, req.Page, req.Limit)
 	if err != nil {
-		return nil, err
+		return nil, dto.Meta{}, err
 	}
 
-	items := make([]dto.UserItem, 0, len(users))
+	items := make([]dto.UserManagementResponse, 0, len(users))
 	for _, user := range users {
 		userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, user.ID)
-		roleNames := make([]string, 0)
+		roles := make([]dto.UserRoleSummaryResponse, 0)
 		if err == nil {
 			for _, ur := range userRoles {
-				if ur.IsUsable() {
-					role, err := uc.roleRepo.FindByID(ctx, ur.RoleID)
-					if err == nil {
-						roleNames = append(roleNames, string(role.Name))
-					}
+				if !ur.IsUsable() {
+					continue
 				}
+				role, err := uc.roleRepo.FindByID(ctx, ur.RoleID)
+				if err != nil {
+					continue
+				}
+				roles = append(roles, dto.UserRoleSummaryResponse{
+					ID:        ur.ID,
+					RoleID:    role.ID,
+					RoleName:  string(role.Name),
+					ScopeType: string(ur.ScopeType),
+					ScopeID:   ur.ScopeID,
+					IsActive:  ur.IsActive,
+				})
 			}
 		}
 
@@ -61,29 +70,26 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersReques
 			phoneStr = &s
 		}
 
-		items = append(items, dto.UserItem{
+		items = append(items, dto.UserManagementResponse{
 			ID:          user.ID,
 			Username:    user.Username.String(),
 			Fullname:    user.Fullname,
 			Email:       user.Email.String(),
 			Phone:       phoneStr,
 			Status:      string(user.Status),
-			Roles:       roleNames,
 			CreatedAt:   user.CreatedAt,
 			UpdatedAt:   user.UpdatedAt,
 			LastLoginAt: user.LastLoginAt,
+			Roles:       roles,
 		})
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(req.Limit)))
 
-	return &dto.ListUsersResponse{
-		Users: items,
-		Meta: dto.Meta{
-			Page:       req.Page,
-			Limit:      req.Limit,
-			TotalItems: int(total),
-			TotalPages: totalPages,
-		},
+	return items, dto.Meta{
+		CurrentPage: req.Page,
+		PerPage:     req.Limit,
+		Total:       int(total),
+		TotalPages:  totalPages,
 	}, nil
 }

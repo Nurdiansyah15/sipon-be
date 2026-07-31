@@ -184,7 +184,7 @@ func NewPostgresUserRoleListRepo(db *sql.DB) *PostgresUserRoleListRepo {
 	return &PostgresUserRoleListRepo{db: db}
 }
 
-func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType string, isActive *bool, page, limit int) ([]*domain.UserRole, int64, error) {
+func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, page, limit int) ([]*domain.UserRole, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -204,6 +204,12 @@ func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, sco
 	if scopeType != "" {
 		conditions = append(conditions, fmt.Sprintf("scope_type = $%d", argIdx))
 		args = append(args, scopeType)
+		argIdx++
+	}
+
+	if scopeID != "" {
+		conditions = append(conditions, fmt.Sprintf("scope_id = $%d", argIdx))
+		args = append(args, scopeID)
 		argIdx++
 	}
 

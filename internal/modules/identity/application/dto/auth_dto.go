@@ -8,69 +8,67 @@ type PaginationParams struct {
 }
 
 type Meta struct {
-	Page       int `json:"page"`
-	Limit      int `json:"limit"`
-	TotalItems int `json:"total_items"`
-	TotalPages int `json:"total_pages"`
+	CurrentPage int `json:"current_page"`
+	PerPage     int `json:"per_page"`
+	Total       int `json:"total"`
+	TotalPages  int `json:"total_pages"`
+}
+
+type MessageResponse struct {
+	Message string `json:"message"`
 }
 
 type RegisterRequest struct {
-	Fullname string `json:"fullname" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Phone    string `json:"phone"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
+	Username string  `json:"username" binding:"required,min=3,max=30"`
+	Email    string  `json:"email" binding:"required,email"`
+	Password string  `json:"password" binding:"required,min=8"`
+	Phone    *string `json:"phone,omitempty"`
+	Fullname *string `json:"fullname,omitempty"`
+	DeviceID string  `json:"device_id,omitempty"`
 }
 
-type RegisterResponse struct {
-	UserID       string   `json:"user_id"`
-	Username     string   `json:"username"`
-	Email        string   `json:"email"`
-	Phone        *string  `json:"phone"`
-	Roles        []string `json:"roles"`
-	AccessToken  string   `json:"access_token"`
-	RefreshToken string   `json:"refresh_token"`
-	TokenType    string   `json:"token_type"`
-	ExpiresIn    int64    `json:"expires_in"`
-}
-
-type LoginRequest struct {
-	Identity string `json:"identity" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	DeviceID string `json:"device_id"`
+type UserMe struct {
+	ID              string    `json:"id"`
+	Username        string    `json:"username"`
+	Email           string    `json:"email"`
+	IsEmailVerified bool      `json:"is_email_verified"`
+	Fullname        *string   `json:"fullname"`
+	Phone           *string   `json:"phone,omitempty"`
+	IsPhoneVerified bool      `json:"is_phone_verified"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	HasPassword     bool      `json:"has_password"`
+	AvatarURL       *string   `json:"avatar_url,omitempty"`
 }
 
 type LoginResponse struct {
-	UserID      string   `json:"user_id"`
-	Username    string   `json:"username"`
-	Email       string   `json:"email"`
-	Phone       *string  `json:"phone"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
-	AccessToken string   `json:"access_token"`
-	RefreshToken string  `json:"refresh_token"`
-	TokenType   string   `json:"token_type"`
-	ExpiresIn   int64    `json:"expires_in"`
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+	User         UserMe `json:"user"`
+}
+
+type RegisterResponse struct {
+	UserID string `json:"user_id"`
+	LoginResponse
+}
+
+type LoginRequest struct {
+	Identifier string `json:"identifier" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	DeviceID   string `json:"device_id,omitempty"`
 }
 
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required"`
 }
 
-type RefreshTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"`
-}
-
 type RequestOTPRequest struct {
-	Identity string `json:"identity" binding:"required"`
+	Identifier string `json:"identifier" binding:"required"`
 }
 
 type VerifyOTPRequest struct {
-	Identity string `json:"identity" binding:"required"`
-	Code     string `json:"code" binding:"required,len=6"`
+	Identifier string `json:"identifier" binding:"required"`
+	OTP        string `json:"otp" binding:"required,len=6"`
 }
 
 type ForgotPasswordRequest struct {
@@ -79,64 +77,103 @@ type ForgotPasswordRequest struct {
 
 type ResetPasswordRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Code     string `json:"code" binding:"required,len=6"`
+	Token    string `json:"token" binding:"required"`
 	Password string `json:"password" binding:"required,min=8"`
 }
 
 type ChangePasswordRequest struct {
-	OldPassword string `json:"old_password" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=8"`
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=8"`
 }
 
 type SetPasswordRequest struct {
-	Password string `json:"password" binding:"required,min=8"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
-type ChangeIdentityRequest struct {
-	NewValue string `json:"new_value" binding:"required"`
+type RequestChangeEmailRequest struct {
+	NewEmail string `json:"new_email" binding:"required,email"`
 }
 
-type ChangeIdentityConfirmRequest struct {
-	Code string `json:"code" binding:"required,len=6"`
+type ConfirmChangeEmailRequest struct {
+	OTP string `json:"otp" binding:"required,len=6"`
+}
+
+type RequestChangePhoneRequest struct {
+	NewPhone string `json:"new_phone" binding:"required"`
+}
+
+type ConfirmChangePhoneRequest struct {
+	OTP string `json:"otp" binding:"required,len=6"`
+}
+
+type ChangeIdentityResponse struct {
+	Message string `json:"message"`
 }
 
 type UpdateProfileRequest struct {
-	Fullname string `json:"fullname" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Phone    string `json:"phone"`
+	Fullname *string `json:"fullname,omitempty"`
+	Email    *string `json:"email,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
 }
 
 type ChangeUsernameRequest struct {
-	Username string `json:"username" binding:"required"`
+	Username string `json:"username" binding:"required,min=3,max=30"`
 }
 
-type SessionResponse struct {
-	UserID      string          `json:"user_id"`
-	Username    string          `json:"username"`
-	Fullname    *string         `json:"fullname"`
-	Email       string          `json:"email"`
-	Phone       *string         `json:"phone"`
-	Roles       []string        `json:"roles"`
-	Permissions []string        `json:"permissions"`
-	Scopes      []ScopeResponse `json:"scopes"`
+type ChangeUsernameResponse struct {
+	Message  string `json:"message"`
+	Username string `json:"username"`
 }
 
-type ScopeResponse struct {
+// SessionRole, SessionPermission and SessionUserScope back both GetSession and
+// Profile — sipon-api resolves roles/permissions/scopes as rich objects (not
+// bare string arrays) on these two endpoints specifically.
+type SessionUser struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Username string `json:"username"`
+}
+
+type SessionRole struct {
+	Name      string  `json:"name"`
+	RoleType  string  `json:"role_type"`
 	ScopeType string  `json:"scope_type"`
 	ScopeID   *string `json:"scope_id"`
 }
 
+type SessionPermission struct {
+	Key   string `json:"key"`
+	Scope string `json:"scope"`
+}
+
+type SessionUserScope struct {
+	ScopeType  string `json:"scope_type"`
+	ScopeValue string `json:"scope_value"`
+}
+
+type SessionResponse struct {
+	User        SessionUser         `json:"user"`
+	Roles       []SessionRole       `json:"roles"`
+	Permissions []SessionPermission `json:"permissions"`
+	Scopes      []SessionUserScope  `json:"scopes"`
+}
+
 type ProfileResponse struct {
-	UserID      string    `json:"user_id"`
-	Username    string    `json:"username"`
-	Fullname    *string   `json:"fullname"`
-	Email       string    `json:"email"`
-	Phone       *string   `json:"phone"`
-	AvatarURL   *string   `json:"avatar_url"`
-	Roles       []string  `json:"roles"`
-	Permissions []string  `json:"permissions"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID              string              `json:"id"`
+	Username        string              `json:"username"`
+	Fullname        *string             `json:"fullname"`
+	Email           string              `json:"email"`
+	IsEmailVerified bool                `json:"is_email_verified"`
+	Phone           *string             `json:"phone,omitempty"`
+	IsPhoneVerified bool                `json:"is_phone_verified"`
+	Status          string              `json:"status"`
+	HasPassword     bool                `json:"has_password"`
+	CreatedAt       time.Time           `json:"created_at"`
+	AvatarURL       *string             `json:"avatar_url,omitempty"`
+	Roles           []SessionRole       `json:"roles"`
+	Permissions     []SessionPermission `json:"permissions"`
+	Scopes          []SessionUserScope  `json:"scopes"`
 }
 
 type AvatarPresignRequest struct {
@@ -146,10 +183,11 @@ type AvatarPresignRequest struct {
 type AvatarPresignResponse struct {
 	PresignURL string `json:"presign_url"`
 	Key        string `json:"key"`
+	ExpiresIn  int    `json:"expires_in"`
 }
 
-type AvatarConfirmRequest struct {
-	Key string `json:"key" binding:"required"`
+type AvatarConfirmResponse struct {
+	AvatarURL string `json:"avatar_url"`
 }
 
 type CheckUsernameResponse struct {
@@ -163,35 +201,42 @@ type ListUsersRequest struct {
 	PaginationParams
 }
 
-type ListUsersResponse struct {
-	Users []UserItem `json:"users"`
-	Meta  Meta       `json:"meta"`
+type UserRoleSummaryResponse struct {
+	ID        string  `json:"id"`
+	RoleID    string  `json:"role_id"`
+	RoleName  string  `json:"role_name"`
+	ScopeType string  `json:"scope_type"`
+	ScopeID   *string `json:"scope_id"`
+	IsActive  bool    `json:"is_active"`
 }
 
-type UserItem struct {
-	ID          string     `json:"id"`
-	Username    string     `json:"username"`
-	Fullname    *string    `json:"fullname"`
-	Email       string     `json:"email"`
-	Phone       *string    `json:"phone"`
-	Status      string     `json:"status"`
-	Roles       []string   `json:"roles"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
-	LastLoginAt *time.Time `json:"last_login_at"`
+type UserManagementResponse struct {
+	ID          string                    `json:"id"`
+	Username    string                    `json:"username"`
+	Fullname    *string                   `json:"fullname,omitempty"`
+	Email       string                    `json:"email"`
+	Phone       *string                   `json:"phone,omitempty"`
+	Status      string                    `json:"status"`
+	CreatedAt   time.Time                 `json:"created_at"`
+	UpdatedAt   time.Time                 `json:"updated_at"`
+	LastLoginAt *time.Time                `json:"last_login_at,omitempty"`
+	Roles       []UserRoleSummaryResponse `json:"roles,omitempty"`
 }
 
 type CreateUserRequest struct {
-	Fullname string `json:"fullname" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Phone    string `json:"phone"`
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required,min=8"`
-	RoleName string `json:"role_name" binding:"required"`
+	Fullname *string `json:"fullname,omitempty"`
+	Email    string  `json:"email" binding:"required,email"`
+	Phone    *string `json:"phone,omitempty"`
+	Username string  `json:"username" binding:"required"`
 }
 
-type ResetUserPasswordRequest struct {
-	NewPassword string `json:"new_password" binding:"required,min=8"`
+type CreateUserResponse struct {
+	UserManagementResponse
+	GeneratedPassword string `json:"generated_password"`
+}
+
+type ResetUserPasswordResponse struct {
+	GeneratedPassword string `json:"generated_password"`
 }
 
 type ListRolesRequest struct {
@@ -199,11 +244,6 @@ type ListRolesRequest struct {
 	ScopeType  string `form:"scope_type"`
 	Assignable *bool  `form:"assignable"`
 	PaginationParams
-}
-
-type ListRolesResponse struct {
-	Roles []RoleItem `json:"roles"`
-	Meta  Meta       `json:"meta"`
 }
 
 type RoleItem struct {
@@ -216,14 +256,16 @@ type RoleItem struct {
 	Assignable  bool      `json:"assignable"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	Permissions []string  `json:"permissions,omitempty"`
 }
 
 type CreateRoleRequest struct {
-	Name        string `json:"name" binding:"required"`
-	DisplayName string `json:"display_name" binding:"required"`
-	Description string `json:"description"`
-	ScopeType   string `json:"scope_type" binding:"required"`
-	Assignable  bool   `json:"assignable"`
+	Name        string  `json:"name" binding:"required"`
+	DisplayName string  `json:"display_name" binding:"required"`
+	Description *string `json:"description,omitempty"`
+	RoleType    string  `json:"role_type" binding:"required,oneof=system custom"`
+	ScopeType   string  `json:"scope_type" binding:"required,oneof=global region community"`
+	Assignable  bool    `json:"assignable"`
 }
 
 type UpdateRoleRequest struct {
@@ -247,13 +289,9 @@ type ListUserRolesRequest struct {
 	UserID    string `form:"user_id"`
 	RoleID    string `form:"role_id"`
 	ScopeType string `form:"scope_type"`
+	ScopeID   string `form:"scope_id"`
 	IsActive  *bool  `form:"is_active"`
 	PaginationParams
-}
-
-type ListUserRolesResponse struct {
-	UserRoles []UserRoleItem `json:"user_roles"`
-	Meta      Meta           `json:"meta"`
 }
 
 type UserRoleItem struct {
@@ -263,13 +301,13 @@ type UserRoleItem struct {
 	RoleID        string      `json:"role_id"`
 	Role          RoleSummary `json:"role"`
 	ScopeType     string      `json:"scope_type"`
-	ScopeID       *string     `json:"scope_id"`
+	ScopeID       *string     `json:"scope_id,omitempty"`
 	AssignedAt    time.Time   `json:"assigned_at"`
-	AssignedBy    *string     `json:"assigned_by"`
-	ExpiredAt     *time.Time  `json:"expired_at"`
+	AssignedBy    *string     `json:"assigned_by,omitempty"`
+	ExpiredAt     *time.Time  `json:"expired_at,omitempty"`
 	IsActive      bool        `json:"is_active"`
-	DeactivatedAt *time.Time  `json:"deactivated_at"`
-	Permissions   []string    `json:"permissions"`
+	DeactivatedAt *time.Time  `json:"deactivated_at,omitempty"`
+	Permissions   []string    `json:"permissions,omitempty"`
 }
 
 type UserSummary struct {
@@ -289,18 +327,15 @@ type RoleSummary struct {
 
 type AssignUserRoleRequest struct {
 	UserID    string     `json:"user_id" binding:"required"`
-	RoleName  string     `json:"role_name" binding:"required"`
-	ScopeType string     `json:"scope_type"`
-	ScopeID   *string    `json:"scope_id"`
-	ExpiredAt *time.Time `json:"expired_at"`
+	RoleID    string     `json:"role_id" binding:"required"`
+	ScopeType string     `json:"scope_type" binding:"required,oneof=global region community"`
+	ScopeID   *string    `json:"scope_id,omitempty"`
+	ExpiredAt *time.Time `json:"expired_at,omitempty"`
+	Notes     *string    `json:"notes,omitempty"`
 }
 
 type UpdateUserRoleRequest struct {
-	ExpiredAt *time.Time `json:"expired_at"`
-}
-
-type ListScopesResponse struct {
-	Scopes []ScopeItem `json:"scopes"`
+	ExpiredAt *time.Time `json:"expired_at,omitempty"`
 }
 
 type ScopeItem struct {
@@ -310,6 +345,6 @@ type ScopeItem struct {
 }
 
 type AssignScopeRequest struct {
-	ScopeType  string `json:"scope_type" binding:"required"`
-	ScopeValue string `json:"scope_value" binding:"required"`
+	ScopeType  string `json:"scope_type" binding:"required,oneof=gender"`
+	ScopeValue string `json:"scope_value" binding:"required,oneof=male female"`
 }

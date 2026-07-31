@@ -23,13 +23,18 @@ func NewCreateRoleUseCase(roleRepo domain.RoleRepository) *CreateRoleUseCase {
 func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequest) (*dto.RoleItem, error) {
 	roleName := domain.RoleName(req.Name)
 	scopeType := domain.ScopeType(req.ScopeType)
+	roleType := domain.RoleType(req.RoleType)
 
-	var desc *string
-	if req.Description != "" {
-		desc = &req.Description
+	if _, err := uc.roleRepo.FindByName(ctx, roleName); err == nil {
+		return nil, kernel.New(application.ErrCodeConflict)
 	}
 
-	role, err := domain.NewRole(uuid.NewString(), roleName, req.DisplayName, desc, domain.RoleTypeCustom, scopeType, req.Assignable)
+	var desc *string
+	if req.Description != nil && *req.Description != "" {
+		desc = req.Description
+	}
+
+	role, err := domain.NewRole(uuid.NewString(), roleName, req.DisplayName, desc, roleType, scopeType, req.Assignable)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -138,40 +143,34 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	roleName := domain.RoleName(req.RoleName)
 	scopeType := domain.ScopeType(req.ScopeType)
-	if scopeType == "" {
-		scopeType = domain.ScopeTypeGlobal
-	}
 
-	if err := uc.roleAssignment.AssignByRoleName(ctx, domain.AssignRoleInput{
+	role, err := uc.roleAssignment.AssignByRoleID(ctx, domain.AssignRoleByIDInput{
 		UserID:     req.UserID,
-		RoleName:   roleName,
+		RoleID:     req.RoleID,
 		ScopeType:  scopeType,
 		ScopeID:    req.ScopeID,
 		AssignedBy: assignedBy,
 		ExpiredAt:  req.ExpiredAt,
-	}); err != nil {
+	})
+	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeRoleNotAssignable:
+			case kernel.Code("ERR_NOT_FOUND"):
+				return kernel.New(application.ErrCodeNotFound)
+			case kernel.Code("ERR_FORBIDDEN"):
 				return kernel.New(application.ErrCodeForbidden)
-			case domain.ErrCodeRoleScopeMismatch:
+			case kernel.Code("ERR_BAD_REQUEST"):
 				return kernel.New(application.ErrCodeBadRequest)
-			case domain.ErrCodeUserRoleAlreadyAssigned:
+			case kernel.Code("ERR_CONFLICT"):
 				return kernel.New(application.ErrCodeConflict)
 			}
 		}
 		return kernel.New(application.ErrCodeConflict)
 	}
 
-	role, err := uc.roleRepo.FindByName(ctx, roleName)
-	if err != nil {
-		return err
-	}
-
-	userRole, err := domain.NewUserRole(uuid.NewString(), req.UserID, role.ID, scopeType, req.ScopeID, assignedBy, req.ExpiredAt, nil)
+	userRole, err := domain.NewUserRole(uuid.NewString(), req.UserID, role.ID, scopeType, req.ScopeID, assignedBy, req.ExpiredAt, req.Notes)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -194,7 +193,7 @@ func NewUpdateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *UpdateUse
 func (uc *UpdateUserRoleUseCase) Execute(ctx context.Context, userRoleID string, req dto.UpdateUserRoleRequest) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(application.ErrCodeBadRequest)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	userRole.UpdateExpiration(req.ExpiredAt)
@@ -213,7 +212,7 @@ func NewDeactivateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *Deact
 func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(application.ErrCodeBadRequest)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := userRole.Deactivate(); err != nil {
@@ -241,7 +240,7 @@ func NewReactivateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *React
 func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(application.ErrCodeBadRequest)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := userRole.Reactivate(); err != nil {
@@ -269,5 +268,8 @@ func NewDeleteUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *DeleteUse
 }
 
 func (uc *DeleteUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
+	if _, err := uc.userRoleRepo.FindByID(ctx, userRoleID); err != nil {
+		return kernel.Wrap(application.ErrCodeNotFound, err)
+	}
 	return uc.userRoleRepo.Delete(ctx, userRoleID)
 }

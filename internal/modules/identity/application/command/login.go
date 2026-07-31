@@ -19,6 +19,7 @@ type LoginUseCase struct {
 	rolePermRepo domain.RolePermissionRepository
 	hasher       application.PasswordHasher
 	tokenGen     application.TokenGenerator
+	fileUploader application.FileUploader
 }
 
 func NewLoginUseCase(
@@ -28,6 +29,7 @@ func NewLoginUseCase(
 	rolePermRepo domain.RolePermissionRepository,
 	hasher application.PasswordHasher,
 	tokenGen application.TokenGenerator,
+	fileUploader application.FileUploader,
 ) *LoginUseCase {
 	return &LoginUseCase{
 		userRepo:     userRepo,
@@ -36,11 +38,12 @@ func NewLoginUseCase(
 		rolePermRepo: rolePermRepo,
 		hasher:       hasher,
 		tokenGen:     tokenGen,
+		fileUploader: fileUploader,
 	}
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
-	identifier, err := domain.NewLoginIdentifier(req.Identity)
+	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -100,11 +103,6 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 		return nil, err
 	}
 
-	roles, permissions, err := uc.resolveRolesAndPermissions(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
-
 	sessionID := uuid.NewString()
 	deviceID := req.DeviceID
 	if deviceID == "" {
@@ -127,58 +125,36 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 		phoneStr = &s
 	}
 
-	permStrs := make([]string, 0, len(permissions))
-	for p := range permissions {
-		permStrs = append(permStrs, p)
+	isEmailVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
+		isEmailVerified = li.IsVerified()
+	}
+	isPhoneVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
+		isPhoneVerified = li.IsVerified()
+	}
+
+	avatarURL := (*string)(nil)
+	if user.AvatarKey != nil && *user.AvatarKey != "" && uc.fileUploader != nil {
+		url := uc.fileUploader.PublicURL(*user.AvatarKey)
+		avatarURL = &url
 	}
 
 	return &dto.LoginResponse{
-		UserID:       user.ID,
-		Username:     user.Username.String(),
-		Email:        user.Email.String(),
-		Phone:        phoneStr,
-		Roles:        roles,
-		Permissions:  permStrs,
-		AccessToken:  accessToken,
+		Token:        accessToken,
 		RefreshToken: refreshToken,
-		TokenType:    "Bearer",
-		ExpiresIn:    900,
+		User: dto.UserMe{
+			ID:              user.ID,
+			Username:        user.Username.String(),
+			Email:           user.Email.String(),
+			IsEmailVerified: isEmailVerified,
+			Fullname:        user.Fullname,
+			Phone:           phoneStr,
+			IsPhoneVerified: isPhoneVerified,
+			Status:          string(user.Status),
+			CreatedAt:       user.CreatedAt,
+			HasPassword:     user.HasLocalPassword(),
+			AvatarURL:       avatarURL,
+		},
 	}, nil
-}
-
-func (uc *LoginUseCase) resolveRolesAndPermissions(ctx context.Context, userID string) ([]string, map[string]struct{}, error) {
-	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	roleNames := make([]string, 0, len(userRoles))
-	permSet := make(map[string]struct{})
-
-	for _, ur := range userRoles {
-		if !ur.IsUsable() {
-			continue
-		}
-
-		role, err := uc.roleRepo.FindByID(ctx, ur.RoleID)
-		if err != nil {
-			continue
-		}
-
-		roleNames = append(roleNames, string(role.Name))
-
-		for _, pk := range domain.PermissionsForRole(role.Name) {
-			permSet[string(pk)] = struct{}{}
-		}
-
-		rps, err := uc.rolePermRepo.ListByRoleID(ctx, ur.RoleID)
-		if err != nil {
-			continue
-		}
-		for _, rp := range rps {
-			permSet[string(rp.PermissionKey)] = struct{}{}
-		}
-	}
-
-	return roleNames, permSet, nil
 }

@@ -48,7 +48,7 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	inputOTP, err := domain.NewOTPCode(req.Code)
+	inputOTP, err := domain.NewOTPCode(req.Token)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {

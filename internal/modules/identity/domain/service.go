@@ -29,12 +29,29 @@ func NewUserRoleAssignmentService(roleRepo RoleRepository, userRoleRepo UserRole
 	}
 }
 
-func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input AssignRoleInput) error {
-	role, err := s.roleRepo.FindByName(ctx, input.RoleName)
+type AssignRoleByIDInput struct {
+	UserID     string
+	RoleID     string
+	ScopeType  ScopeType
+	ScopeID    *string
+	AssignedBy string
+	ExpiredAt  *time.Time
+}
+
+func (s *UserRoleAssignmentService) AssignByRoleID(ctx context.Context, input AssignRoleByIDInput) (*Role, error) {
+	role, err := s.roleRepo.FindByID(ctx, input.RoleID)
 	if err != nil {
-		return kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
+		return nil, kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
 	}
 
+	if err := s.checkAssignable(ctx, role, input.ScopeType, input.UserID); err != nil {
+		return nil, err
+	}
+
+	return role, nil
+}
+
+func (s *UserRoleAssignmentService) checkAssignable(ctx context.Context, role *Role, scopeType ScopeType, userID string) error {
 	if err := role.EnsureAssignable(); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -46,7 +63,7 @@ func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input 
 		return kernel.New(kernel.Code("ERR_FORBIDDEN"))
 	}
 
-	if err := role.EnsureAssignmentScopeMatch(input.ScopeType); err != nil {
+	if err := role.EnsureAssignmentScopeMatch(scopeType); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
@@ -57,7 +74,7 @@ func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input 
 		return kernel.New(kernel.Code("ERR_BAD_REQUEST"))
 	}
 
-	existingRoles, err := s.userRoleRepo.FindActiveByUserID(ctx, input.UserID)
+	existingRoles, err := s.userRoleRepo.FindActiveByUserID(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -69,4 +86,13 @@ func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input 
 	}
 
 	return nil
+}
+
+func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input AssignRoleInput) error {
+	role, err := s.roleRepo.FindByName(ctx, input.RoleName)
+	if err != nil {
+		return kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
+	}
+
+	return s.checkAssignable(ctx, role, input.ScopeType, input.UserID)
 }

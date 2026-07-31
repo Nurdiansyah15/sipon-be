@@ -104,10 +104,10 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 
 	loginUC := command.NewLoginUseCase(
 		userRepo, userRoleRepo, roleRepo, rolePermRepo,
-		hasher, tokenGen,
+		hasher, tokenGen, fileUploader,
 	)
 
-	refreshTokenUC := command.NewRefreshTokenUseCase(tokenGen, sessionRevocationStore)
+	refreshTokenUC := command.NewRefreshTokenUseCase(tokenGen, sessionRevocationStore, userRepo, fileUploader)
 
 	changePasswordUC := command.NewChangePasswordLocalUseCase(userRepo, hasher)
 	setPasswordUC := command.NewSetPasswordLocalUseCase(userRepo, hasher)
@@ -141,7 +141,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	logoutUC := command.NewLogoutUseCase(tokenGen, sessionRevocationStore)
 
 	getProfileUC := query.NewGetProfileUseCase(
-		userRepo, userRoleRepo, roleRepo, rolePermRepo, fileUploader,
+		userRepo, userRoleRepo, roleRepo, rolePermRepo, roleScopeRepo, fileUploader,
 	)
 
 	updateProfileUC := command.NewUpdateProfileUseCase(userRepo)
@@ -153,9 +153,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	avatarConfirmUC := command.NewAvatarConfirmUseCase(userRepo, fileUploader)
 	avatarDeleteUC := command.NewAvatarDeleteUseCase(userRepo, fileUploader)
 
-	createUserUC := command.NewCreateUserUseCase(
-		userRepo, roleRepo, userRoleRepo, hasher, transactor, roleAssignment,
-	)
+	createUserUC := command.NewCreateUserUseCase(userRepo, hasher)
 
 	resetUserPasswordUC := command.NewResetUserPasswordUseCase(userRepo, hasher)
 	deactivateUserUC := command.NewDeactivateUserUseCase(userRepo)
@@ -183,9 +181,10 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	listUserRolesUC := query.NewListUserRolesUseCase(
 		userRoleListRepo, userRepo, roleRepo, rolePermRepo,
 	)
+	getUserRoleUC := query.NewGetUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
 
 	assignRolePermissionUC := command.NewAssignRolePermissionUseCase(roleRepo, rolePermRepo)
-	deleteRolePermissionUC := command.NewDeleteRolePermissionUseCase(rolePermRepo)
+	deleteRolePermissionUC := command.NewDeleteRolePermissionUseCase(roleRepo, rolePermRepo)
 
 	listScopesUC := query.NewListScopesUseCase(roleScopeRepo)
 	assignRoleScopeUC := command.NewAssignRoleScopeUseCase(roleRepo, roleScopeRepo)
@@ -230,6 +229,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		reactivateUserRoleUC,
 		deleteUserRoleUC,
 		listUserRolesUC,
+		getUserRoleUC,
 		assignRolePermissionUC,
 		deleteRolePermissionUC,
 		listScopesUC,

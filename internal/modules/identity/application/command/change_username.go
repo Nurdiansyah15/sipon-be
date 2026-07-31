@@ -18,33 +18,37 @@ func NewChangeUsernameUseCase(userRepo domain.UserRepository) *ChangeUsernameUse
 	return &ChangeUsernameUseCase{userRepo: userRepo}
 }
 
-func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req dto.ChangeUsernameRequest) error {
+func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req dto.ChangeUsernameRequest) (*dto.ChangeUsernameResponse, error) {
 	newUsername, err := domain.NewUsername(req.Username)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	exists, err := uc.userRepo.ExistsByUsername(ctx, newUsername.String())
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	if exists {
-		return kernel.New(application.ErrCodeConflict)
+		return nil, kernel.New(application.ErrCodeConflict)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	user.ChangeUsername(newUsername)
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
-	return nil
+
+	return &dto.ChangeUsernameResponse{
+		Message:  "username berhasil diubah",
+		Username: newUsername.String(),
+	}, nil
 }

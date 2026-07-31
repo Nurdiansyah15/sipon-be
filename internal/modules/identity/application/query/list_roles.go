@@ -20,7 +20,7 @@ func NewListRolesUseCase(roleListRepo RoleListRepository) *ListRolesUseCase {
 	return &ListRolesUseCase{roleListRepo: roleListRepo}
 }
 
-func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesRequest) (*dto.ListRolesResponse, error) {
+func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesRequest) ([]dto.RoleItem, dto.Meta, error) {
 	if req.Page == 0 {
 		req.Page = 1
 	}
@@ -30,11 +30,18 @@ func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesReques
 
 	roles, total, err := uc.roleListRepo.List(ctx, req.RoleType, req.ScopeType, req.Assignable, req.Page, req.Limit)
 	if err != nil {
-		return nil, err
+		return nil, dto.Meta{}, err
 	}
 
 	items := make([]dto.RoleItem, 0, len(roles))
 	for _, role := range roles {
+		var permKeys []string
+		if role.IsSystem() {
+			for _, pk := range domain.PermissionsForRole(role.Name) {
+				permKeys = append(permKeys, string(pk))
+			}
+		}
+
 		items = append(items, dto.RoleItem{
 			ID:          role.ID,
 			Name:        string(role.Name),
@@ -45,18 +52,16 @@ func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesReques
 			Assignable:  role.Assignable,
 			CreatedAt:   role.CreatedAt,
 			UpdatedAt:   role.UpdatedAt,
+			Permissions: permKeys,
 		})
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(req.Limit)))
 
-	return &dto.ListRolesResponse{
-		Roles: items,
-		Meta: dto.Meta{
-			Page:       req.Page,
-			Limit:      req.Limit,
-			TotalItems: int(total),
-			TotalPages: totalPages,
-		},
+	return items, dto.Meta{
+		CurrentPage: req.Page,
+		PerPage:     req.Limit,
+		Total:       int(total),
+		TotalPages:  totalPages,
 	}, nil
 }

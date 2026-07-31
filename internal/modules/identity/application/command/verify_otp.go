@@ -26,7 +26,7 @@ func NewVerifyIdentityOTPUseCase(
 }
 
 func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyOTPRequest) error {
-	identifier, err := domain.NewLoginIdentifier(req.Identity)
+	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -55,7 +55,7 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	inputOTP, err := domain.NewOTPCode(req.Code)
+	inputOTP, err := domain.NewOTPCode(req.OTP)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {

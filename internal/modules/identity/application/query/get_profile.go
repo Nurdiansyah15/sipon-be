@@ -14,6 +14,7 @@ type GetProfileUseCase struct {
 	userRoleRepo  domain.UserRoleRepository
 	roleRepo      domain.RoleRepository
 	rolePermRepo  domain.RolePermissionRepository
+	roleScopeRepo domain.RoleScopeRepository
 	fileUploader  application.FileUploader
 }
 
@@ -22,14 +23,16 @@ func NewGetProfileUseCase(
 	userRoleRepo domain.UserRoleRepository,
 	roleRepo domain.RoleRepository,
 	rolePermRepo domain.RolePermissionRepository,
+	roleScopeRepo domain.RoleScopeRepository,
 	fileUploader application.FileUploader,
 ) *GetProfileUseCase {
 	return &GetProfileUseCase{
-		userRepo:     userRepo,
-		userRoleRepo: userRoleRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
-		fileUploader: fileUploader,
+		userRepo:      userRepo,
+		userRoleRepo:  userRoleRepo,
+		roleRepo:      roleRepo,
+		rolePermRepo:  rolePermRepo,
+		roleScopeRepo: roleScopeRepo,
+		fileUploader:  fileUploader,
 	}
 }
 
@@ -39,7 +42,7 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	roles, permissions, err := uc.resolveRolesAndPermissions(ctx, userID)
+	roles, permissions, scopes, err := resolveSessionRolesPermsScopes(ctx, uc.userRoleRepo, uc.roleRepo, uc.rolePermRepo, uc.roleScopeRepo, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,65 +59,107 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 		phoneStr = &s
 	}
 
-	permList := make([]string, 0, len(permissions))
-	for p := range permissions {
-		permList = append(permList, p)
+	isEmailVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
+		isEmailVerified = li.IsVerified()
+	}
+	isPhoneVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
+		isPhoneVerified = li.IsVerified()
 	}
 
 	return &dto.ProfileResponse{
-		UserID:      user.ID,
-		Username:    user.Username.String(),
-		Fullname:    user.Fullname,
-		Email:       user.Email.String(),
-		Phone:       phoneStr,
-		AvatarURL:   avatarURL,
-		Roles:       roles,
-		Permissions: permList,
-		Status:      string(user.Status),
-		CreatedAt:   user.CreatedAt,
+		ID:              user.ID,
+		Username:        user.Username.String(),
+		Fullname:        user.Fullname,
+		Email:           user.Email.String(),
+		IsEmailVerified: isEmailVerified,
+		Phone:           phoneStr,
+		IsPhoneVerified: isPhoneVerified,
+		Status:          string(user.Status),
+		HasPassword:     user.HasLocalPassword(),
+		CreatedAt:       user.CreatedAt,
+		AvatarURL:       avatarURL,
+		Roles:           roles,
+		Permissions:     permissions,
+		Scopes:          scopes,
 	}, nil
 }
 
-func (uc *GetProfileUseCase) resolveRolesAndPermissions(ctx context.Context, userID string) ([]string, map[string]struct{}, error) {
-	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
+// resolveSessionRolesPermsScopes is shared by GetSession and GetProfile — both
+// resolve the same rich role/permission/scope objects for the current user.
+func resolveSessionRolesPermsScopes(
+	ctx context.Context,
+	userRoleRepo domain.UserRoleRepository,
+	roleRepo domain.RoleRepository,
+	rolePermRepo domain.RolePermissionRepository,
+	roleScopeRepo domain.RoleScopeRepository,
+	userID string,
+) ([]dto.SessionRole, []dto.SessionPermission, []dto.SessionUserScope, error) {
+	userRoles, err := userRoleRepo.FindActiveByUserID(ctx, userID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	roleNames := make([]string, 0, len(userRoles))
-	permSet := make(map[string]struct{})
+	roles := make([]dto.SessionRole, 0, len(userRoles))
+	permSeen := make(map[string]struct{})
+	permissions := make([]dto.SessionPermission, 0)
+	scopes := make([]dto.SessionUserScope, 0)
 
 	for _, ur := range userRoles {
 		if !ur.IsUsable() {
 			continue
 		}
 
-		role, err := uc.roleRepo.FindByID(ctx, ur.RoleID)
+		role, err := roleRepo.FindByID(ctx, ur.RoleID)
 		if err != nil {
 			continue
 		}
 
-		roleNames = append(roleNames, string(role.Name))
+		roles = append(roles, dto.SessionRole{
+			Name:      string(role.Name),
+			RoleType:  string(role.RoleType),
+			ScopeType: string(ur.ScopeType),
+			ScopeID:   ur.ScopeID,
+		})
 
+		permKeys := make(map[string]struct{})
 		for _, pk := range domain.PermissionsForRole(role.Name) {
-			permSet[string(pk)] = struct{}{}
+			permKeys[string(pk)] = struct{}{}
 		}
 
-		rps, _ := uc.rolePermRepo.ListByRoleID(ctx, ur.RoleID)
+		rps, _ := rolePermRepo.ListByRoleID(ctx, ur.RoleID)
 		for _, rp := range rps {
-			permSet[string(rp.PermissionKey)] = struct{}{}
+			permKeys[string(rp.PermissionKey)] = struct{}{}
+		}
+
+		for key := range permKeys {
+			dedupeKey := key + "|" + string(ur.ScopeType)
+			if _, seen := permSeen[dedupeKey]; seen {
+				continue
+			}
+			permSeen[dedupeKey] = struct{}{}
+			permissions = append(permissions, dto.SessionPermission{Key: key, Scope: string(ur.ScopeType)})
+		}
+
+		rs, _ := roleScopeRepo.FindByRoleID(ctx, ur.RoleID)
+		for _, scope := range rs {
+			scopes = append(scopes, dto.SessionUserScope{
+				ScopeType:  string(scope.ScopeType),
+				ScopeValue: scope.ScopeValue,
+			})
 		}
 	}
 
-	return roleNames, permSet, nil
+	return roles, permissions, scopes, nil
 }
 
 type MeUseCase struct {
-	userRepo      domain.UserRepository
-	userRoleRepo  domain.UserRoleRepository
-	roleRepo      domain.RoleRepository
-	rolePermRepo  domain.RolePermissionRepository
-	fileUploader  application.FileUploader
+	userRepo     domain.UserRepository
+	userRoleRepo domain.UserRoleRepository
+	roleRepo     domain.RoleRepository
+	rolePermRepo domain.RolePermissionRepository
+	fileUploader application.FileUploader
 }
 
 func NewMeUseCase(
@@ -133,7 +178,7 @@ func NewMeUseCase(
 	}
 }
 
-func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.ProfileResponse, error) {
+func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
@@ -151,27 +196,26 @@ func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.ProfileRe
 		phoneStr = &s
 	}
 
-	userRoles, _ := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
-	roleNames := make([]string, 0, len(userRoles))
-	for _, ur := range userRoles {
-		if ur.IsUsable() {
-			role, _ := uc.roleRepo.FindByID(ctx, ur.RoleID)
-			if role != nil {
-				roleNames = append(roleNames, string(role.Name))
-			}
-		}
+	isEmailVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
+		isEmailVerified = li.IsVerified()
+	}
+	isPhoneVerified := false
+	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
+		isPhoneVerified = li.IsVerified()
 	}
 
-	return &dto.ProfileResponse{
-		UserID:      user.ID,
-		Username:    user.Username.String(),
-		Fullname:    user.Fullname,
-		Email:       user.Email.String(),
-		Phone:       phoneStr,
-		AvatarURL:   avatarURL,
-		Roles:       roleNames,
-		Permissions: nil,
-		Status:      string(user.Status),
-		CreatedAt:   user.CreatedAt,
+	return &dto.UserMe{
+		ID:              user.ID,
+		Username:        user.Username.String(),
+		Email:           user.Email.String(),
+		IsEmailVerified: isEmailVerified,
+		Fullname:        user.Fullname,
+		Phone:           phoneStr,
+		IsPhoneVerified: isPhoneVerified,
+		Status:          string(user.Status),
+		CreatedAt:       user.CreatedAt,
+		HasPassword:     user.HasLocalPassword(),
+		AvatarURL:       avatarURL,
 	}, nil
 }

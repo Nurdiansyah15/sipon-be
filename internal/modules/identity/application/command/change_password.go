@@ -36,7 +36,7 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 		return kernel.New(application.ErrCodeUnauthorized)
 	}
 
-	oldPlainPw, err := domain.NewPlainPassword(req.OldPassword)
+	oldPlainPw, err := domain.NewPlainPassword(req.CurrentPassword)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
