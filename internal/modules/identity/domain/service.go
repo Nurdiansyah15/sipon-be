@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"sipon-be/internal/shared/kernel"
@@ -31,15 +32,29 @@ func NewUserRoleAssignmentService(roleRepo RoleRepository, userRoleRepo UserRole
 func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input AssignRoleInput) error {
 	role, err := s.roleRepo.FindByName(ctx, input.RoleName)
 	if err != nil {
-		return kernel.Wrap(kernel.Code("ROLE_NOT_FOUND"), err)
+		return kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
 	}
 
 	if err := role.EnsureAssignable(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case ErrCodeRoleNotAssignable:
+				return kernel.New(kernel.Code("ERR_FORBIDDEN"))
+			}
+		}
+		return kernel.New(kernel.Code("ERR_FORBIDDEN"))
 	}
 
 	if err := role.EnsureAssignmentScopeMatch(input.ScopeType); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case ErrCodeRoleScopeMismatch:
+				return kernel.New(kernel.Code("ERR_BAD_REQUEST"))
+			}
+		}
+		return kernel.New(kernel.Code("ERR_BAD_REQUEST"))
 	}
 
 	existingRoles, err := s.userRoleRepo.FindActiveByUserID(ctx, input.UserID)
@@ -49,7 +64,7 @@ func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input 
 
 	for _, ur := range existingRoles {
 		if ur.RoleID == role.ID && ur.IsUsable() {
-			return kernel.New(ErrCodeUserRoleAlreadyAssigned)
+			return kernel.New(kernel.Code("ERR_CONFLICT"))
 		}
 	}
 

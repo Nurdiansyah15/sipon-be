@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -41,34 +42,55 @@ func NewLoginUseCase(
 func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
 	identifier, err := domain.NewLoginIdentifier(req.Identity)
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := user.EnsureCanLogin(); err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserBanned:
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+			case domain.ErrCodeUserLockedOut:
+				return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, string(ke.Code), ke)
+			case domain.ErrCodeUserNotActive:
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+			case domain.ErrCodeIdentityNotVerified:
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "unknown domain error", err)
 	}
 
 	credential := user.FindCredential(domain.CredentialTypeLocal)
 	if credential == nil || credential.SecretHash == nil {
 		user.IncrementFailedAttempts()
 		_ = uc.userRepo.Update(ctx, user)
-		return nil, kernel.New(application.ErrCodeInvalidCredentials)
+		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
 	plainPw, err := domain.NewPlainPassword(req.Password)
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if err := uc.hasher.Verify(credential.SecretHash.String(), plainPw.String()); err != nil {
 		user.IncrementFailedAttempts()
 		_ = uc.userRepo.Update(ctx, user)
-		return nil, kernel.New(application.ErrCodeInvalidCredentials)
+		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
 	user.ResetFailedAttempts()

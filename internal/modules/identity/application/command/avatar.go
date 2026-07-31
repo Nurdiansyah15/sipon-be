@@ -25,7 +25,7 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 	objectName := fmt.Sprintf("avatars/%s", uuid.NewString())
 	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, req.ContentType, 10*time.Minute, application.PrivacyPublic)
 	if err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	return &dto.AvatarPresignResponse{
@@ -52,7 +52,7 @@ func NewAvatarConfirmUseCase(
 func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID string, req dto.AvatarConfirmRequest) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if user.AvatarKey != nil && *user.AvatarKey != "" {
@@ -60,12 +60,16 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID string, req 
 	}
 
 	if err := uc.fileUploader.ConfirmUpload(ctx, req.Key); err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	user.AvatarKey = &req.Key
 
-	return uc.userRepo.Update(ctx, user)
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	return nil
 }
 
 type AvatarDeleteUseCase struct {
@@ -86,7 +90,7 @@ func NewAvatarDeleteUseCase(
 func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if user.AvatarKey == nil || *user.AvatarKey == "" {
@@ -94,10 +98,14 @@ func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) error
 	}
 
 	if err := uc.fileUploader.DeleteObject(ctx, *user.AvatarKey, application.PrivacyPublic); err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	user.AvatarKey = nil
 
-	return uc.userRepo.Update(ctx, user)
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	return nil
 }

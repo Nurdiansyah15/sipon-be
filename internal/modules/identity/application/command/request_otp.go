@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"sipon-be/internal/modules/identity/application"
@@ -39,12 +40,16 @@ func NewRequestIdentityOTPUseCase(
 func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) error {
 	identifier, err := domain.NewLoginIdentifier(req.Identity)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
@@ -54,7 +59,11 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 
 	otp, err := domain.NewOTPCode(otpCode)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	var purpose domain.CodePurpose

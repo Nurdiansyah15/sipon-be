@@ -30,7 +30,7 @@ func NewLogoutUseCase(
 func (uc *LogoutUseCase) Execute(ctx context.Context, accessToken string) error {
 	claims, err := uc.tokenGen.ParseAccessToken(accessToken)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInvalidToken, err)
+		return kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	return uc.sessionRevocationStore.RevokeSession(ctx, claims.SessionID, sessionRevokeTTL)
@@ -39,7 +39,7 @@ func (uc *LogoutUseCase) Execute(ctx context.Context, accessToken string) error 
 func (uc *LogoutUseCase) ExecuteRevokeAll(ctx context.Context, accessToken string) error {
 	claims, err := uc.tokenGen.ParseAccessToken(accessToken)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInvalidToken, err)
+		return kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	return uc.sessionRevocationStore.RevokeAllBefore(ctx, claims.UserID, time.Now(), sessionRevokeTTL)
@@ -48,7 +48,7 @@ func (uc *LogoutUseCase) ExecuteRevokeAll(ctx context.Context, accessToken strin
 func (uc *LogoutUseCase) ExecuteRevokeDevice(ctx context.Context, accessToken string) error {
 	claims, err := uc.tokenGen.ParseAccessToken(accessToken)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInvalidToken, err)
+		return kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	return uc.sessionRevocationStore.RevokeDeviceBefore(ctx, claims.UserID, claims.DeviceID, time.Now(), sessionRevokeTTL)

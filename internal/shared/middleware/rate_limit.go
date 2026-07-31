@@ -8,6 +8,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/respond"
 )
 
 func RateLimitByIP(limiter application.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
@@ -29,12 +30,7 @@ func RateLimitByIP(limiter application.RateLimiter, cfg config.RateLimitConfig) 
 		c.Header("X-RateLimit-Reset", formatInt(int(result.ResetAt.Unix())))
 
 		if !result.Allowed {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": gin.H{
-					"code":    "RATE_LIMITED",
-					"message": "Too many requests, please try again later",
-				},
-			})
+			respond.AbortWithError(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
 			return
 		}
 
@@ -73,12 +69,7 @@ func RateLimitByUser(limiter application.RateLimiter, cfg config.RateLimitConfig
 		c.Header("X-RateLimit-Reset", formatInt(int(result.ResetAt.Unix())))
 
 		if !result.Allowed {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": gin.H{
-					"code":    "RATE_LIMITED",
-					"message": "Too many requests, please try again later",
-				},
-			})
+			respond.AbortWithError(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
 			return
 		}
 
@@ -105,12 +96,7 @@ func RateLimitByAuth(limiter application.RateLimiter, cfg config.RateLimitConfig
 		c.Header("X-RateLimit-Reset", formatInt(int(result.ResetAt.Unix())))
 
 		if !result.Allowed {
-			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
-				"error": gin.H{
-					"code":    "RATE_LIMITED",
-					"message": "Too many authentication attempts, please try again later",
-				},
-			})
+			respond.AbortWithError(c, http.StatusTooManyRequests, "RATE_LIMITED", "Too many authentication attempts, please try again later")
 			return
 		}
 

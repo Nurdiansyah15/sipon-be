@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -20,23 +21,30 @@ func NewChangeUsernameUseCase(userRepo domain.UserRepository) *ChangeUsernameUse
 func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req dto.ChangeUsernameRequest) error {
 	newUsername, err := domain.NewUsername(req.Username)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	exists, err := uc.userRepo.ExistsByUsername(ctx, newUsername.String())
 	if err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	if exists {
-		return kernel.New(application.ErrCodeDuplicateUsername)
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	user.ChangeUsername(newUsername)
 
-	return uc.userRepo.Update(ctx, user)
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	return nil
 }

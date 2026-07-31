@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -30,7 +31,11 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequ
 
 	role, err := domain.NewRole(uuid.NewString(), roleName, req.DisplayName, desc, domain.RoleTypeCustom, scopeType, req.Assignable)
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if err := uc.roleRepo.Save(ctx, role); err != nil {
@@ -61,7 +66,18 @@ func NewUpdateRoleUseCase(roleRepo domain.RoleRepository) *UpdateRoleUseCase {
 func (uc *UpdateRoleUseCase) Execute(ctx context.Context, roleID string, req dto.UpdateRoleRequest) (*dto.RoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(domain.ErrCodeRoleNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+	}
+
+	if err := role.EnsureCustom(); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidRoleType:
+				return nil, kernel.New(application.ErrCodeBadRequest)
+			}
+		}
+		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
 	if req.DisplayName != "" {
@@ -96,9 +112,9 @@ func (uc *UpdateRoleUseCase) Execute(ctx context.Context, roleID string, req dto
 }
 
 type AssignUserRoleUseCase struct {
-	userRepo      domain.UserRepository
-	roleRepo      domain.RoleRepository
-	userRoleRepo  domain.UserRoleRepository
+	userRepo       domain.UserRepository
+	roleRepo       domain.RoleRepository
+	userRoleRepo   domain.UserRoleRepository
 	roleAssignment *domain.UserRoleAssignmentService
 }
 
@@ -119,7 +135,7 @@ func NewAssignUserRoleUseCase(
 func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string, req dto.AssignUserRoleRequest) error {
 	_, err := uc.userRepo.FindByID(ctx, req.UserID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	roleName := domain.RoleName(req.RoleName)
@@ -136,7 +152,18 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 		AssignedBy: assignedBy,
 		ExpiredAt:  req.ExpiredAt,
 	}); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeRoleNotAssignable:
+				return kernel.New(application.ErrCodeForbidden)
+			case domain.ErrCodeRoleScopeMismatch:
+				return kernel.New(application.ErrCodeBadRequest)
+			case domain.ErrCodeUserRoleAlreadyAssigned:
+				return kernel.New(application.ErrCodeConflict)
+			}
+		}
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	role, err := uc.roleRepo.FindByName(ctx, roleName)
@@ -146,7 +173,11 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 
 	userRole, err := domain.NewUserRole(uuid.NewString(), req.UserID, role.ID, scopeType, req.ScopeID, assignedBy, req.ExpiredAt, nil)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	return uc.userRoleRepo.Save(ctx, userRole)
@@ -163,7 +194,7 @@ func NewUpdateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *UpdateUse
 func (uc *UpdateUserRoleUseCase) Execute(ctx context.Context, userRoleID string, req dto.UpdateUserRoleRequest) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(domain.ErrCodeUserRoleNotActive)
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	userRole.UpdateExpiration(req.ExpiredAt)
@@ -182,11 +213,18 @@ func NewDeactivateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *Deact
 func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(domain.ErrCodeUserRoleNotActive)
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	if err := userRole.Deactivate(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserRoleNotActive:
+				return kernel.New(application.ErrCodeBadRequest)
+			}
+		}
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	return uc.userRoleRepo.Update(ctx, userRole)
@@ -203,11 +241,20 @@ func NewReactivateUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *React
 func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
 	if err != nil {
-		return kernel.New(domain.ErrCodeUserRoleNotActive)
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	if err := userRole.Reactivate(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserRoleNotActive:
+				return kernel.New(application.ErrCodeBadRequest)
+			case domain.ErrCodeUserRoleExpired:
+				return kernel.New(application.ErrCodeGone)
+			}
+		}
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	return uc.userRoleRepo.Update(ctx, userRole)

@@ -36,7 +36,7 @@ func NewGetSessionUseCase(
 func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.SessionResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)

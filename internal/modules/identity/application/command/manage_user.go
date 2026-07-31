@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -41,26 +42,42 @@ func NewCreateUserUseCase(
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequest, createdBy string) error {
 	username, err := domain.NewUsername(req.Username)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	email, err := domain.NewEmail(req.Email)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	var phone *domain.PhoneNumber
 	if req.Phone != "" {
 		pn, err := domain.NewPhoneNumber(req.Phone)
 		if err != nil {
-			return err
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			}
+			return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
 		phone = &pn
 	}
 
 	plainPw, err := domain.NewPlainPassword(req.Password)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindEmail, email.String())
@@ -68,7 +85,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return err
 	}
 	if emailExists {
-		return kernel.New(application.ErrCodeDuplicateEmail)
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	if phone != nil {
@@ -77,7 +94,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 			return err
 		}
 		if phoneExists {
-			return kernel.New(application.ErrCodeDuplicatePhone)
+			return kernel.New(application.ErrCodeConflict)
 		}
 	}
 
@@ -86,7 +103,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return err
 	}
 	if usernameExists {
-		return kernel.New(application.ErrCodeDuplicateUsername)
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
@@ -96,7 +113,11 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 
 	hashedPw, err := domain.NewHashedPassword(hashedPassword)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	userID := uuid.NewString()
@@ -181,12 +202,16 @@ func NewResetUserPasswordUseCase(
 func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string, req dto.ResetUserPasswordRequest) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	plainPw, err := domain.NewPlainPassword(req.NewPassword)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
@@ -196,7 +221,11 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string, 
 
 	hashedPw, err := domain.NewHashedPassword(hashedPassword)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if err := user.SetLocalPassword(hashedPw); err != nil {
@@ -217,11 +246,18 @@ func NewDeactivateUserUseCase(userRepo domain.UserRepository) *DeactivateUserUse
 func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := user.Deactivate(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserAlreadyBanned:
+				return kernel.New(application.ErrCodeConflict)
+			}
+		}
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	return uc.userRepo.Update(ctx, user)
@@ -238,11 +274,18 @@ func NewReactivateUserUseCase(userRepo domain.UserRepository) *ReactivateUserUse
 func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := user.Reactivate(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserNotActive:
+				return kernel.New(application.ErrCodeConflict)
+			}
+		}
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	return uc.userRepo.Update(ctx, user)

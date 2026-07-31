@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -20,12 +21,16 @@ func NewUpdateProfileUseCase(userRepo domain.UserRepository) *UpdateProfileUseCa
 func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req dto.UpdateProfileRequest) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	newEmail, err := domain.NewEmail(req.Email)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if newEmail.String() != user.Email.String() {
@@ -34,14 +39,18 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 			return err
 		}
 		if emailExists {
-			return kernel.New(application.ErrCodeDuplicateEmail)
+			return kernel.New(application.ErrCodeConflict)
 		}
 	}
 
 	if req.Phone != "" {
 		newPhone, err := domain.NewPhoneNumber(req.Phone)
 		if err != nil {
-			return err
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			}
+			return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
 
 		currentPhone := ""
@@ -55,7 +64,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 				return err
 			}
 			if phoneExists {
-				return kernel.New(application.ErrCodeDuplicatePhone)
+				return kernel.New(application.ErrCodeConflict)
 			}
 			user.PhoneNumber = &newPhone
 		}

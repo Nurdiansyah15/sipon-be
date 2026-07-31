@@ -28,7 +28,7 @@ func NewRefreshTokenUseCase(
 func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
 	claims, err := uc.tokenGen.ParseRefreshToken(req.RefreshToken)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInvalidToken, err)
+		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	revokedBefore, err := uc.sessionRevocationStore.RevokedBefore(ctx, claims.UserID)
@@ -36,7 +36,7 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		return nil, err
 	}
 	if revokedBefore != nil && claims.IssuedAt.Before(*revokedBefore) {
-		return nil, kernel.New(application.ErrCodeSessionRevoked)
+		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
 	deviceRevokedBefore, err := uc.sessionRevocationStore.DeviceRevokedBefore(ctx, claims.UserID, claims.DeviceID)
@@ -44,7 +44,7 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		return nil, err
 	}
 	if deviceRevokedBefore != nil && claims.IssuedAt.Before(*deviceRevokedBefore) {
-		return nil, kernel.New(application.ErrCodeSessionRevoked)
+		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
 	sessionID := uuid.NewString()

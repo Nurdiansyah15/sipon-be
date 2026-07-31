@@ -30,7 +30,7 @@ func NewGetUserUseCase(
 func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.UserItem, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)

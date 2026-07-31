@@ -36,7 +36,7 @@ func NewGetProfileUseCase(
 func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.ProfileResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	roles, permissions, err := uc.resolveRolesAndPermissions(ctx, userID)
@@ -136,7 +136,7 @@ func NewMeUseCase(
 func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.ProfileResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	avatarURL := (*string)(nil)

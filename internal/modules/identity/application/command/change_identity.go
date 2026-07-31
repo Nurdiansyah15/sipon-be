@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"sipon-be/internal/modules/identity/application"
@@ -39,30 +40,38 @@ func NewRequestChangeIdentityUseCase(
 func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID string, req dto.ChangeIdentityRequest) error {
 	identifier, err := domain.NewLoginIdentifier(req.NewValue)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	exists, err := uc.userRepo.ExistsByLoginIdentity(ctx, identifier.Kind, identifier.Value)
 	if err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	if exists {
-		return kernel.New(application.ErrCodeDuplicateEmail)
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
 	if err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	otp, err := domain.NewOTPCode(otpCode)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	var purpose domain.CodePurpose
@@ -77,31 +86,49 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 
 	verifCode, err := domain.NewVerificationCode(uuid.NewString(), userID, otp, purpose, time.Now().Add(10*time.Minute))
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if err := verifCode.SetNewIdentityValue(identifier.Value); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeVerificationNewIdentityEmpty:
+				return kernel.New(application.ErrCodeBadRequest)
+			}
+		}
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	if err := uc.verifRepo.Save(ctx, verifCode); err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	switch identifier.Kind {
 	case domain.LoginIdentifierKindEmail:
-		return uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode)
+		if err := uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode); err != nil {
+			return kernel.Wrap(application.ErrCodeInternal, err)
+		}
 	case domain.LoginIdentifierKindPhone:
-		return uc.smsSender.SendOTP(identifier.Value, otpCode)
+		if err := uc.smsSender.SendOTP(identifier.Value, otpCode); err != nil {
+			return kernel.Wrap(application.ErrCodeInternal, err)
+		}
 	default:
-		return uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode)
+		if err := uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode); err != nil {
+			return kernel.Wrap(application.ErrCodeInternal, err)
+		}
 	}
+	return nil
 }
 
 type ConfirmChangeIdentityUseCase struct {
-	userRepo     domain.UserRepository
-	verifRepo    domain.VerificationRepository
-	transactor   application.Transactor
+	userRepo   domain.UserRepository
+	verifRepo  domain.VerificationRepository
+	transactor application.Transactor
 }
 
 func NewConfirmChangeIdentityUseCase(
@@ -116,77 +143,76 @@ func NewConfirmChangeIdentityUseCase(
 	}
 }
 
-func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID string, req dto.ChangeIdentityConfirmRequest) error {
+func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID string, purpose domain.CodePurpose, req dto.ChangeIdentityConfirmRequest) error {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeUserNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	changeEmailCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, userID, domain.PurposeChangeEmail)
-	changePhoneCode, err2 := uc.verifRepo.FindLatestByUserAndPurpose(ctx, userID, domain.PurposeChangePhone)
-
-	var verifCode *domain.VerificationCode
-	var newIdentityKind domain.LoginIdentifierKind
+	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, userID, purpose)
+	if err != nil {
+		return kernel.New(application.ErrCodeNotFound)
+	}
 
 	inputOTP, err := domain.NewOTPCode(req.Code)
 	if err != nil {
-		return err
-	}
-
-	if changePhoneCode == nil && err2 != nil {
-		verifCode = changeEmailCode
-	} else if changeEmailCode == nil && err != nil {
-		verifCode = changePhoneCode
-	} else if changeEmailCode != nil && changePhoneCode != nil {
-		if changeEmailCode.CreatedAt.After(changePhoneCode.CreatedAt) {
-			verifCode = changeEmailCode
-		} else {
-			verifCode = changePhoneCode
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 		}
-	} else if changeEmailCode != nil {
-		verifCode = changeEmailCode
-	} else {
-		verifCode = changePhoneCode
-	}
-
-	if verifCode == nil {
-		return kernel.New(domain.ErrCodeVerificationCodeNotFound)
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	if err := verifCode.Verify(inputOTP); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeVerificationCodeMismatch:
+				return kernel.New(application.ErrCodeBadRequest)
+			case domain.ErrCodeVerificationCodeExpired:
+				return kernel.New(application.ErrCodeGone)
+			case domain.ErrCodeVerificationCodeUsed:
+				return kernel.New(application.ErrCodeConflict)
+			}
+		}
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	if verifCode.NewIdentityValue == nil || *verifCode.NewIdentityValue == "" {
-		return kernel.New(domain.ErrCodeVerificationNewIdentityEmpty)
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	newValue := *verifCode.NewIdentityValue
 
+	var newIdentityKind domain.LoginIdentifierKind
 	switch verifCode.Purpose {
 	case domain.PurposeChangeEmail:
 		newIdentityKind = domain.LoginIdentifierKindEmail
 	case domain.PurposeChangePhone:
 		newIdentityKind = domain.LoginIdentifierKindPhone
 	default:
-		return kernel.New(domain.ErrCodeVerificationInvalidPurpose)
+		return kernel.New(application.ErrCodeBadRequest)
 	}
 
 	identifier, err := domain.NewLoginIdentifier(newValue)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	exists, err := uc.userRepo.ExistsByLoginIdentity(ctx, identifier.Kind, identifier.Value)
 	if err != nil {
-		return err
+		return kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	if exists {
-		return kernel.New(application.ErrCodeDuplicateEmail)
+		return kernel.New(application.ErrCodeConflict)
 	}
 
 	return uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
@@ -199,7 +225,11 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		nowTime := time.Now()
 		newLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, "", newIdentityKind, newValue, oldLI != nil && oldLI.IsPrimary, &nowTime)
 		if err != nil {
-			return err
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			}
+			return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
 		newLI.MarkVerified()
 
@@ -215,13 +245,21 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		case domain.LoginIdentifierKindEmail:
 			newEmail, err := domain.NewEmail(newValue)
 			if err != nil {
-				return err
+				var ke *kernel.AppError
+				if errors.As(err, &ke) {
+					return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				}
+				return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 			}
 			user.Email = newEmail
 		case domain.LoginIdentifierKindPhone:
 			newPhone, err := domain.NewPhoneNumber(newValue)
 			if err != nil {
-				return err
+				var ke *kernel.AppError
+				if errors.As(err, &ke) {
+					return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				}
+				return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 			}
 			user.PhoneNumber = &newPhone
 		}

@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -584,6 +583,6 @@ func normalizeLoginIdentityValue(kind LoginIdentifierKind, rawValue string) (str
 		return rawValue, nil
 
 	default:
-		return "", fmt.Errorf("unknown login identity kind: %s", kind)
+		return "", kernel.New(ErrCodeLoginIdentifierUnknownKind)
 	}
 }

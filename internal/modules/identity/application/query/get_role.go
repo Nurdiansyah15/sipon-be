@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
 	"sipon-be/internal/shared/kernel"
@@ -26,7 +27,7 @@ func NewGetRoleUseCase(
 func (uc *GetRoleUseCase) Execute(ctx context.Context, roleID string) (*dto.RoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(domain.ErrCodeRoleNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	rps, err := uc.rolePermRepo.ListByRoleID(ctx, roleID)

@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
 	"sipon-be/internal/shared/kernel"
@@ -30,16 +32,27 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return kernel.Wrap(domain.ErrCodeRoleNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidRoleType:
+				return kernel.New(application.ErrCodeBadRequest)
+			}
+		}
+		return kernel.New(application.ErrCodeForbidden)
 	}
 
 	roleScope, err := domain.NewRoleScope(uuid.NewString(), roleID, scopeType, req.ScopeValue)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	return uc.roleScopeRepo.Save(ctx, roleScope)

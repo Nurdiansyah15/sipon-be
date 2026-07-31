@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
 	"sipon-be/internal/shared/kernel"
@@ -28,11 +30,18 @@ func NewAssignRolePermissionUseCase(
 func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assignedBy string, req dto.AssignRolePermissionRequest) error {
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return kernel.Wrap(domain.ErrCodeRoleNotFound, err)
+		return kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidRoleType:
+				return kernel.New(application.ErrCodeBadRequest)
+			}
+		}
+		return kernel.New(application.ErrCodeForbidden)
 	}
 
 	permissionKey := domain.PermissionKey(req.PermissionKey)
@@ -43,7 +52,11 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 
 	rp, err := domain.NewRolePermission(uuid.NewString(), roleID, permissionKey, assignedBy, notes)
 	if err != nil {
-		return err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+		}
+		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	return uc.rolePermRepo.Save(ctx, rp)
