@@ -6,18 +6,22 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
+	verificationconstant "sipon-be/internal/modules/identity/domain/verification/constant"
+	verificationrepo "sipon-be/internal/modules/identity/domain/verification/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type VerifyIdentityOTPUseCase struct {
-	userRepo  domain.UserRepository
-	verifRepo domain.VerificationRepository
+	userRepo  userrepo.UserRepository
+	verifRepo verificationrepo.VerificationRepository
 }
 
 func NewVerifyIdentityOTPUseCase(
-	userRepo domain.UserRepository,
-	verifRepo domain.VerificationRepository,
+	userRepo userrepo.UserRepository,
+	verifRepo verificationrepo.VerificationRepository,
 ) *VerifyIdentityOTPUseCase {
 	return &VerifyIdentityOTPUseCase{
 		userRepo:  userRepo,
@@ -26,7 +30,7 @@ func NewVerifyIdentityOTPUseCase(
 }
 
 func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyOTPRequest) (*dto.VerifyOTPResponse, error) {
-	identifier, err := domain.NewLoginIdentifier(req.Identifier)
+	identifier, err := uservo.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -36,7 +40,7 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -52,12 +56,12 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		return &dto.VerifyOTPResponse{Message: "identity sudah terverifikasi"}, nil
 	}
 
-	var purpose domain.CodePurpose
+	var purpose verificationconstant.CodePurpose
 	switch identifier.Kind {
-	case domain.LoginIdentifierKindEmail:
-		purpose = domain.PurposeEmailVerification
-	case domain.LoginIdentifierKindPhone:
-		purpose = domain.PurposePhoneVerification
+	case userconstant.LoginIdentifierKindEmail:
+		purpose = verificationconstant.PurposeEmailVerification
+	case userconstant.LoginIdentifierKindPhone:
+		purpose = verificationconstant.PurposePhoneVerification
 	default:
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
@@ -67,7 +71,7 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeNotFound:
+			case verificationconstant.ErrCodeVerificationCodeNotFound:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -78,7 +82,7 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeExpired, domain.ErrCodeVerificationCodeUsed, domain.ErrCodeVerificationCodeMismatch:
+			case verificationconstant.ErrCodeVerificationCodeExpired, verificationconstant.ErrCodeVerificationCodeUsed, verificationconstant.ErrCodeVerificationCodeMismatch:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}

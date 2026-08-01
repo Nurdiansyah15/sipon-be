@@ -6,20 +6,21 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ListUsersUseCase struct {
-	userListRepo application.UserListRepository
-	userRoleRepo domain.UserRoleRepository
-	roleRepo     domain.RoleRepository
+	userListRepo ports.UserListRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	roleRepo     rolerepo.RoleRepository
 }
 
 func NewListUsersUseCase(
-	userListRepo application.UserListRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
+	userListRepo ports.UserListRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
 ) *ListUsersUseCase {
 	return &ListUsersUseCase{
 		userListRepo: userListRepo,

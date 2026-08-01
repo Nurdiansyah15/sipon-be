@@ -10,7 +10,11 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userentity "sipon-be/internal/modules/identity/domain/user/entity"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
@@ -58,13 +62,13 @@ func generateRandomPassword() (string, error) {
 }
 
 type CreateUserUseCase struct {
-	userRepo domain.UserRepository
-	hasher   application.PasswordHasher
+	userRepo userrepo.UserRepository
+	hasher   ports.PasswordHasher
 }
 
 func NewCreateUserUseCase(
-	userRepo domain.UserRepository,
-	hasher application.PasswordHasher,
+	userRepo userrepo.UserRepository,
+	hasher ports.PasswordHasher,
 ) *CreateUserUseCase {
 	return &CreateUserUseCase{
 		userRepo: userRepo,
@@ -73,7 +77,7 @@ func NewCreateUserUseCase(
 }
 
 func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequest) (*dto.CreateUserResponse, error) {
-	username, err := domain.NewUsername(req.Username)
+	username, err := uservo.NewUsername(req.Username)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -82,7 +86,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
-	email, err := domain.NewEmail(req.Email)
+	email, err := uservo.NewEmail(req.Email)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -91,9 +95,9 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
-	var phone *domain.PhoneNumber
+	var phone *uservo.PhoneNumber
 	if req.Phone != nil && strings.TrimSpace(*req.Phone) != "" {
-		pn, err := domain.NewPhoneNumber(*req.Phone)
+		pn, err := uservo.NewPhoneNumber(*req.Phone)
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
@@ -109,7 +113,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	plainPw, err := domain.NewPlainPassword(generatedPassword)
+	plainPw, err := uservo.NewPlainPassword(generatedPassword)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -119,13 +123,13 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	hashedPw, err := domain.NewHashedPassword(hashedPassword)
+	hashedPw, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	userID := uuid.NewString()
-	user, err := domain.NewUser(userID, username, req.Fullname, email, phone)
+	user, err := userentity.NewUser(userID, username, req.Fullname, email, phone)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -135,22 +139,22 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 	}
 
 	credentialID := uuid.NewString()
-	cred := domain.NewLocalCredential(credentialID, userID, hashedPw, true)
+	cred := userentity.NewLocalCredential(credentialID, userID, hashedPw, true)
 
-	emailLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindEmail, email.String(), true, nil)
+	emailLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindEmail, email.String(), true, nil)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	cred.AddLoginIdentity(emailLI)
 
-	usernameLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindUsername, username.String(), true, nil)
+	usernameLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindUsername, username.String(), true, nil)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	cred.AddLoginIdentity(usernameLI)
 
 	if phone != nil {
-		phoneLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindPhone, phone.String(), false, nil)
+		phoneLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindPhone, phone.String(), false, nil)
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
@@ -163,7 +167,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.New(application.ErrCodeConflict)
 			}
 		}
@@ -178,27 +182,27 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 
 	return &dto.CreateUserResponse{
 		UserManagementResponse: dto.UserManagementResponse{
-			ID:          userID,
-			Username:    username.String(),
-			Fullname:    req.Fullname,
-			Email:       email.String(),
-			Phone:       phoneStr,
-			Status:      string(domain.UserStatusActive),
-			CreatedAt:   user.CreatedAt,
-			UpdatedAt:   user.UpdatedAt,
+			ID:        userID,
+			Username:  username.String(),
+			Fullname:  req.Fullname,
+			Email:     email.String(),
+			Phone:     phoneStr,
+			Status:    string(userconstant.UserStatusActive),
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
 		},
 		GeneratedPassword: plainPw.String(),
 	}, nil
 }
 
 type ResetUserPasswordUseCase struct {
-	userRepo domain.UserRepository
-	hasher   application.PasswordHasher
+	userRepo userrepo.UserRepository
+	hasher   ports.PasswordHasher
 }
 
 func NewResetUserPasswordUseCase(
-	userRepo domain.UserRepository,
-	hasher application.PasswordHasher,
+	userRepo userrepo.UserRepository,
+	hasher ports.PasswordHasher,
 ) *ResetUserPasswordUseCase {
 	return &ResetUserPasswordUseCase{
 		userRepo: userRepo,
@@ -212,7 +216,7 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -224,7 +228,7 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	plainPw, err := domain.NewPlainPassword(generatedPassword)
+	plainPw, err := uservo.NewPlainPassword(generatedPassword)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -234,12 +238,12 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	newHashed, err := domain.NewHashedPassword(hashedPassword)
+	newHashed, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	local := user.FindCredential(domain.CredentialTypeLocal)
+	local := user.FindCredential(userconstant.CredentialTypeLocal)
 	if local == nil || local.DeletedAt != nil {
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
@@ -255,7 +259,7 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -266,10 +270,10 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 }
 
 type DeactivateUserUseCase struct {
-	userRepo domain.UserRepository
+	userRepo userrepo.UserRepository
 }
 
-func NewDeactivateUserUseCase(userRepo domain.UserRepository) *DeactivateUserUseCase {
+func NewDeactivateUserUseCase(userRepo userrepo.UserRepository) *DeactivateUserUseCase {
 	return &DeactivateUserUseCase{userRepo: userRepo}
 }
 
@@ -279,7 +283,7 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -290,7 +294,7 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserAlreadyBanned:
+			case userconstant.ErrCodeUserAlreadyBanned:
 				return nil, kernel.New(application.ErrCodeConflict)
 			}
 		}
@@ -305,10 +309,10 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 }
 
 type ReactivateUserUseCase struct {
-	userRepo domain.UserRepository
+	userRepo userrepo.UserRepository
 }
 
-func NewReactivateUserUseCase(userRepo domain.UserRepository) *ReactivateUserUseCase {
+func NewReactivateUserUseCase(userRepo userrepo.UserRepository) *ReactivateUserUseCase {
 	return &ReactivateUserUseCase{userRepo: userRepo}
 }
 
@@ -318,7 +322,7 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -329,7 +333,7 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserNotActive:
+			case userconstant.ErrCodeUserNotActive:
 				return nil, kernel.New(application.ErrCodeConflict)
 			}
 		}
@@ -343,7 +347,7 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 	return userToManagementResponse(user), nil
 }
 
-func userToManagementResponse(user *domain.User) *dto.UserManagementResponse {
+func userToManagementResponse(user *userentity.User) *dto.UserManagementResponse {
 	phoneStr := (*string)(nil)
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()

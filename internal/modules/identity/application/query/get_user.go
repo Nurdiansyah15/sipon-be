@@ -7,20 +7,23 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userentity "sipon-be/internal/modules/identity/domain/user/entity"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type GetUserUseCase struct {
-	userRepo     domain.UserRepository
-	userRoleRepo domain.UserRoleRepository
-	roleRepo     domain.RoleRepository
+	userRepo     userrepo.UserRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	roleRepo     rolerepo.RoleRepository
 }
 
 func NewGetUserUseCase(
-	userRepo domain.UserRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
+	userRepo userrepo.UserRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
 ) *GetUserUseCase {
 	return &GetUserUseCase{
 		userRepo:     userRepo,
@@ -35,7 +38,7 @@ func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.User
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -45,7 +48,7 @@ func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.User
 	return buildUserManagementResponse(ctx, uc.userRoleRepo, uc.roleRepo, user)
 }
 
-func buildUserManagementResponse(ctx context.Context, userRoleRepo domain.UserRoleRepository, roleRepo domain.RoleRepository, user *domain.User) (*dto.UserManagementResponse, error) {
+func buildUserManagementResponse(ctx context.Context, userRoleRepo rolerepo.UserRoleRepository, roleRepo rolerepo.RoleRepository, user *userentity.User) (*dto.UserManagementResponse, error) {
 	userRoles, err := userRoleRepo.FindActiveByUserID(ctx, user.ID)
 	roles := make([]dto.UserRoleSummaryResponse, 0)
 	if err == nil {

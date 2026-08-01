@@ -5,15 +5,16 @@ import (
 	"time"
 
 	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/shared/kernel"
 )
 
 type LogoutUseCase struct {
-	revocationStore application.SessionRevocationStore
+	revocationStore ports.SessionRevocationStore
 	accessTokenTTL  time.Duration
 }
 
-func NewLogoutUseCase(revocationStore application.SessionRevocationStore, accessTokenTTL time.Duration) *LogoutUseCase {
+func NewLogoutUseCase(revocationStore ports.SessionRevocationStore, accessTokenTTL time.Duration) *LogoutUseCase {
 	return &LogoutUseCase{revocationStore: revocationStore, accessTokenTTL: accessTokenTTL}
 }
 

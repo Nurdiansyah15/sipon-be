@@ -8,13 +8,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/infrastructure/cache"
 	"sipon-be/internal/modules/identity/infrastructure/principal"
 	"sipon-be/internal/shared/respond"
 )
 
-func JWTAuth(tokenGen application.TokenGenerator, sessionStore application.SessionRevocationStore) gin.HandlerFunc {
+func JWTAuth(tokenGen ports.TokenGenerator, sessionStore ports.SessionRevocationStore) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

@@ -4,23 +4,25 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 )
 
 type GetSessionUseCase struct {
-	userRepo      domain.UserRepository
-	userRoleRepo  domain.UserRoleRepository
-	roleRepo      domain.RoleRepository
-	rolePermRepo  domain.RolePermissionRepository
-	roleScopeRepo domain.RoleScopeRepository
+	userRepo      userrepo.UserRepository
+	userRoleRepo  rolerepo.UserRoleRepository
+	roleRepo      rolerepo.RoleRepository
+	rolePermRepo  rolerepo.RolePermissionRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
 }
 
 func NewGetSessionUseCase(
-	userRepo domain.UserRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
-	roleScopeRepo domain.RoleScopeRepository,
+	userRepo userrepo.UserRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	roleScopeRepo rolerepo.RoleScopeRepository,
 ) *GetSessionUseCase {
 	return &GetSessionUseCase{
 		userRepo:      userRepo,
@@ -65,7 +67,7 @@ func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.S
 		})
 
 		permKeys := make(map[string]struct{})
-		for _, pk := range domain.PermissionsForRole(role.Name) {
+		for _, pk := range roleconstant.PermissionsForRole(role.Name) {
 			permKeys[string(pk)] = struct{}{}
 		}
 

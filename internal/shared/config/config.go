@@ -70,12 +70,20 @@ type RateLimitConfig struct {
 }
 
 type MinioConfig struct {
-	Endpoint      string
-	AccessKey     string
-	SecretKey     string
-	Bucket        string
-	PrivateBucket string
-	UseSSL        bool
+	// Endpoint dipakai oleh server untuk operasi yang butuh koneksi nyata ke
+	// MinIO (Stat/Remove object) — harus alamat yang bisa dijangkau DARI DALAM
+	// container, contoh: nama service docker compose "minio:9000".
+	Endpoint string
+	// PublicEndpoint dipakai HANYA untuk membuat presigned URL & public URL —
+	// harus alamat yang bisa dijangkau BROWSER/FE (mis. "localhost:9004" atau
+	// IP LAN mesin host). Jangan disamakan dengan Endpoint: nama service
+	// docker ("minio") tidak bisa di-resolve dari luar container.
+	PublicEndpoint string
+	AccessKey      string
+	SecretKey      string
+	Bucket         string
+	PrivateBucket  string
+	UseSSL         bool
 }
 
 func Load() (*Config, error) {
@@ -132,12 +140,13 @@ func Load() (*Config, error) {
 			AuthWindowSeconds: parseInt("RATE_LIMIT_AUTH_WINDOW_SECONDS", 60),
 		},
 		Minio: MinioConfig{
-			Endpoint:      getEnv("MINIO_ENDPOINT", ""),
-			AccessKey:     getEnv("MINIO_ACCESS_KEY", ""),
-			SecretKey:     getEnv("MINIO_SECRET_KEY", ""),
-			Bucket:        getEnv("MINIO_BUCKET", "sipon-public"),
-			PrivateBucket: getEnv("MINIO_PRIVATE_BUCKET", "sipon-private"),
-			UseSSL:        getEnv("MINIO_USE_SSL", "false") == "true",
+			Endpoint:       getEnv("MINIO_ENDPOINT", ""),
+			PublicEndpoint: getEnv("MINIO_PUBLIC_ENDPOINT", getEnv("MINIO_ENDPOINT", "")),
+			AccessKey:      getEnv("MINIO_ACCESS_KEY", ""),
+			SecretKey:      getEnv("MINIO_SECRET_KEY", ""),
+			Bucket:         getEnv("MINIO_BUCKET", "sipon-public"),
+			PrivateBucket:  getEnv("MINIO_PRIVATE_BUCKET", "sipon-private"),
+			UseSSL:         getEnv("MINIO_USE_SSL", "false") == "true",
 		},
 	}
 	return cfg, nil

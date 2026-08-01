@@ -7,26 +7,30 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type GetProfileUseCase struct {
-	userRepo      domain.UserRepository
-	userRoleRepo  domain.UserRoleRepository
-	roleRepo      domain.RoleRepository
-	rolePermRepo  domain.RolePermissionRepository
-	roleScopeRepo domain.RoleScopeRepository
-	fileUploader  application.FileUploader
+	userRepo      userrepo.UserRepository
+	userRoleRepo  rolerepo.UserRoleRepository
+	roleRepo      rolerepo.RoleRepository
+	rolePermRepo  rolerepo.RolePermissionRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
+	fileUploader  ports.FileUploader
 }
 
 func NewGetProfileUseCase(
-	userRepo domain.UserRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
-	roleScopeRepo domain.RoleScopeRepository,
-	fileUploader application.FileUploader,
+	userRepo userrepo.UserRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	roleScopeRepo rolerepo.RoleScopeRepository,
+	fileUploader ports.FileUploader,
 ) *GetProfileUseCase {
 	return &GetProfileUseCase{
 		userRepo:      userRepo,
@@ -44,12 +48,12 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	credential := user.FindCredential(domain.CredentialTypeLocal)
+	credential := user.FindCredential(userconstant.CredentialTypeLocal)
 	if credential == nil {
 		return nil, kernel.New(application.ErrCodeNotFound)
 	}
 
-	emailIdentity := credential.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	emailIdentity := credential.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 	if emailIdentity == nil {
 		return nil, kernel.New(application.ErrCodeNotFound)
 	}
@@ -61,7 +65,7 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+		if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, s); li != nil {
 			isPhoneVerified = li.IsVerified()
 		}
 	}
@@ -97,10 +101,10 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 
 func resolveSessionRolesPermsScopes(
 	ctx context.Context,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
-	roleScopeRepo domain.RoleScopeRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	roleScopeRepo rolerepo.RoleScopeRepository,
 	userID string,
 ) ([]dto.SessionRole, []dto.SessionPermission, []dto.SessionUserScope, error) {
 	userRoles, err := userRoleRepo.FindActiveByUserID(ctx, userID)
@@ -131,7 +135,7 @@ func resolveSessionRolesPermsScopes(
 		})
 
 		permKeys := make(map[string]struct{})
-		for _, pk := range domain.PermissionsForRole(role.Name) {
+		for _, pk := range roleconstant.PermissionsForRole(role.Name) {
 			permKeys[string(pk)] = struct{}{}
 		}
 
@@ -162,13 +166,13 @@ func resolveSessionRolesPermsScopes(
 }
 
 type MeUseCase struct {
-	userRepo     domain.UserRepository
-	fileUploader application.FileUploader
+	userRepo     userrepo.UserRepository
+	fileUploader ports.FileUploader
 }
 
 func NewMeUseCase(
-	userRepo domain.UserRepository,
-	fileUploader application.FileUploader,
+	userRepo userrepo.UserRepository,
+	fileUploader ports.FileUploader,
 ) *MeUseCase {
 	return &MeUseCase{
 		userRepo:     userRepo,
@@ -187,19 +191,19 @@ func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, e
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	credential := user.FindCredential(domain.CredentialTypeLocal)
+	credential := user.FindCredential(userconstant.CredentialTypeLocal)
 	if credential == nil {
 		return nil, kernel.New(application.ErrCodeNotFound)
 	}
 
-	emailIdentity := credential.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	emailIdentity := credential.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 	if emailIdentity == nil {
 		return nil, kernel.New(application.ErrCodeNotFound)
 	}
@@ -211,7 +215,7 @@ func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, e
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+		if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, s); li != nil {
 			isPhoneVerified = li.IsVerified()
 		}
 	}

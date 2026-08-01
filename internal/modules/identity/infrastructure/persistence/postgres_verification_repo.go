@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"sipon-be/internal/modules/identity/domain"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
+	verificationconstant "sipon-be/internal/modules/identity/domain/verification/constant"
+	verificationentity "sipon-be/internal/modules/identity/domain/verification/entity"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -18,7 +20,7 @@ func NewPostgresVerificationRepository(db *sql.DB) *PostgresVerificationReposito
 	return &PostgresVerificationRepository{db: db}
 }
 
-func (r *PostgresVerificationRepository) Save(ctx context.Context, code *domain.VerificationCode) error {
+func (r *PostgresVerificationRepository) Save(ctx context.Context, code *verificationentity.VerificationCode) error {
 	query := `INSERT INTO verification_codes (id, user_id, code, purpose, expires_at, used_at, created_at, new_identity_value)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
@@ -33,18 +35,18 @@ func (r *PostgresVerificationRepository) Save(ctx context.Context, code *domain.
 	return nil
 }
 
-func (r *PostgresVerificationRepository) FindLatestByUserAndPurpose(ctx context.Context, userID string, purpose domain.CodePurpose) (*domain.VerificationCode, error) {
+func (r *PostgresVerificationRepository) FindLatestByUserAndPurpose(ctx context.Context, userID string, purpose verificationconstant.CodePurpose) (*verificationentity.VerificationCode, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id, user_id, code, purpose, expires_at, used_at, created_at, new_identity_value FROM verification_codes WHERE user_id = $1 AND purpose = $2 ORDER BY created_at DESC LIMIT 1`, userID, string(purpose))
 
 	var m VerificationCodeModel
 	if err := row.Scan(&m.ID, &m.UserID, &m.Code, &m.Purpose, &m.ExpiresAt, &m.UsedAt, &m.CreatedAt, &m.NewIdentityValue); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(domain.ErrCodeVerificationCodeNotFound)
+			return nil, kernel.New(verificationconstant.ErrCodeVerificationCodeNotFound)
 		}
 		return nil, fmt.Errorf("find latest verification code: %w", err)
 	}
 
-	otp, err := domain.NewOTPCode(m.Code)
+	otp, err := uservo.NewOTPCode(m.Code)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +61,11 @@ func (r *PostgresVerificationRepository) FindLatestByUserAndPurpose(ctx context.
 		usedAt = &m.UsedAt.Time
 	}
 
-	return &domain.VerificationCode{
+	return &verificationentity.VerificationCode{
 		ID:               m.ID,
 		UserID:           m.UserID,
 		Code:             otp,
-		Purpose:          domain.CodePurpose(m.Purpose),
+		Purpose:          verificationconstant.CodePurpose(m.Purpose),
 		ExpiresAt:        m.ExpiresAt,
 		UsedAt:           usedAt,
 		CreatedAt:        m.CreatedAt,
@@ -71,7 +73,7 @@ func (r *PostgresVerificationRepository) FindLatestByUserAndPurpose(ctx context.
 	}, nil
 }
 
-func (r *PostgresVerificationRepository) Update(ctx context.Context, code *domain.VerificationCode) error {
+func (r *PostgresVerificationRepository) Update(ctx context.Context, code *verificationentity.VerificationCode) error {
 	query := `UPDATE verification_codes SET code = $1, purpose = $2, expires_at = $3, used_at = $4, new_identity_value = $5 WHERE id = $6`
 
 	_, err := r.db.ExecContext(ctx, query,

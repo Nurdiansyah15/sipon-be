@@ -6,22 +6,25 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type LoginUseCase struct {
-	userRepo domain.UserRepository
-	hasher   application.PasswordHasher
-	tokenGen application.TokenGenerator
+	userRepo userrepo.UserRepository
+	hasher   ports.PasswordHasher
+	tokenGen ports.TokenGenerator
 }
 
 func NewLoginUseCase(
-	userRepo domain.UserRepository,
-	hasher application.PasswordHasher,
-	tokenGen application.TokenGenerator,
+	userRepo userrepo.UserRepository,
+	hasher ports.PasswordHasher,
+	tokenGen ports.TokenGenerator,
 ) *LoginUseCase {
 	return &LoginUseCase{
 		userRepo: userRepo,
@@ -31,7 +34,7 @@ func NewLoginUseCase(
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
-	identifier, err := domain.NewLoginIdentifier(req.Identifier)
+	identifier, err := uservo.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
@@ -43,7 +46,7 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 
 	if err := user.EnsureNotLockedOut(); err != nil {
 		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == domain.ErrCodeUserLockedOut {
+		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserLockedOut {
 			return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, string(ke.Code), ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -54,7 +57,7 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
-	cred := user.FindCredential(domain.CredentialTypeLocal)
+	cred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if cred == nil {
 		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
@@ -73,16 +76,16 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserBanned:
+			case userconstant.ErrCodeUserBanned:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
-			case domain.ErrCodeUserNotActive:
+			case userconstant.ErrCodeUserNotActive:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	emailLI := user.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	emailLI := user.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 
 	user.ResetFailedAttempts()
 	if err := uc.userRepo.Update(ctx, user); err != nil {
@@ -105,7 +108,7 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+		if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, s); li != nil {
 			isPhoneVerified = li.IsVerified()
 		}
 	}

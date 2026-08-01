@@ -6,15 +6,15 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ListScopesUseCase struct {
-	roleScopeRepo domain.RoleScopeRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
 }
 
-func NewListScopesUseCase(roleScopeRepo domain.RoleScopeRepository) *ListScopesUseCase {
+func NewListScopesUseCase(roleScopeRepo rolerepo.RoleScopeRepository) *ListScopesUseCase {
 	return &ListScopesUseCase{roleScopeRepo: roleScopeRepo}
 }
 

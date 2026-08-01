@@ -7,26 +7,32 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
+	verificationconstant "sipon-be/internal/modules/identity/domain/verification/constant"
+	verificationentity "sipon-be/internal/modules/identity/domain/verification/entity"
+	verificationrepo "sipon-be/internal/modules/identity/domain/verification/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type RequestIdentityOTPUseCase struct {
-	userRepo    domain.UserRepository
-	verifRepo   domain.VerificationRepository
-	otpGen      application.OTPGenerator
-	emailSender application.EmailSender
-	smsSender   application.SMSSender
+	userRepo    userrepo.UserRepository
+	verifRepo   verificationrepo.VerificationRepository
+	otpGen      ports.OTPGenerator
+	emailSender ports.EmailSender
+	smsSender   ports.SMSSender
 }
 
 func NewRequestIdentityOTPUseCase(
-	userRepo domain.UserRepository,
-	verifRepo domain.VerificationRepository,
-	otpGen application.OTPGenerator,
-	emailSender application.EmailSender,
-	smsSender application.SMSSender,
+	userRepo userrepo.UserRepository,
+	verifRepo verificationrepo.VerificationRepository,
+	otpGen ports.OTPGenerator,
+	emailSender ports.EmailSender,
+	smsSender ports.SMSSender,
 ) *RequestIdentityOTPUseCase {
 	return &RequestIdentityOTPUseCase{
 		userRepo:    userRepo,
@@ -38,7 +44,7 @@ func NewRequestIdentityOTPUseCase(
 }
 
 func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) (*dto.RequestOTPResponse, error) {
-	identifier, err := domain.NewLoginIdentifier(req.Identifier)
+	identifier, err := uservo.NewLoginIdentifier(req.Identifier)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -48,7 +54,7 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -69,17 +75,17 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	var purpose domain.CodePurpose
+	var purpose verificationconstant.CodePurpose
 	switch identifier.Kind {
-	case domain.LoginIdentifierKindEmail:
-		purpose = domain.PurposeEmailVerification
-	case domain.LoginIdentifierKindPhone:
-		purpose = domain.PurposePhoneVerification
+	case userconstant.LoginIdentifierKindEmail:
+		purpose = verificationconstant.PurposeEmailVerification
+	case userconstant.LoginIdentifierKindPhone:
+		purpose = verificationconstant.PurposePhoneVerification
 	default:
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
-	verifCode, err := domain.NewVerificationCode(uuid.NewString(), user.ID, otpCode, purpose, 5*time.Minute)
+	verifCode, err := verificationentity.NewVerificationCode(uuid.NewString(), user.ID, otpCode, purpose, 5*time.Minute)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -89,11 +95,11 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 	}
 
 	switch identifier.Kind {
-	case domain.LoginIdentifierKindEmail:
+	case userconstant.LoginIdentifierKindEmail:
 		if err := uc.emailSender.SendOTP(identity.Value, user.Username.String(), otpCode); err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
-	case domain.LoginIdentifierKindPhone:
+	case userconstant.LoginIdentifierKindPhone:
 		if err := uc.smsSender.SendOTP(identity.Value, otpCode); err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}

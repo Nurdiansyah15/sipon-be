@@ -1,70 +1,140 @@
-.PHONY: dev-up dev-all-up dev-down run build migrate-up migrate-down migrate-fresh migrate-version migrate-force migrate-create seed-all seed-role seed-user tidy test lint
+.PHONY: help dev-up dev-down dev-all-up dev-all-down run minio-init migrate-up migrate-down migrate-fresh migrate-version migrate-force migrate-create seed seed-all seed-role seed-user build tidy test test-unit test-integration test-usecase lint swagger swagger-check
 
-COMPOSE_FILE := docker-compose.dev.yml
+# ── Help ──────────────────────────────────────────────────────────────────────
+help:
+	@echo ""
+	@echo "  sipon-be — perintah yang tersedia:"
+	@echo ""
+	@echo "  Development:"
+	@echo "    make dev-up         Jalankan postgres + redis (tunggu healthy)"
+	@echo "    make dev-all-up     Jalankan semua container dev (tunggu healthy)"
+	@echo "    make dev-down       Hentikan semua container dev"
+	@echo "    make dev-all-down   Hentikan semua container dev dan hapus volume"
+	@echo "    make run            Jalankan HTTP server via container app"
+	@echo "    make swagger        Generate Swagger dari dalam container devtools"
+	@echo "    make swagger-check  Validasi konfigurasi docker compose dev"
+	@echo ""
+	@echo "  Migrasi (via container migrate):"
+	@echo "    make migrate-up     Jalankan semua migrasi yang belum dijalankan"
+	@echo "    make migrate-down   Rollback satu migrasi terakhir"
+	@echo "    make migrate-fresh  Reset DB (drop all) lalu jalankan semua migrasi dari awal"
+	@echo "    make migrate-version Cek versi migrasi saat ini"
+	@echo "    make migrate-force  Force ke versi tertentu"
+	@echo "    make migrate-create NAME=nama_migrasi  Buat file migrasi baru (prefix nomor urut)"
+	@echo ""
+	@echo "  Seeder (via container seeder):"
+	@echo "    make seed-all       Jalankan semua seeder"
+	@echo "    make seed NAME=role Jalankan seeder tertentu"
+	@echo "    make seed-role      Shortcut untuk role seeder"
+	@echo "    make seed-user      Shortcut untuk user seeder"
+	@echo ""
+	@echo "  Build & Test:"
+	@echo "    make build          Build image devtools via docker"
+	@echo "    make tidy           go mod tidy via container devtools"
+	@echo "    make test           Jalankan semua test"
+	@echo "    make test-unit      Jalankan domain unit tests (tanpa DB)"
+	@echo "    make test-integration Jalankan persistence integration tests (butuh Docker)"
+	@echo "    make test-usecase   Jalankan application/use case tests (mock-based)"
+	@echo ""
 
-# Development
+# ── Development ───────────────────────────────────────────────────────────────
 dev-up:
-	docker compose -f $(COMPOSE_FILE) up -d postgres redis
-
-dev-all-up:
-	docker compose -f $(COMPOSE_FILE) up -d --build
+	docker compose -f docker-compose.dev.yml up -d --wait postgres redis
+	@echo "postgres + redis berjalan dan healthy"
 
 dev-down:
-	docker compose -f $(COMPOSE_FILE) down
+	docker compose -f docker-compose.dev.yml down
+
+dev-all-up:
+	docker compose -f docker-compose.dev.yml down
+	docker compose -f docker-compose.dev.yml up -d --wait
+# 	make minio-init
+
+dev-all-down:
+	docker compose -f docker-compose.dev.yml down -v
+
+minio-init:
+	docker compose -f docker-compose.dev.yml run --rm minio-init
 
 run:
-	docker compose -f $(COMPOSE_FILE) up --build app
+	docker compose -f docker-compose.dev.yml up app
 
-# Build
-build:
-	go build -o bin/api ./cmd/api
-	go build -o bin/migrate ./cmd/migrate
-	go build -o bin/seeder ./cmd/seeder
-
-tidy:
-	go mod tidy
-
-# Database Migration
+# ── Migrasi ───────────────────────────────────────────────────────────────────
 migrate-up:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm migrate up
+	docker compose -f docker-compose.dev.yml run --rm migrate up
 
 migrate-down:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm migrate down
+	docker compose -f docker-compose.dev.yml run --rm migrate down
 
 migrate-fresh:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm migrate fresh
+	docker compose -f docker-compose.dev.yml run --rm migrate fresh
 
 migrate-version:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm migrate version
+	docker compose -f docker-compose.dev.yml run --rm migrate version
 
 migrate-force:
-	@if [ -z "$(VERSION)" ]; then echo "VERSION=... diperlukan"; exit 1; fi
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm migrate force $(VERSION)
+	@read -p "Force ke versi: " v; \
+	docker compose -f docker-compose.dev.yml run --rm migrate force $$v
 
 migrate-create:
-	@if [ -z "$(NAME)" ]; then echo "NAME=... diperlukan"; exit 1; fi
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm devtools sh -c "migrate create -ext sql -dir migrations -seq $(NAME)"
+	@if [ -z "$(NAME)" ]; then \
+		echo "Usage: make migrate-create NAME=nama_migrasi"; \
+		exit 1; \
+	fi; \
+	DIR=migrations; \
+	LAST=$$(ls $$DIR 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -1); \
+	if [ -z "$$LAST" ]; then LAST=0; fi; \
+	NEXT=$$(printf "%03d" $$((10#$$LAST + 1))); \
+	UP=$$DIR/$${NEXT}_$(NAME).up.sql; \
+	DOWN=$$DIR/$${NEXT}_$(NAME).down.sql; \
+	touch $$UP $$DOWN; \
+	echo "Dibuat:"; \
+	echo "  $$UP"; \
+	echo "  $$DOWN"
 
-# Seeding
+# ── Seeder ────────────────────────────────────────────────────────────────────
 seed-all:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm seeder all
+	docker compose -f docker-compose.dev.yml run --rm seeder all
+
+seed:
+	@if [ -z "$(NAME)" ]; then \
+		docker compose -f docker-compose.dev.yml run --rm seeder all; \
+	else \
+		docker compose -f docker-compose.dev.yml run --rm seeder $(NAME); \
+	fi
 
 seed-role:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm seeder role
+	docker compose -f docker-compose.dev.yml run --rm seeder role
 
 seed-user:
-	docker compose -f $(COMPOSE_FILE) --profile tooling run --rm seeder user
+	docker compose -f docker-compose.dev.yml run --rm seeder user
 
-# Testing
+# ── Build ─────────────────────────────────────────────────────────────────────
+build:
+	docker compose -f docker-compose.dev.yml build devtools
+	@echo "Image devtools berhasil di-build"
+
+# ── Lainnya ───────────────────────────────────────────────────────────────────
+tidy:
+	docker compose -f docker-compose.dev.yml run --rm --no-deps devtools go mod tidy
+
 test:
-	go test ./...
+	go test ./... -v -count=1 -timeout 180s
 
 test-unit:
-	go test ./internal/...
+	go test ./internal/modules/.../domain/... -v -count=1 -short
 
 test-integration:
-	go test -tags=integration ./...
+	go test ./internal/modules/.../infrastructure/persistence/... -v -count=1 -timeout 120s
 
-# Linting
+test-usecase:
+	go test ./internal/modules/.../application/... -v -count=1
+
 lint:
-	golangci-lint run ./...
+	docker compose -f docker-compose.dev.yml run --rm --no-deps devtools golangci-lint run ./...
+
+swagger:
+	docker compose -f docker-compose.dev.yml run --rm --no-deps -u $$(id -u):$$(id -g) devtools swag init -g cmd/api/main.go -o docs
+
+swagger-check:
+	docker compose -f docker-compose.dev.yml config >/dev/null

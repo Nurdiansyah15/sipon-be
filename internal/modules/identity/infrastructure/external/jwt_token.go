@@ -3,7 +3,7 @@ package external
 import (
 	"time"
 
-	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -66,7 +66,7 @@ func (g *JWTTokenGenerator) GenerateRefreshToken(userID, deviceID string) (strin
 	return token.SignedString(g.secret)
 }
 
-func (g *JWTTokenGenerator) ParseAccessToken(tokenString string) (*application.TokenClaims, error) {
+func (g *JWTTokenGenerator) ParseAccessToken(tokenString string) (*ports.TokenClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &accessClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return g.secret, nil
 	})
@@ -79,7 +79,7 @@ func (g *JWTTokenGenerator) ParseAccessToken(tokenString string) (*application.T
 		return nil, jwt.ErrSignatureInvalid
 	}
 
-	return &application.TokenClaims{
+	return &ports.TokenClaims{
 		UserID:    claims.UserID,
 		SessionID: claims.SessionID,
 		DeviceID:  claims.DeviceID,
@@ -87,7 +87,7 @@ func (g *JWTTokenGenerator) ParseAccessToken(tokenString string) (*application.T
 	}, nil
 }
 
-func (g *JWTTokenGenerator) ParseRefreshToken(tokenString string) (*application.RefreshTokenClaims, error) {
+func (g *JWTTokenGenerator) ParseRefreshToken(tokenString string) (*ports.RefreshTokenClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &refreshClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return g.secret, nil
 	})
@@ -100,7 +100,7 @@ func (g *JWTTokenGenerator) ParseRefreshToken(tokenString string) (*application.
 		return nil, jwt.ErrSignatureInvalid
 	}
 
-	return &application.RefreshTokenClaims{
+	return &ports.RefreshTokenClaims{
 		UserID:   claims.UserID,
 		DeviceID: claims.DeviceID,
 		IssuedAt: claims.IssuedAt.Time,

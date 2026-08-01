@@ -6,18 +6,20 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type GetRoleUseCase struct {
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewGetRoleUseCase(
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *GetRoleUseCase {
 	return &GetRoleUseCase{
 		roleRepo:     roleRepo,
@@ -51,10 +53,10 @@ func (uc *GetRoleUseCase) Execute(ctx context.Context, roleID string) (*dto.Role
 	}, nil
 }
 
-func resolveRolePermissions(ctx context.Context, rolePermRepo domain.RolePermissionRepository, role *domain.Role) ([]string, error) {
+func resolveRolePermissions(ctx context.Context, rolePermRepo rolerepo.RolePermissionRepository, role *roleentity.Role) ([]string, error) {
 	if role.IsSystem() {
 		keys := make([]string, 0)
-		for _, pk := range domain.PermissionsForRole(role.Name) {
+		for _, pk := range roleconstant.PermissionsForRole(role.Name) {
 			keys = append(keys, string(pk))
 		}
 		return keys, nil
@@ -70,7 +72,7 @@ func resolveRolePermissions(ctx context.Context, rolePermRepo domain.RolePermiss
 	return keys, nil
 }
 
-func BuildRoleResponse(ctx context.Context, roleRepo domain.RoleRepository, rolePermRepo domain.RolePermissionRepository, roleID string) (*dto.RoleItem, error) {
+func BuildRoleResponse(ctx context.Context, roleRepo rolerepo.RoleRepository, rolePermRepo rolerepo.RolePermissionRepository, roleID string) (*dto.RoleItem, error) {
 	roleID = strings.TrimSpace(roleID)
 	role, err := roleRepo.FindByID(ctx, roleID)
 	if err != nil {

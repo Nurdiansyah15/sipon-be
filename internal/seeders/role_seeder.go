@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"log"
 
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 )
 
 type RoleSeeder struct{}
@@ -13,7 +13,7 @@ type RoleSeeder struct{}
 func (s *RoleSeeder) Name() string { return "role" }
 
 func (s *RoleSeeder) Run(ctx context.Context, db *sql.DB) error {
-	for name, init := range domain.DefaultRolesInit {
+	for name, init := range roleconstant.DefaultRolesInit {
 		_, err := db.ExecContext(ctx, `
 			INSERT INTO roles (id, name, display_name, description, role_type, scope_type, assignable, created_at, updated_at)
 			VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW(), NOW())

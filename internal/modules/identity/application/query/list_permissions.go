@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 )
 
 type ListPermissionsUseCase struct{}
@@ -14,8 +14,8 @@ func NewListPermissionsUseCase() *ListPermissionsUseCase {
 }
 
 func (uc *ListPermissionsUseCase) Execute(ctx context.Context) []dto.PermissionItem {
-	items := make([]dto.PermissionItem, 0, len(domain.AllPermissionDefinitions))
-	for _, def := range domain.AllPermissionDefinitions {
+	items := make([]dto.PermissionItem, 0, len(roleconstant.AllPermissionDefinitions))
+	for _, def := range roleconstant.AllPermissionDefinitions {
 		items = append(items, dto.PermissionItem{
 			Key:         string(def.Key),
 			DisplayName: def.DisplayName,

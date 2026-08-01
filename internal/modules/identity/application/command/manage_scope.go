@@ -7,20 +7,22 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	rolevo "sipon-be/internal/modules/identity/domain/role/valueobject"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type AssignRoleScopeUseCase struct {
-	roleRepo      domain.RoleRepository
-	roleScopeRepo domain.RoleScopeRepository
+	roleRepo      rolerepo.RoleRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
 }
 
 func NewAssignRoleScopeUseCase(
-	roleRepo domain.RoleRepository,
-	roleScopeRepo domain.RoleScopeRepository,
+	roleRepo rolerepo.RoleRepository,
+	roleScopeRepo rolerepo.RoleScopeRepository,
 ) *AssignRoleScopeUseCase {
 	return &AssignRoleScopeUseCase{
 		roleRepo:      roleRepo,
@@ -43,7 +45,7 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
-	scopeType := domain.ScopeType(strings.TrimSpace(strings.ToLower(req.ScopeType)))
+	scopeType := rolevo.RoleScopeType(strings.TrimSpace(strings.ToLower(req.ScopeType)))
 	scopeValue := strings.TrimSpace(strings.ToLower(req.ScopeValue))
 
 	existingScopes, err := uc.roleScopeRepo.FindByRoleID(ctx, roleID)
@@ -55,7 +57,7 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 		}
 	}
 
-	scope, err := domain.NewRoleScope(uuid.NewString(), roleID, scopeType, scopeValue)
+	scope, err := roleentity.NewRoleScope(uuid.NewString(), roleID, scopeType, scopeValue)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -76,10 +78,10 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 }
 
 type DeleteRoleScopeUseCase struct {
-	roleScopeRepo domain.RoleScopeRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
 }
 
-func NewDeleteRoleScopeUseCase(roleScopeRepo domain.RoleScopeRepository) *DeleteRoleScopeUseCase {
+func NewDeleteRoleScopeUseCase(roleScopeRepo rolerepo.RoleScopeRepository) *DeleteRoleScopeUseCase {
 	return &DeleteRoleScopeUseCase{roleScopeRepo: roleScopeRepo}
 }
 

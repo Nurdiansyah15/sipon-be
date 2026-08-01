@@ -6,10 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
-	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/command"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/application/query"
-	"sipon-be/internal/modules/identity/domain"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	roleservice "sipon-be/internal/modules/identity/domain/role/service"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	verificationrepo "sipon-be/internal/modules/identity/domain/verification/repository"
 	"sipon-be/internal/modules/identity/infrastructure/cache"
 	"sipon-be/internal/modules/identity/infrastructure/external"
 	"sipon-be/internal/modules/identity/infrastructure/persistence"
@@ -26,21 +29,21 @@ type Module struct {
 }
 
 type Repositories struct {
-	User           domain.UserRepository
-	Verification   domain.VerificationRepository
-	Role           domain.RoleRepository
-	UserRole       domain.UserRoleRepository
-	RolePermission domain.RolePermissionRepository
-	RoleScope      domain.RoleScopeRepository
+	User           userrepo.UserRepository
+	Verification   verificationrepo.VerificationRepository
+	Role           rolerepo.RoleRepository
+	UserRole       rolerepo.UserRoleRepository
+	RolePermission rolerepo.RolePermissionRepository
+	RoleScope      rolerepo.RoleScopeRepository
 }
 
 type Services struct {
 	Hasher                 *external.BcryptPasswordHasher
 	TokenGen               *external.JWTTokenGenerator
-	EmailSender            application.EmailSender
-	SMSSender              application.SMSSender
+	EmailSender            ports.EmailSender
+	SMSSender              ports.SMSSender
 	OTPGen                 *external.CryptoOTPGenerator
-	FileUploader           application.FileUploader
+	FileUploader           ports.FileUploader
 	SessionRevocationStore *cache.RedisSessionRevocationStore
 	PrincipalCache         *cache.RedisPrincipalCache
 	PrincipalBuilder       *principal.Builder
@@ -60,7 +63,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	roleListRepo := persistence.NewPostgresRoleListRepo(db)
 	userRoleListRepo := persistence.NewPostgresUserRoleListRepo(db)
 
-	roleAssignment := domain.NewUserRoleAssignmentService(roleRepo, userRoleRepo)
+	roleAssignment := roleservice.NewUserRoleAssignmentService(roleRepo, userRoleRepo)
 
 	hasher := external.NewBcryptPasswordHasher()
 	otpGen := external.NewCryptoOTPGenerator()
@@ -83,6 +86,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,
+		cfg.Minio.PublicEndpoint,
 		cfg.Minio.AccessKey,
 		cfg.Minio.SecretKey,
 		cfg.Minio.Bucket,
@@ -271,6 +275,6 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
-	grp := router.(*gin.RouterGroup)
+	grp := router.Group("/")
 	identityHTTP.RegisterRoutes(grp, m.Handler, m.MiddlewareBuilder)
 }

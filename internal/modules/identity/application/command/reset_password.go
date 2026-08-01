@@ -7,20 +7,25 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
+	verificationconstant "sipon-be/internal/modules/identity/domain/verification/constant"
+	verificationrepo "sipon-be/internal/modules/identity/domain/verification/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ResetPasswordUseCase struct {
-	userRepo  domain.UserRepository
-	verifRepo domain.VerificationRepository
-	hasher    application.PasswordHasher
+	userRepo  userrepo.UserRepository
+	verifRepo verificationrepo.VerificationRepository
+	hasher    ports.PasswordHasher
 }
 
 func NewResetPasswordUseCase(
-	userRepo domain.UserRepository,
-	verifRepo domain.VerificationRepository,
-	hasher application.PasswordHasher,
+	userRepo userrepo.UserRepository,
+	verifRepo verificationrepo.VerificationRepository,
+	hasher ports.PasswordHasher,
 ) *ResetPasswordUseCase {
 	return &ResetPasswordUseCase{
 		userRepo:  userRepo,
@@ -30,24 +35,24 @@ func NewResetPasswordUseCase(
 }
 
 func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswordRequest) (*dto.ResetPasswordResponse, error) {
-	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, req.Email)
+	user, err := uc.userRepo.FindByIdentity(ctx, userconstant.LoginIdentifierKindEmail, req.Email)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, domain.PurposeResetPassword)
+	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, verificationconstant.PurposeResetPassword)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeNotFound:
+			case verificationconstant.ErrCodeVerificationCodeNotFound:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -58,26 +63,26 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeExpired, domain.ErrCodeVerificationCodeUsed, domain.ErrCodeVerificationCodeMismatch:
+			case verificationconstant.ErrCodeVerificationCodeExpired, verificationconstant.ErrCodeVerificationCodeUsed, verificationconstant.ErrCodeVerificationCodeMismatch:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	plainPw, err := domain.NewPlainPassword(req.Password)
+	plainPw, err := uservo.NewPlainPassword(req.Password)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodePlainPasswordEmpty, domain.ErrCodePlainPasswordTooShort, domain.ErrCodePlainPasswordNoUppercase, domain.ErrCodePlainPasswordNoDigit:
+			case userconstant.ErrCodePlainPasswordEmpty, userconstant.ErrCodePlainPasswordTooShort, userconstant.ErrCodePlainPasswordNoUppercase, userconstant.ErrCodePlainPasswordNoDigit:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	localCred := user.FindCredential(domain.CredentialTypeLocal)
+	localCred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if localCred == nil {
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
@@ -87,7 +92,7 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	hashedPw, err := domain.NewHashedPassword(hashedStr)
+	hashedPw, err := uservo.NewHashedPassword(hashedStr)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}

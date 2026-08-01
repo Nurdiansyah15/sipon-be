@@ -8,18 +8,21 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ChangePasswordLocalUseCase struct {
-	userRepo domain.UserRepository
-	hasher   application.PasswordHasher
+	userRepo userrepo.UserRepository
+	hasher   ports.PasswordHasher
 }
 
 func NewChangePasswordLocalUseCase(
-	userRepo domain.UserRepository,
-	hasher application.PasswordHasher,
+	userRepo userrepo.UserRepository,
+	hasher ports.PasswordHasher,
 ) *ChangePasswordLocalUseCase {
 	return &ChangePasswordLocalUseCase{
 		userRepo: userRepo,
@@ -37,12 +40,12 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
-	newPlain, err := domain.NewPlainPassword(req.NewPassword)
+	newPlain, err := uservo.NewPlainPassword(req.NewPassword)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodePlainPasswordEmpty, domain.ErrCodePlainPasswordTooShort, domain.ErrCodePlainPasswordNoUppercase, domain.ErrCodePlainPasswordNoDigit:
+			case userconstant.ErrCodePlainPasswordEmpty, userconstant.ErrCodePlainPasswordTooShort, userconstant.ErrCodePlainPasswordNoUppercase, userconstant.ErrCodePlainPasswordNoDigit:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
@@ -54,14 +57,14 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	localCred := user.FindCredential(domain.CredentialTypeLocal)
+	localCred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if !user.HasLocalPassword() {
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
@@ -75,7 +78,7 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	newHashed, err := domain.NewHashedPassword(hashedStr)
+	newHashed, err := uservo.NewHashedPassword(hashedStr)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}

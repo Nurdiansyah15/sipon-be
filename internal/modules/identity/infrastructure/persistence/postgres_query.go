@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"sipon-be/internal/modules/identity/domain"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	userentity "sipon-be/internal/modules/identity/domain/user/entity"
 )
 
 type PostgresQueryRepo struct {
@@ -17,7 +18,7 @@ func NewPostgresQueryRepo(db *sql.DB) *PostgresQueryRepo {
 	return &PostgresQueryRepo{db: db}
 }
 
-func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID string, search string, sortBy string, sortType string, page, limit int) ([]*domain.User, int64, error) {
+func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID string, search string, sortBy string, sortType string, page, limit int) ([]*userentity.User, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -80,7 +81,7 @@ func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID stri
 	}
 	defer rows.Close()
 
-	var users []*domain.User
+	var users []*userentity.User
 	for rows.Next() {
 		var m UserModel
 		if err := rows.Scan(&m.ID, &m.Username, &m.Fullname, &m.Email, &m.Phone, &m.AvatarKey, &m.Status, &m.CreatedAt, &m.UpdatedAt, &m.LastLoginAt, &m.DeletedAt, &m.FailedLoginAttempts, &m.LockedUntil); err != nil {
@@ -97,7 +98,7 @@ func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID stri
 	return users, total, rows.Err()
 }
 
-func (r *PostgresQueryRepo) FindByIDWithRoles(ctx context.Context, userID string) (*domain.User, []string, error) {
+func (r *PostgresQueryRepo) FindByIDWithRoles(ctx context.Context, userID string) (*userentity.User, []string, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id, username, fullname, email, phone, avatar_key, status, created_at, updated_at, last_login_at, deleted_at, failed_login_attempts, locked_until FROM users WHERE id = $1 AND deleted_at IS NULL`, userID)
 
 	var m UserModel
@@ -139,7 +140,7 @@ func NewPostgresRoleListRepo(db *sql.DB) *PostgresRoleListRepo {
 	return &PostgresRoleListRepo{db: db}
 }
 
-func (r *PostgresRoleListRepo) List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*domain.Role, int64, error) {
+func (r *PostgresRoleListRepo) List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*roleentity.Role, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -214,7 +215,7 @@ func NewPostgresUserRoleListRepo(db *sql.DB) *PostgresUserRoleListRepo {
 	return &PostgresUserRoleListRepo{db: db}
 }
 
-func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*domain.UserRole, int64, error) {
+func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*roleentity.UserRole, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1

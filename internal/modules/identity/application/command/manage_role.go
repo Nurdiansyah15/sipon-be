@@ -8,20 +8,23 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/application/query"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type CreateRoleUseCase struct {
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewCreateRoleUseCase(
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *CreateRoleUseCase {
 	return &CreateRoleUseCase{
 		roleRepo:     roleRepo,
@@ -30,16 +33,16 @@ func NewCreateRoleUseCase(
 }
 
 func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequest) (*dto.RoleItem, error) {
-	roleName := domain.RoleName(strings.TrimSpace(req.Name))
-	roleType := domain.RoleType(req.RoleType)
-	scopeType := domain.ScopeType(req.ScopeType)
+	roleName := roleconstant.RoleName(strings.TrimSpace(req.Name))
+	roleType := roleconstant.RoleType(req.RoleType)
+	scopeType := roleconstant.ScopeType(req.ScopeType)
 
 	var desc *string
 	if req.Description != nil && strings.TrimSpace(*req.Description) != "" {
 		desc = req.Description
 	}
 
-	role, err := domain.NewRole(uuid.NewString(), roleName, strings.TrimSpace(req.DisplayName), desc, roleType, scopeType, req.Assignable)
+	role, err := roleentity.NewRole(uuid.NewString(), roleName, strings.TrimSpace(req.DisplayName), desc, roleType, scopeType, req.Assignable)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -52,7 +55,7 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequ
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeRoleNotFound:
+			case roleconstant.ErrCodeRoleNotFound:
 				return nil, kernel.New(application.ErrCodeConflict)
 			}
 		}
@@ -63,13 +66,13 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequ
 }
 
 type UpdateRoleUseCase struct {
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewUpdateRoleUseCase(
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *UpdateRoleUseCase {
 	return &UpdateRoleUseCase{
 		roleRepo:     roleRepo,
@@ -99,17 +102,17 @@ func (uc *UpdateRoleUseCase) Execute(ctx context.Context, roleID string, req dto
 }
 
 type AssignUserRoleUseCase struct {
-	roleRepo     domain.RoleRepository
-	userRoleRepo domain.UserRoleRepository
-	userRepo     domain.UserRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	userRepo     userrepo.UserRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewAssignUserRoleUseCase(
-	roleRepo domain.RoleRepository,
-	userRoleRepo domain.UserRoleRepository,
-	userRepo domain.UserRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	roleRepo rolerepo.RoleRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	userRepo userrepo.UserRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *AssignUserRoleUseCase {
 	return &AssignUserRoleUseCase{
 		roleRepo:     roleRepo,
@@ -129,9 +132,9 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
-	scopeType := domain.ScopeType(strings.TrimSpace(req.ScopeType))
+	scopeType := roleconstant.ScopeType(strings.TrimSpace(req.ScopeType))
 
-	userRole, err := domain.NewUserRole(uuid.NewString(), strings.TrimSpace(req.UserID), role.ID, scopeType, req.ScopeID, strings.TrimSpace(assignedBy), req.ExpiredAt, req.Notes)
+	userRole, err := roleentity.NewUserRole(uuid.NewString(), strings.TrimSpace(req.UserID), role.ID, scopeType, req.ScopeID, strings.TrimSpace(assignedBy), req.ExpiredAt, req.Notes)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -148,17 +151,17 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 }
 
 type UpdateUserRoleUseCase struct {
-	userRoleRepo domain.UserRoleRepository
-	userRepo     domain.UserRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	userRepo     userrepo.UserRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewUpdateUserRoleUseCase(
-	userRoleRepo domain.UserRoleRepository,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *UpdateUserRoleUseCase {
 	return &UpdateUserRoleUseCase{
 		userRoleRepo: userRoleRepo,
@@ -184,17 +187,17 @@ func (uc *UpdateUserRoleUseCase) Execute(ctx context.Context, userRoleID string,
 }
 
 type DeactivateUserRoleUseCase struct {
-	userRoleRepo domain.UserRoleRepository
-	userRepo     domain.UserRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	userRepo     userrepo.UserRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewDeactivateUserRoleUseCase(
-	userRoleRepo domain.UserRoleRepository,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *DeactivateUserRoleUseCase {
 	return &DeactivateUserRoleUseCase{
 		userRoleRepo: userRoleRepo,
@@ -214,7 +217,7 @@ func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserRoleNotActive:
+			case roleconstant.ErrCodeUserRoleNotActive:
 				return nil, kernel.New(application.ErrCodeBadRequest)
 			}
 		}
@@ -229,17 +232,17 @@ func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 }
 
 type ReactivateUserRoleUseCase struct {
-	userRoleRepo domain.UserRoleRepository
-	userRepo     domain.UserRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	userRepo     userrepo.UserRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewReactivateUserRoleUseCase(
-	userRoleRepo domain.UserRoleRepository,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *ReactivateUserRoleUseCase {
 	return &ReactivateUserRoleUseCase{
 		userRoleRepo: userRoleRepo,
@@ -259,9 +262,9 @@ func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserRoleNotActive:
+			case roleconstant.ErrCodeUserRoleNotActive:
 				return nil, kernel.New(application.ErrCodeBadRequest)
-			case domain.ErrCodeUserRoleExpired:
+			case roleconstant.ErrCodeUserRoleExpired:
 				return nil, kernel.New(application.ErrCodeGone)
 			}
 		}
@@ -276,10 +279,10 @@ func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 }
 
 type DeleteUserRoleUseCase struct {
-	userRoleRepo domain.UserRoleRepository
+	userRoleRepo rolerepo.UserRoleRepository
 }
 
-func NewDeleteUserRoleUseCase(userRoleRepo domain.UserRoleRepository) *DeleteUserRoleUseCase {
+func NewDeleteUserRoleUseCase(userRoleRepo rolerepo.UserRoleRepository) *DeleteUserRoleUseCase {
 	return &DeleteUserRoleUseCase{userRoleRepo: userRoleRepo}
 }
 

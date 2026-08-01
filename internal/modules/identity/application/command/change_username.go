@@ -7,15 +7,17 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ChangeUsernameUseCase struct {
-	userRepo domain.UserRepository
+	userRepo userrepo.UserRepository
 }
 
-func NewChangeUsernameUseCase(userRepo domain.UserRepository) *ChangeUsernameUseCase {
+func NewChangeUsernameUseCase(userRepo userrepo.UserRepository) *ChangeUsernameUseCase {
 	return &ChangeUsernameUseCase{userRepo: userRepo}
 }
 
@@ -26,7 +28,7 @@ func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req
 	}
 
 	newUsernameStr := strings.TrimSpace(req.Username)
-	newUsername, err := domain.NewUsername(newUsernameStr)
+	newUsername, err := uservo.NewUsername(newUsernameStr)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -40,7 +42,7 @@ func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -57,7 +59,7 @@ func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req
 	}
 	if findErr != nil {
 		var ke *kernel.AppError
-		if !errors.As(findErr, &ke) || ke.Code != domain.ErrCodeUserNotActive {
+		if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotActive {
 			return nil, kernel.Wrap(application.ErrCodeInternal, findErr)
 		}
 	}

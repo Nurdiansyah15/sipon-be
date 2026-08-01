@@ -6,12 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/respond"
 )
 
-func RateLimitByIP(limiter application.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
+func RateLimitByIP(limiter ports.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !cfg.Enabled {
 			c.Next()
@@ -38,7 +38,7 @@ func RateLimitByIP(limiter application.RateLimiter, cfg config.RateLimitConfig) 
 	}
 }
 
-func RateLimitByUser(limiter application.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
+func RateLimitByUser(limiter ports.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !cfg.Enabled {
 			c.Next()
@@ -77,7 +77,7 @@ func RateLimitByUser(limiter application.RateLimiter, cfg config.RateLimitConfig
 	}
 }
 
-func RateLimitByAuth(limiter application.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
+func RateLimitByAuth(limiter ports.RateLimiter, cfg config.RateLimitConfig) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !cfg.Enabled {
 			c.Next()

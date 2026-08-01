@@ -9,7 +9,9 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
@@ -32,10 +34,10 @@ var avatarExtByContentType = map[string]string{
 const avatarPresignTTL = 10 * time.Minute
 
 type AvatarPresignUseCase struct {
-	fileUploader application.FileUploader
+	fileUploader ports.FileUploader
 }
 
-func NewAvatarPresignUseCase(fileUploader application.FileUploader) *AvatarPresignUseCase {
+func NewAvatarPresignUseCase(fileUploader ports.FileUploader) *AvatarPresignUseCase {
 	return &AvatarPresignUseCase{fileUploader: fileUploader}
 }
 
@@ -48,7 +50,7 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 	ext := avatarExtByContentType[ct]
 	objectName := path.Join("avatars", uuid.NewString()+ext)
 
-	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, ct, avatarPresignTTL, application.PrivacyPublic)
+	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, ct, avatarPresignTTL, ports.PrivacyPublic)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -61,15 +63,15 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 }
 
 type AvatarConfirmUseCase struct {
-	userRepo     domain.UserRepository
-	transactor   application.Transactor
-	fileUploader application.FileUploader
+	userRepo     userrepo.UserRepository
+	transactor   ports.Transactor
+	fileUploader ports.FileUploader
 }
 
 func NewAvatarConfirmUseCase(
-	userRepo domain.UserRepository,
-	transactor application.Transactor,
-	fileUploader application.FileUploader,
+	userRepo userrepo.UserRepository,
+	transactor ports.Transactor,
+	fileUploader ports.FileUploader,
 ) *AvatarConfirmUseCase {
 	return &AvatarConfirmUseCase{
 		userRepo:     userRepo,
@@ -94,7 +96,7 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
@@ -122,13 +124,13 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 }
 
 type AvatarDeleteUseCase struct {
-	userRepo     domain.UserRepository
-	fileUploader application.FileUploader
+	userRepo     userrepo.UserRepository
+	fileUploader ports.FileUploader
 }
 
 func NewAvatarDeleteUseCase(
-	userRepo domain.UserRepository,
-	fileUploader application.FileUploader,
+	userRepo userrepo.UserRepository,
+	fileUploader ports.FileUploader,
 ) *AvatarDeleteUseCase {
 	return &AvatarDeleteUseCase{
 		userRepo:     userRepo,
@@ -147,7 +149,7 @@ func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) (*dto
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}

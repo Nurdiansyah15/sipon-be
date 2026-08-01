@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 )
 
 type Builder struct {
-	userRoleRepo  domain.UserRoleRepository
-	roleRepo      domain.RoleRepository
-	rolePermRepo  domain.RolePermissionRepository
-	roleScopeRepo domain.RoleScopeRepository
+	userRoleRepo  rolerepo.UserRoleRepository
+	roleRepo      rolerepo.RoleRepository
+	rolePermRepo  rolerepo.RolePermissionRepository
+	roleScopeRepo rolerepo.RoleScopeRepository
 }
 
 type Principal struct {
@@ -27,10 +28,10 @@ type ScopeInfo struct {
 }
 
 func NewBuilder(
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
-	roleScopeRepo domain.RoleScopeRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	roleScopeRepo rolerepo.RoleScopeRepository,
 ) *Builder {
 	return &Builder{
 		userRoleRepo:  userRoleRepo,
@@ -63,7 +64,7 @@ func (b *Builder) Build(ctx context.Context, userID string) (*Principal, error) 
 		roleNameStr := string(role.Name)
 		roleSet[roleNameStr] = struct{}{}
 
-		systemPerms := domain.PermissionsForRole(role.Name)
+		systemPerms := roleconstant.PermissionsForRole(role.Name)
 		for _, pk := range systemPerms {
 			permSet[string(pk)] = struct{}{}
 		}

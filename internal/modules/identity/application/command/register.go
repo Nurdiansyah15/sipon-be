@@ -7,38 +7,47 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	roleservice "sipon-be/internal/modules/identity/domain/role/service"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userentity "sipon-be/internal/modules/identity/domain/user/entity"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
+	verificationrepo "sipon-be/internal/modules/identity/domain/verification/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type RegisterUseCase struct {
-	userRepo       domain.UserRepository
-	verifRepo      domain.VerificationRepository
-	roleRepo       domain.RoleRepository
-	userRoleRepo   domain.UserRoleRepository
-	hasher         application.PasswordHasher
-	otpGen         application.OTPGenerator
-	emailSender    application.EmailSender
-	smsSender      application.SMSSender
-	tokenGen       application.TokenGenerator
-	transactor     application.Transactor
-	roleAssignment *domain.UserRoleAssignmentService
+	userRepo       userrepo.UserRepository
+	verifRepo      verificationrepo.VerificationRepository
+	roleRepo       rolerepo.RoleRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	hasher         ports.PasswordHasher
+	otpGen         ports.OTPGenerator
+	emailSender    ports.EmailSender
+	smsSender      ports.SMSSender
+	tokenGen       ports.TokenGenerator
+	transactor     ports.Transactor
+	roleAssignment *roleservice.UserRoleAssignmentService
 }
 
 func NewRegisterUseCase(
-	userRepo domain.UserRepository,
-	verifRepo domain.VerificationRepository,
-	roleRepo domain.RoleRepository,
-	userRoleRepo domain.UserRoleRepository,
-	hasher application.PasswordHasher,
-	otpGen application.OTPGenerator,
-	emailSender application.EmailSender,
-	smsSender application.SMSSender,
-	tokenGen application.TokenGenerator,
-	transactor application.Transactor,
-	roleAssignment *domain.UserRoleAssignmentService,
+	userRepo userrepo.UserRepository,
+	verifRepo verificationrepo.VerificationRepository,
+	roleRepo rolerepo.RoleRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	hasher ports.PasswordHasher,
+	otpGen ports.OTPGenerator,
+	emailSender ports.EmailSender,
+	smsSender ports.SMSSender,
+	tokenGen ports.TokenGenerator,
+	transactor ports.Transactor,
+	roleAssignment *roleservice.UserRoleAssignmentService,
 ) *RegisterUseCase {
 	return &RegisterUseCase{
 		userRepo:       userRepo,
@@ -56,38 +65,38 @@ func NewRegisterUseCase(
 }
 
 func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest) (*dto.RegisterResponse, error) {
-	email, err := domain.NewEmail(req.Email)
+	email, err := uservo.NewEmail(req.Email)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeEmailEmpty, domain.ErrCodeEmailInvalidFormat:
+			case userconstant.ErrCodeEmailEmpty, userconstant.ErrCodeEmailInvalidFormat:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	username, err := domain.NewUsername(req.Username)
+	username, err := uservo.NewUsername(req.Username)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUsernameEmpty, domain.ErrCodeUsernameTooLong, domain.ErrCodeUsernameTooShort, domain.ErrCodeUsernameInvalidChar:
+			case userconstant.ErrCodeUsernameEmpty, userconstant.ErrCodeUsernameTooLong, userconstant.ErrCodeUsernameTooShort, userconstant.ErrCodeUsernameInvalidChar:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	var phone *domain.PhoneNumber
+	var phone *uservo.PhoneNumber
 	if req.Phone != nil {
-		pn, err := domain.NewPhoneNumber(*req.Phone)
+		pn, err := uservo.NewPhoneNumber(*req.Phone)
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
 				switch ke.Code {
-				case domain.ErrCodePhoneNumberEmpty, domain.ErrCodePhoneNumberInvalidFormat:
+				case userconstant.ErrCodePhoneNumberEmpty, userconstant.ErrCodePhoneNumberInvalidFormat:
 					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 				}
 			}
@@ -96,19 +105,19 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		phone = &pn
 	}
 
-	plainPw, err := domain.NewPlainPassword(req.Password)
+	plainPw, err := uservo.NewPlainPassword(req.Password)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodePlainPasswordEmpty, domain.ErrCodePlainPasswordTooShort, domain.ErrCodePlainPasswordNoUppercase, domain.ErrCodePlainPasswordNoDigit:
+			case userconstant.ErrCodePlainPasswordEmpty, userconstant.ErrCodePlainPasswordTooShort, userconstant.ErrCodePlainPasswordNoUppercase, userconstant.ErrCodePlainPasswordNoDigit:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindEmail, email.String())
+	emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindEmail, email.String())
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +126,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	}
 
 	if phone != nil {
-		phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindPhone, phone.String())
+		phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindPhone, phone.String())
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +135,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		}
 	}
 
-	usernameExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindUsername, username.String())
+	usernameExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindUsername, username.String())
 	if err != nil {
 		return nil, err
 	}
@@ -139,12 +148,12 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		return nil, err
 	}
 
-	hashedPw, err := domain.NewHashedPassword(hashedPassword)
+	hashedPw, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeHashedPasswordTooShort:
+			case userconstant.ErrCodeHashedPasswordTooShort:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
@@ -154,35 +163,35 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	userID := uuid.NewString()
 	credentialID := uuid.NewString()
 
-	user, err := domain.NewUser(userID, username, req.Fullname, email, phone)
+	user, err := userentity.NewUser(userID, username, req.Fullname, email, phone)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserIDRequired, domain.ErrCodeUserEmailRequired, domain.ErrCodeUserPhoneNumberInvalid:
+			case userconstant.ErrCodeUserIDRequired, userconstant.ErrCodeUserEmailRequired, userconstant.ErrCodeUserPhoneNumberInvalid:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	credential := domain.NewLocalCredential(credentialID, userID, hashedPw, true)
+	credential := userentity.NewLocalCredential(credentialID, userID, hashedPw, true)
 
-	emailLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindEmail, email.String(), true, nil)
+	emailLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindEmail, email.String(), true, nil)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	credential.AddLoginIdentity(emailLI)
 
 	now := time.Now()
-	usernameLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindUsername, username.String(), true, &now)
+	usernameLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindUsername, username.String(), true, &now)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	credential.AddLoginIdentity(usernameLI)
 
 	if phone != nil {
-		phoneLI, err := domain.NewLoginIdentity(uuid.NewString(), userID, credentialID, domain.LoginIdentifierKindPhone, phone.String(), true, nil)
+		phoneLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindPhone, phone.String(), true, nil)
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
@@ -191,17 +200,17 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 
 	user.AddCredential(credential)
 
-	memberRole, err := uc.roleRepo.FindByName(ctx, domain.MemberRoleName)
+	memberRole, err := uc.roleRepo.FindByName(ctx, roleconstant.MemberRoleName)
 	if err != nil {
 		return nil, err
 	}
 
-	userRole, err := domain.NewUserRole(uuid.NewString(), userID, memberRole.ID, domain.ScopeTypeGlobal, nil, userID, nil, nil)
+	userRole, err := roleentity.NewUserRole(uuid.NewString(), userID, memberRole.ID, roleconstant.ScopeTypeGlobal, nil, userID, nil, nil)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserRoleIDRequired, domain.ErrCodeUserRoleUserIDRequired, domain.ErrCodeUserRoleRoleIDRequired, domain.ErrCodeInvalidScopeType, domain.ErrCodeUserRoleScopeIDEmpty, domain.ErrCodeUserRoleScopeIDRequired:
+			case roleconstant.ErrCodeUserRoleIDRequired, roleconstant.ErrCodeUserRoleUserIDRequired, roleconstant.ErrCodeUserRoleRoleIDRequired, roleconstant.ErrCodeInvalidScopeType, roleconstant.ErrCodeUserRoleScopeIDEmpty, roleconstant.ErrCodeUserRoleScopeIDRequired:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
@@ -221,7 +230,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserBanned, domain.ErrCodeUserNotActive, domain.ErrCodeUserLockedOut:
+			case userconstant.ErrCodeUserBanned, userconstant.ErrCodeUserNotActive, userconstant.ErrCodeUserLockedOut:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
 			}
 		}
@@ -245,7 +254,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	}
 
 	isEmailVerified := false
-	if li := user.FindLoginIdentity(domain.LoginIdentifierKindEmail, email.String()); li != nil {
+	if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, email.String()); li != nil {
 		isEmailVerified = li.IsVerified()
 	}
 
@@ -254,7 +263,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 	if phone != nil {
 		s := phone.String()
 		phoneStr = &s
-		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, phone.String()); li != nil {
+		if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, phone.String()); li != nil {
 			isPhoneVerified = li.IsVerified()
 		}
 	}

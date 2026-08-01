@@ -7,20 +7,22 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type UserRoleListRepository interface {
-	List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*domain.UserRole, int64, error)
+	List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*roleentity.UserRole, int64, error)
 }
 
 func BuildUserRoleItem(
 	ctx context.Context,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
-	ur *domain.UserRole,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	ur *roleentity.UserRole,
 ) (*dto.UserRoleItem, error) {
 	role, err := roleRepo.FindByID(ctx, ur.RoleID)
 	if err != nil {
@@ -74,16 +76,16 @@ func BuildUserRoleItem(
 
 type ListUserRolesUseCase struct {
 	userRoleListRepo UserRoleListRepository
-	userRepo         domain.UserRepository
-	roleRepo         domain.RoleRepository
-	rolePermRepo     domain.RolePermissionRepository
+	userRepo         userrepo.UserRepository
+	roleRepo         rolerepo.RoleRepository
+	rolePermRepo     rolerepo.RolePermissionRepository
 }
 
 func NewListUserRolesUseCase(
 	userRoleListRepo UserRoleListRepository,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *ListUserRolesUseCase {
 	return &ListUserRolesUseCase{
 		userRoleListRepo: userRoleListRepo,
@@ -136,17 +138,17 @@ func (uc *ListUserRolesUseCase) Execute(ctx context.Context, req dto.ListUserRol
 }
 
 type GetUserRoleUseCase struct {
-	userRoleRepo domain.UserRoleRepository
-	userRepo     domain.UserRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	userRoleRepo rolerepo.UserRoleRepository
+	userRepo     userrepo.UserRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewGetUserRoleUseCase(
-	userRoleRepo domain.UserRoleRepository,
-	userRepo domain.UserRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	userRepo userrepo.UserRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *GetUserRoleUseCase {
 	return &GetUserRoleUseCase{
 		userRoleRepo: userRoleRepo,

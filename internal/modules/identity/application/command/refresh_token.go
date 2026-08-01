@@ -7,22 +7,24 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	ports "sipon-be/internal/modules/identity/application/ports"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type RefreshTokenUseCase struct {
-	tokenGen               application.TokenGenerator
-	sessionRevocationStore application.SessionRevocationStore
-	userRepo               domain.UserRepository
+	tokenGen               ports.TokenGenerator
+	sessionRevocationStore ports.SessionRevocationStore
+	userRepo               userrepo.UserRepository
 }
 
 func NewRefreshTokenUseCase(
-	tokenGen application.TokenGenerator,
-	sessionRevocationStore application.SessionRevocationStore,
-	userRepo domain.UserRepository,
+	tokenGen ports.TokenGenerator,
+	sessionRevocationStore ports.SessionRevocationStore,
+	userRepo userrepo.UserRepository,
 ) *RefreshTokenUseCase {
 	return &RefreshTokenUseCase{
 		tokenGen:               tokenGen,
@@ -67,7 +69,7 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidLoginIdentityValue:
+			case userconstant.ErrCodeInvalidLoginIdentityValue:
 				return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 			}
 		}
@@ -78,9 +80,9 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserBanned:
+			case userconstant.ErrCodeUserBanned:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
-			case domain.ErrCodeUserNotActive:
+			case userconstant.ErrCodeUserNotActive:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
 			}
 		}
@@ -97,14 +99,14 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	emailLI := user.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	emailLI := user.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 	isEmailVerified := emailLI != nil && emailLI.IsVerified()
 	var phoneStr *string
 	var isPhoneVerified bool
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+		if li := user.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, s); li != nil {
 			isPhoneVerified = li.IsVerified()
 		}
 	}

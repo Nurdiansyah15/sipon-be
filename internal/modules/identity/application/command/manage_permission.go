@@ -8,20 +8,22 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/application/query"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
+	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	"sipon-be/internal/shared/kernel"
 
 	"github.com/google/uuid"
 )
 
 type AssignRolePermissionUseCase struct {
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
 func NewAssignRolePermissionUseCase(
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
 ) *AssignRolePermissionUseCase {
 	return &AssignRolePermissionUseCase{
 		roleRepo:     roleRepo,
@@ -39,20 +41,20 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeInvalidRoleType:
+			case roleconstant.ErrCodeInvalidRoleType:
 				return nil, kernel.New(application.ErrCodeBadRequest)
 			}
 		}
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
-	permissionKey := domain.PermissionKey(strings.TrimSpace(req.PermissionKey))
+	permissionKey := roleconstant.PermissionKey(strings.TrimSpace(req.PermissionKey))
 	var notes *string
 	if strings.TrimSpace(req.Notes) != "" {
 		notes = &req.Notes
 	}
 
-	rp, err := domain.NewRolePermission(uuid.NewString(), role.ID, permissionKey, strings.TrimSpace(assignedBy), notes)
+	rp, err := roleentity.NewRolePermission(uuid.NewString(), role.ID, permissionKey, strings.TrimSpace(assignedBy), notes)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -69,11 +71,11 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 }
 
 type DeleteRolePermissionUseCase struct {
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
+	roleRepo     rolerepo.RoleRepository
+	rolePermRepo rolerepo.RolePermissionRepository
 }
 
-func NewDeleteRolePermissionUseCase(roleRepo domain.RoleRepository, rolePermRepo domain.RolePermissionRepository) *DeleteRolePermissionUseCase {
+func NewDeleteRolePermissionUseCase(roleRepo rolerepo.RoleRepository, rolePermRepo rolerepo.RolePermissionRepository) *DeleteRolePermissionUseCase {
 	return &DeleteRolePermissionUseCase{roleRepo: roleRepo, rolePermRepo: rolePermRepo}
 }
 
@@ -87,7 +89,7 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, perm
 		return nil, kernel.New(application.ErrCodeConflict)
 	}
 
-	if err := uc.rolePermRepo.Delete(ctx, role.ID, domain.PermissionKey(strings.TrimSpace(permissionKey))); err != nil {
+	if err := uc.rolePermRepo.Delete(ctx, role.ID, roleconstant.PermissionKey(strings.TrimSpace(permissionKey))); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 

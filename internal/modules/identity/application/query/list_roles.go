@@ -6,12 +6,13 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
+	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
 	"sipon-be/internal/shared/kernel"
 )
 
 type RoleListRepository interface {
-	List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*domain.Role, int64, error)
+	List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*roleentity.Role, int64, error)
 }
 
 type ListRolesUseCase struct {
@@ -39,7 +40,7 @@ func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesReques
 	for _, role := range roles {
 		var permKeys []string
 		if role.IsSystem() {
-			for _, pk := range domain.PermissionsForRole(role.Name) {
+			for _, pk := range roleconstant.PermissionsForRole(role.Name) {
 				permKeys = append(permKeys, string(pk))
 			}
 		}

@@ -7,15 +7,17 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
-	"sipon-be/internal/modules/identity/domain"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
 type CheckUsernameUseCase struct {
-	userRepo domain.UserRepository
+	userRepo userrepo.UserRepository
 }
 
-func NewCheckUsernameUseCase(userRepo domain.UserRepository) *CheckUsernameUseCase {
+func NewCheckUsernameUseCase(userRepo userrepo.UserRepository) *CheckUsernameUseCase {
 	return &CheckUsernameUseCase{userRepo: userRepo}
 }
 
@@ -25,7 +27,7 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
-	_, err := domain.NewUsername(username)
+	_, err := uservo.NewUsername(username)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
@@ -39,7 +41,7 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeUserNotActive:
+			case userconstant.ErrCodeUserNotActive:
 				return &dto.CheckUsernameResponse{Available: true}, nil
 			}
 		}

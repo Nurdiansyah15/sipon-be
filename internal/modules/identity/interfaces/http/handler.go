@@ -8,8 +8,9 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/command"
 	"sipon-be/internal/modules/identity/application/dto"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/application/query"
-	"sipon-be/internal/modules/identity/domain"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
 	"sipon-be/internal/shared/httperror"
 	"sipon-be/internal/shared/kernel"
 	"sipon-be/internal/shared/middleware"
@@ -31,7 +32,7 @@ type IdentityHandler struct {
 	confirmChangeIdentityUC *command.ConfirmChangeIdentityUseCase
 	getSessionUC            *query.GetSessionUseCase
 	logoutUC                *command.LogoutUseCase
-	tokenGen                application.TokenGenerator
+	tokenGen                ports.TokenGenerator
 	getProfileUC            *query.GetProfileUseCase
 	updateProfileUC         *command.UpdateProfileUseCase
 	checkUsernameUC         *query.CheckUsernameUseCase
@@ -112,7 +113,7 @@ func NewIdentityHandler(
 	listScopesUC *query.ListScopesUseCase,
 	assignRoleScopeUC *command.AssignRoleScopeUseCase,
 	deleteRoleScopeUC *command.DeleteRoleScopeUseCase,
-	tokenGen application.TokenGenerator,
+	tokenGen ports.TokenGenerator,
 ) *IdentityHandler {
 	return &IdentityHandler{
 		registerUC:              registerUC,
@@ -358,7 +359,7 @@ func (h *IdentityHandler) RequestChangeIdentityEmail(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, domain.LoginIdentifierKindEmail, req.NewEmail)
+	resp, err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, userconstant.LoginIdentifierKindEmail, req.NewEmail)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -373,7 +374,7 @@ func (h *IdentityHandler) ConfirmChangeIdentityEmail(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.LoginIdentifierKindEmail, req.OTP)
+	resp, err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, userconstant.LoginIdentifierKindEmail, req.OTP)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -388,7 +389,7 @@ func (h *IdentityHandler) RequestChangeIdentityPhone(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, domain.LoginIdentifierKindPhone, req.NewPhone)
+	resp, err := h.requestChangeIdentityUC.Execute(c.Request.Context(), userID, userconstant.LoginIdentifierKindPhone, req.NewPhone)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -403,7 +404,7 @@ func (h *IdentityHandler) ConfirmChangeIdentityPhone(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	resp, err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, domain.LoginIdentifierKindPhone, req.OTP)
+	resp, err := h.confirmChangeIdentityUC.Execute(c.Request.Context(), userID, userconstant.LoginIdentifierKindPhone, req.OTP)
 	if err != nil {
 		httperror.Handle(c, err)
 		return

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -18,12 +18,12 @@ func NewRedisRateLimiter(client *redis.Client) *RedisRateLimiter {
 	return &RedisRateLimiter{client: client}
 }
 
-func (l *RedisRateLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (application.RateLimitResult, error) {
+func (l *RedisRateLimiter) Allow(ctx context.Context, key string, limit int, window time.Duration) (ports.RateLimitResult, error) {
 	fullKey := fmt.Sprintf("ratelimit:%s", key)
 
 	val, err := l.client.Incr(ctx, fullKey).Result()
 	if err != nil {
-		return application.RateLimitResult{}, fmt.Errorf("rate limit incr: %w", err)
+		return ports.RateLimitResult{}, fmt.Errorf("rate limit incr: %w", err)
 	}
 
 	if val == 1 {
@@ -32,7 +32,7 @@ func (l *RedisRateLimiter) Allow(ctx context.Context, key string, limit int, win
 
 	ttl, err := l.client.TTL(ctx, fullKey).Result()
 	if err != nil {
-		return application.RateLimitResult{}, fmt.Errorf("rate limit ttl: %w", err)
+		return ports.RateLimitResult{}, fmt.Errorf("rate limit ttl: %w", err)
 	}
 
 	remaining := limit - int(val)
@@ -42,7 +42,7 @@ func (l *RedisRateLimiter) Allow(ctx context.Context, key string, limit int, win
 
 	allowed := val <= int64(limit)
 
-	return application.RateLimitResult{
+	return ports.RateLimitResult{
 		Allowed:   allowed,
 		Remaining: remaining,
 		ResetAt:   time.Now().Add(ttl),

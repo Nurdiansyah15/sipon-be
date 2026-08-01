@@ -3,7 +3,7 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"sipon-be/internal/modules/identity/application"
+	ports "sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/infrastructure/cache"
 	"sipon-be/internal/modules/identity/infrastructure/principal"
 	"sipon-be/internal/shared/config"
@@ -11,11 +11,11 @@ import (
 )
 
 type MiddlewareBuilder struct {
-	TokenGen         application.TokenGenerator
-	SessionStore     application.SessionRevocationStore
+	TokenGen         ports.TokenGenerator
+	SessionStore     ports.SessionRevocationStore
 	PrincipalBuilder *principal.Builder
 	PrincipalCache   *cache.RedisPrincipalCache
-	RateLimiter      application.RateLimiter
+	RateLimiter      ports.RateLimiter
 	RateLimitConfig  config.RateLimitConfig
 }
 
@@ -137,11 +137,11 @@ func RegisterRoutes(
 }
 
 func NewMiddlewareBuilder(
-	tokenGen application.TokenGenerator,
-	sessionStore application.SessionRevocationStore,
+	tokenGen ports.TokenGenerator,
+	sessionStore ports.SessionRevocationStore,
 	principalBuilder *principal.Builder,
 	principalCache *cache.RedisPrincipalCache,
-	rateLimiter application.RateLimiter,
+	rateLimiter ports.RateLimiter,
 	rateLimitConfig config.RateLimitConfig,
 ) *MiddlewareBuilder {
 	return &MiddlewareBuilder{

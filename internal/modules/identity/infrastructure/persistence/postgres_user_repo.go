@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"sipon-be/internal/modules/identity/domain"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
+	userentity "sipon-be/internal/modules/identity/domain/user/entity"
+	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -18,7 +20,7 @@ func NewPostgresUserRepository(db *sql.DB) *PostgresUserRepository {
 	return &PostgresUserRepository{db: db}
 }
 
-func (r *PostgresUserRepository) Save(ctx context.Context, user *domain.User) error {
+func (r *PostgresUserRepository) Save(ctx context.Context, user *userentity.User) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -43,7 +45,7 @@ func (r *PostgresUserRepository) Save(ctx context.Context, user *domain.User) er
 	return tx.Commit()
 }
 
-func (r *PostgresUserRepository) Update(ctx context.Context, user *domain.User) error {
+func (r *PostgresUserRepository) Update(ctx context.Context, user *userentity.User) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -149,13 +151,13 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *domain.User) 
 	return tx.Commit()
 }
 
-func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
+func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*userentity.User, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id, username, fullname, email, phone, avatar_key, status, created_at, updated_at, last_login_at, deleted_at, failed_login_attempts, locked_until FROM users WHERE id = $1 AND deleted_at IS NULL`, id)
 
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(domain.ErrCodeUserNotActive)
+			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
 		}
 		return nil, fmt.Errorf("find user by id: %w", err)
 	}
@@ -187,7 +189,7 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*doma
 	return user, nil
 }
 
-func (r *PostgresUserRepository) FindByLoginIdentifier(ctx context.Context, identifier domain.LoginIdentifier) (*domain.User, error) {
+func (r *PostgresUserRepository) FindByLoginIdentifier(ctx context.Context, identifier uservo.LoginIdentifier) (*userentity.User, error) {
 	query := `SELECT u.id, u.username, u.fullname, u.email, u.phone, u.avatar_key, u.status, u.created_at, u.updated_at, u.last_login_at, u.deleted_at, u.failed_login_attempts, u.locked_until
 		FROM users u
 		INNER JOIN user_identities li ON li.user_id = u.id
@@ -199,7 +201,7 @@ func (r *PostgresUserRepository) FindByLoginIdentifier(ctx context.Context, iden
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(domain.ErrCodeUserNotActive)
+			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
 		}
 		return nil, fmt.Errorf("find by login identifier: %w", err)
 	}
@@ -231,17 +233,17 @@ func (r *PostgresUserRepository) FindByLoginIdentifier(ctx context.Context, iden
 	return user, nil
 }
 
-func (r *PostgresUserRepository) FindByIdentity(ctx context.Context, kind domain.LoginIdentifierKind, value string) (*domain.User, error) {
-	return r.FindByLoginIdentifier(ctx, domain.LoginIdentifier{Kind: kind, Value: value})
+func (r *PostgresUserRepository) FindByIdentity(ctx context.Context, kind userconstant.LoginIdentifierKind, value string) (*userentity.User, error) {
+	return r.FindByLoginIdentifier(ctx, uservo.LoginIdentifier{Kind: kind, Value: value})
 }
 
-func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username string) (*domain.User, error) {
+func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username string) (*userentity.User, error) {
 	row := r.db.QueryRowContext(ctx, `SELECT id, username, fullname, email, phone, avatar_key, status, created_at, updated_at, last_login_at, deleted_at, failed_login_attempts, locked_until FROM users WHERE username = $1 AND deleted_at IS NULL`, username)
 
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(domain.ErrCodeUserNotActive)
+			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
 		}
 		return nil, fmt.Errorf("find by username: %w", err)
 	}
@@ -282,7 +284,7 @@ func (r *PostgresUserRepository) ExistsByUsername(ctx context.Context, username 
 	return exists, nil
 }
 
-func (r *PostgresUserRepository) ExistsByLoginIdentity(ctx context.Context, kind domain.LoginIdentifierKind, value string) (bool, error) {
+func (r *PostgresUserRepository) ExistsByLoginIdentity(ctx context.Context, kind userconstant.LoginIdentifierKind, value string) (bool, error) {
 	var exists bool
 	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_identities WHERE kind = $1 AND value = $2 AND deleted_at IS NULL)`, string(kind), value).Scan(&exists)
 	if err != nil {
@@ -299,7 +301,7 @@ func (r *PostgresUserRepository) UpdateUsername(ctx context.Context, userID, new
 	return nil
 }
 
-func (r *PostgresUserRepository) saveUser(ctx context.Context, tx *sql.Tx, user *domain.User) error {
+func (r *PostgresUserRepository) saveUser(ctx context.Context, tx *sql.Tx, user *userentity.User) error {
 	query := `INSERT INTO users (id, username, fullname, email, phone, avatar_key, status, created_at, updated_at, last_login_at, deleted_at, failed_login_attempts, locked_until)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
@@ -324,7 +326,7 @@ func (r *PostgresUserRepository) saveUser(ctx context.Context, tx *sql.Tx, user 
 	return nil
 }
 
-func (r *PostgresUserRepository) saveCredential(ctx context.Context, tx *sql.Tx, credential *domain.Credential) error {
+func (r *PostgresUserRepository) saveCredential(ctx context.Context, tx *sql.Tx, credential *userentity.Credential) error {
 	query := `INSERT INTO credentials (id, user_id, type, secret_hash, last_changed_at, is_primary, created_at, updated_at, last_login_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
@@ -352,7 +354,7 @@ func (r *PostgresUserRepository) saveCredential(ctx context.Context, tx *sql.Tx,
 	return nil
 }
 
-func (r *PostgresUserRepository) saveLoginIdentity(ctx context.Context, tx *sql.Tx, identity *domain.LoginIdentity) error {
+func (r *PostgresUserRepository) saveLoginIdentity(ctx context.Context, tx *sql.Tx, identity *userentity.LoginIdentity) error {
 	query := `INSERT INTO user_identities (id, user_id, credential_id, kind, value, status, is_primary, verified_at, created_at, updated_at, deleted_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
@@ -375,33 +377,33 @@ func (r *PostgresUserRepository) saveLoginIdentity(ctx context.Context, tx *sql.
 	return nil
 }
 
-func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID string) ([]*domain.Credential, error) {
+func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID string) ([]*userentity.Credential, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, user_id, type, secret_hash, last_changed_at, is_primary, created_at, updated_at, last_login_at, deleted_at FROM credentials WHERE user_id = $1 AND deleted_at IS NULL`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("load credentials: %w", err)
 	}
 	defer rows.Close()
 
-	var credentials []*domain.Credential
+	var credentials []*userentity.Credential
 	for rows.Next() {
 		var m CredentialModel
 		if err := rows.Scan(&m.ID, &m.UserID, &m.Type, &m.SecretHash, &m.LastChangedAt, &m.IsPrimary, &m.CreatedAt, &m.UpdatedAt, &m.LastLoginAt, &m.DeletedAt); err != nil {
 			return nil, fmt.Errorf("scan credential: %w", err)
 		}
 
-		var secretHash *domain.HashedPassword
+		var secretHash *uservo.HashedPassword
 		if m.SecretHash.Valid {
-			h, err := domain.NewHashedPassword(m.SecretHash.String)
+			h, err := uservo.NewHashedPassword(m.SecretHash.String)
 			if err != nil {
 				return nil, err
 			}
 			secretHash = &h
 		}
 
-		c := &domain.Credential{
+		c := &userentity.Credential{
 			ID:            m.ID,
 			UserID:        m.UserID,
-			Type:          domain.CredentialTypeLocal,
+			Type:          userconstant.CredentialTypeLocal,
 			SecretHash:    secretHash,
 			LastChangedAt: timePtr(m.LastChangedAt),
 			IsPrimary:     m.IsPrimary,
@@ -414,27 +416,27 @@ func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID str
 	return credentials, rows.Err()
 }
 
-func (r *PostgresUserRepository) loadLoginIdentities(ctx context.Context, userID string) ([]*domain.LoginIdentity, error) {
+func (r *PostgresUserRepository) loadLoginIdentities(ctx context.Context, userID string) ([]*userentity.LoginIdentity, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, user_id, credential_id, kind, value, status, is_primary, verified_at, created_at, updated_at, deleted_at FROM user_identities WHERE user_id = $1 AND deleted_at IS NULL`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("load login identities: %w", err)
 	}
 	defer rows.Close()
 
-	var identities []*domain.LoginIdentity
+	var identities []*userentity.LoginIdentity
 	for rows.Next() {
 		var m LoginIdentityModel
 		if err := rows.Scan(&m.ID, &m.UserID, &m.CredentialID, &m.Kind, &m.Value, &m.Status, &m.IsPrimary, &m.VerifiedAt, &m.CreatedAt, &m.UpdatedAt, &m.DeletedAt); err != nil {
 			return nil, fmt.Errorf("scan login identity: %w", err)
 		}
 
-		li := &domain.LoginIdentity{
+		li := &userentity.LoginIdentity{
 			ID:           m.ID,
 			UserID:       m.UserID,
 			CredentialID: m.CredentialID,
-			Kind:         domain.LoginIdentifierKind(m.Kind),
+			Kind:         userconstant.LoginIdentifierKind(m.Kind),
 			Value:        m.Value,
-			Status:       domain.LoginIdentityStatus(m.Status),
+			Status:       userconstant.LoginIdentityStatus(m.Status),
 			IsPrimary:    m.IsPrimary,
 			VerifiedAt:   timePtr(m.VerifiedAt),
 			CreatedAt:    m.CreatedAt,
@@ -446,7 +448,9 @@ func (r *PostgresUserRepository) loadLoginIdentities(ctx context.Context, userID
 	return identities, rows.Err()
 }
 
-func scanUser(row interface{ Scan(dest ...interface{}) error }, m *UserModel) error {
+func scanUser(row interface {
+	Scan(dest ...interface{}) error
+}, m *UserModel) error {
 	return row.Scan(
 		&m.ID, &m.Username, &m.Fullname, &m.Email, &m.Phone,
 		&m.AvatarKey, &m.Status, &m.CreatedAt, &m.UpdatedAt,
@@ -454,20 +458,20 @@ func scanUser(row interface{ Scan(dest ...interface{}) error }, m *UserModel) er
 	)
 }
 
-func userFromModel(m UserModel) (*domain.User, error) {
-	username, err := domain.NewUsername(m.Username)
+func userFromModel(m UserModel) (*userentity.User, error) {
+	username, err := uservo.NewUsername(m.Username)
 	if err != nil {
 		return nil, err
 	}
 
-	email, err := domain.NewEmail(m.Email)
+	email, err := uservo.NewEmail(m.Email)
 	if err != nil {
 		return nil, err
 	}
 
-	var phone *domain.PhoneNumber
+	var phone *uservo.PhoneNumber
 	if m.Phone.Valid {
-		pn, err := domain.NewPhoneNumber(m.Phone.String)
+		pn, err := uservo.NewPhoneNumber(m.Phone.String)
 		if err != nil {
 			return nil, err
 		}
@@ -484,14 +488,14 @@ func userFromModel(m UserModel) (*domain.User, error) {
 		fullname = &m.Fullname.String
 	}
 
-	return &domain.User{
+	return &userentity.User{
 		ID:                  m.ID,
 		Username:            username,
 		Fullname:            fullname,
 		Email:               email,
 		PhoneNumber:         phone,
 		AvatarKey:           avatarKey,
-		Status:              domain.UserStatus(m.Status),
+		Status:              userconstant.UserStatus(m.Status),
 		CreatedAt:           m.CreatedAt,
 		UpdatedAt:           m.UpdatedAt,
 		LastLoginAt:         timePtr(m.LastLoginAt),
@@ -508,7 +512,7 @@ func nullString(s *string) interface{} {
 	return *s
 }
 
-func nullPhone(p *domain.PhoneNumber) interface{} {
+func nullPhone(p *uservo.PhoneNumber) interface{} {
 	if p == nil {
 		return nil
 	}
