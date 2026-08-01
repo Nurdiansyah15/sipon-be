@@ -4,12 +4,14 @@ import (
 	"context"
 	"math"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
+	"sipon-be/internal/shared/kernel"
 )
 
 type RoleListRepository interface {
-	List(ctx context.Context, roleType string, scopeType string, assignable *bool, page, limit int) ([]*domain.Role, int64, error)
+	List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*domain.Role, int64, error)
 }
 
 type ListRolesUseCase struct {
@@ -28,9 +30,9 @@ func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesReques
 		req.Limit = 10
 	}
 
-	roles, total, err := uc.roleListRepo.List(ctx, req.RoleType, req.ScopeType, req.Assignable, req.Page, req.Limit)
+	roles, total, err := uc.roleListRepo.List(ctx, req.RoleType, req.ScopeType, req.Assignable, req.SortBy, req.SortType, req.Page, req.Limit)
 	if err != nil {
-		return nil, dto.Meta{}, err
+		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	items := make([]dto.RoleItem, 0, len(roles))

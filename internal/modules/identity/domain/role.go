@@ -52,6 +52,11 @@ const (
 	ErrCodeInvalidPermissionKey    kernel.Code = "INVALID_PERMISSION_KEY"
 	ErrCodeInvalidScopeType        kernel.Code = "INVALID_SCOPE_TYPE"
 	ErrCodeInvalidRoleType         kernel.Code = "INVALID_ROLE_TYPE"
+	ErrCodeUserRoleIDRequired      kernel.Code = "USER_ROLE_ID_REQUIRED"
+	ErrCodeUserRoleUserIDRequired  kernel.Code = "USER_ROLE_USER_ID_REQUIRED"
+	ErrCodeUserRoleRoleIDRequired  kernel.Code = "USER_ROLE_ROLE_ID_REQUIRED"
+	ErrCodeUserRoleScopeIDRequired kernel.Code = "USER_ROLE_SCOPE_ID_REQUIRED"
+	ErrCodeUserRoleScopeIDEmpty    kernel.Code = "USER_ROLE_SCOPE_ID_EMPTY"
 )
 
 type PermissionDefinition struct {
@@ -282,10 +287,21 @@ func (r *Role) Touch() {
 	r.UpdatedAt = time.Now()
 }
 
-func (r *Role) UpdateDetails(displayName string, description *string) {
-	r.DisplayName = displayName
-	r.Description = description
+func (r *Role) UpdateDetails(displayName string, description string, assignable *bool) error {
+	if r.IsSystem() {
+		return kernel.New(ErrCodeInvalidRoleType)
+	}
+	if displayName != "" {
+		r.DisplayName = displayName
+	}
+	if description != "" {
+		r.Description = &description
+	}
+	if assignable != nil {
+		r.Assignable = *assignable
+	}
 	r.Touch()
+	return nil
 }
 
 type UserRole struct {
@@ -303,8 +319,23 @@ type UserRole struct {
 }
 
 func NewUserRole(id, userID, roleID string, scopeType ScopeType, scopeID *string, assignedBy string, expiredAt *time.Time, notes *string) (*UserRole, error) {
+	if id == "" {
+		return nil, kernel.New(ErrCodeUserRoleIDRequired)
+	}
+	if userID == "" {
+		return nil, kernel.New(ErrCodeUserRoleUserIDRequired)
+	}
+	if roleID == "" {
+		return nil, kernel.New(ErrCodeUserRoleRoleIDRequired)
+	}
 	if scopeType != ScopeTypeGlobal && scopeType != ScopeTypeRegion && scopeType != ScopeTypeCommunity {
 		return nil, kernel.New(ErrCodeInvalidScopeType)
+	}
+	if scopeType == ScopeTypeGlobal && scopeID != nil {
+		return nil, kernel.New(ErrCodeUserRoleScopeIDEmpty)
+	}
+	if (scopeType == ScopeTypeRegion || scopeType == ScopeTypeCommunity) && (scopeID == nil || *scopeID == "") {
+		return nil, kernel.New(ErrCodeUserRoleScopeIDRequired)
 	}
 
 	now := time.Now()

@@ -85,6 +85,6 @@ type RateLimitResult struct {
 }
 
 type UserListRepository interface {
-	List(ctx context.Context, status string, roleID string, search string, page, limit int) ([]*domain.User, int64, error)
+	List(ctx context.Context, status string, roleID string, search string, sortBy string, sortType string, page, limit int) ([]*domain.User, int64, error)
 	FindByIDWithRoles(ctx context.Context, userID string) (*domain.User, []string, error)
 }

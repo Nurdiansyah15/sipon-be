@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"math"
+	"strings"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -11,12 +12,10 @@ import (
 )
 
 type UserRoleListRepository interface {
-	List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, page, limit int) ([]*domain.UserRole, int64, error)
+	List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*domain.UserRole, int64, error)
 }
 
-// buildUserRoleItem resolves a domain.UserRole into its full wire representation
-// (nested user/role summaries + permissions) — shared by ListUserRoles and GetUserRole.
-func buildUserRoleItem(
+func BuildUserRoleItem(
 	ctx context.Context,
 	userRepo domain.UserRepository,
 	roleRepo domain.RoleRepository,
@@ -102,14 +101,24 @@ func (uc *ListUserRolesUseCase) Execute(ctx context.Context, req dto.ListUserRol
 		req.Limit = 10
 	}
 
-	userRoles, total, err := uc.userRoleListRepo.List(ctx, req.UserID, req.RoleID, req.ScopeType, req.ScopeID, req.IsActive, req.Page, req.Limit)
+	userRoles, total, err := uc.userRoleListRepo.List(ctx,
+		strings.TrimSpace(req.UserID),
+		strings.TrimSpace(req.RoleID),
+		strings.TrimSpace(req.ScopeType),
+		strings.TrimSpace(req.ScopeID),
+		req.IsActive,
+		req.SortBy,
+		req.SortType,
+		req.Page,
+		req.Limit,
+	)
 	if err != nil {
-		return nil, dto.Meta{}, err
+		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	items := make([]dto.UserRoleItem, 0, len(userRoles))
 	for _, ur := range userRoles {
-		item, err := buildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, ur)
+		item, err := BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, ur)
 		if err != nil {
 			continue
 		}
@@ -148,10 +157,10 @@ func NewGetUserRoleUseCase(
 }
 
 func (uc *GetUserRoleUseCase) Execute(ctx context.Context, userRoleID string) (*dto.UserRoleItem, error) {
-	ur, err := uc.userRoleRepo.FindByID(ctx, userRoleID)
+	ur, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
-	return buildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, ur)
+	return BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, ur)
 }

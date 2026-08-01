@@ -34,53 +34,52 @@ func NewForgotPasswordUseCase(
 	}
 }
 
-func (uc *ForgotPasswordUseCase) Execute(ctx context.Context, req dto.ForgotPasswordRequest) error {
-	email, err := domain.NewEmail(req.Email)
+func (uc *ForgotPasswordUseCase) Execute(ctx context.Context, req dto.ForgotPasswordRequest) (*dto.ForgotPasswordResponse, error) {
+	successMsg := &dto.ForgotPasswordResponse{Message: "jika email terdaftar, OTP reset password telah dikirim"}
+
+	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, req.Email)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return successMsg, nil
+			}
 		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, email.String())
-	if err != nil {
-		// Anti-enumeration: a nonexistent email must look identical to a
-		// successful request, so this is not a NotFound error to the caller.
-		return nil
+	localCred := user.FindCredential(domain.CredentialTypeLocal)
+	if localCred == nil {
+		return successMsg, nil
+	}
+
+	emailIdentity := localCred.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	if emailIdentity == nil {
+		return successMsg, nil
+	}
+
+	if err := emailIdentity.EnsureVerified(); err != nil {
+		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	otp, err := domain.NewOTPCode(otpCode)
+	verifCode, err := domain.NewVerificationCode(uuid.NewString(), user.ID, otpCode, domain.PurposeResetPassword, 15*time.Minute)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	verifCode, err := domain.NewVerificationCode(uuid.NewString(), user.ID, otp, domain.PurposeResetPassword, time.Now().Add(10*time.Minute))
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	if err := uc.verifRepo.Save(ctx, verifCode); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	username := user.Username.String()
-	if err := uc.emailSender.SendPasswordResetOTP(email.String(), username, otpCode); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+	if err := uc.emailSender.SendPasswordResetOTP(user.Email.String(), user.Username.String(), otpCode); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
-	return nil
+
+	return successMsg, nil
 }

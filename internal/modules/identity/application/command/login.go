@@ -13,48 +13,60 @@ import (
 )
 
 type LoginUseCase struct {
-	userRepo     domain.UserRepository
-	userRoleRepo domain.UserRoleRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
-	hasher       application.PasswordHasher
-	tokenGen     application.TokenGenerator
-	fileUploader application.FileUploader
+	userRepo domain.UserRepository
+	hasher   application.PasswordHasher
+	tokenGen application.TokenGenerator
 }
 
 func NewLoginUseCase(
 	userRepo domain.UserRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
 	hasher application.PasswordHasher,
 	tokenGen application.TokenGenerator,
-	fileUploader application.FileUploader,
 ) *LoginUseCase {
 	return &LoginUseCase{
-		userRepo:     userRepo,
-		userRoleRepo: userRoleRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
-		hasher:       hasher,
-		tokenGen:     tokenGen,
-		fileUploader: fileUploader,
+		userRepo: userRepo,
+		hasher:   hasher,
+		tokenGen: tokenGen,
 	}
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
 	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
+	}
+
+	if err := user.EnsureNotLockedOut(); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == domain.ErrCodeUserLockedOut {
+			return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, string(ke.Code), ke)
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	identity := user.FindLoginIdentity(identifier.Kind, identifier.Value)
+	if identity == nil {
+		return nil, kernel.New(application.ErrCodeUnauthorized)
+	}
+
+	cred := user.FindCredential(domain.CredentialTypeLocal)
+	if cred == nil {
+		return nil, kernel.New(application.ErrCodeUnauthorized)
+	}
+
+	if cred.SecretHash == nil {
+		return nil, kernel.New(application.ErrCodeUnauthorized)
+	}
+
+	if err := uc.hasher.Verify(cred.SecretHash.String(), req.Password); err != nil {
+		user.IncrementFailedAttempts()
+		_ = uc.userRepo.Update(ctx, user)
+		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
 	if err := user.EnsureCanLogin(); err != nil {
@@ -63,81 +75,39 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 			switch ke.Code {
 			case domain.ErrCodeUserBanned:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
-			case domain.ErrCodeUserLockedOut:
-				return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, string(ke.Code), ke)
 			case domain.ErrCodeUserNotActive:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
-			case domain.ErrCodeIdentityNotVerified:
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
 			}
 		}
-		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "unknown domain error", err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	credential := user.FindCredential(domain.CredentialTypeLocal)
-	if credential == nil || credential.SecretHash == nil {
-		user.IncrementFailedAttempts()
-		_ = uc.userRepo.Update(ctx, user)
-		return nil, kernel.New(application.ErrCodeUnauthorized)
-	}
-
-	plainPw, err := domain.NewPlainPassword(req.Password)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	if err := uc.hasher.Verify(credential.SecretHash.String(), plainPw.String()); err != nil {
-		user.IncrementFailedAttempts()
-		_ = uc.userRepo.Update(ctx, user)
-		return nil, kernel.New(application.ErrCodeUnauthorized)
-	}
+	emailLI := user.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
 
 	user.ResetFailedAttempts()
-	user.MarkLogin()
-
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	sessionID := uuid.NewString()
-	deviceID := req.DeviceID
-	if deviceID == "" {
-		deviceID = uuid.NewString()
-	}
-
-	accessToken, err := uc.tokenGen.GenerateAccessToken(user.ID, sessionID, deviceID)
+	accessToken, err := uc.tokenGen.GenerateAccessToken(user.ID, sessionID, req.DeviceID)
 	if err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
-
-	refreshToken, err := uc.tokenGen.GenerateRefreshToken(user.ID, deviceID)
+	refreshToken, err := uc.tokenGen.GenerateRefreshToken(user.ID, req.DeviceID)
 	if err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	phoneStr := (*string)(nil)
+	isEmailVerified := emailLI != nil && emailLI.IsVerified()
+	var phoneStr *string
+	var isPhoneVerified bool
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-	}
-
-	isEmailVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
-		isEmailVerified = li.IsVerified()
-	}
-	isPhoneVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
-		isPhoneVerified = li.IsVerified()
-	}
-
-	avatarURL := (*string)(nil)
-	if user.AvatarKey != nil && *user.AvatarKey != "" && uc.fileUploader != nil {
-		url := uc.fileUploader.PublicURL(*user.AvatarKey)
-		avatarURL = &url
+		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+			isPhoneVerified = li.IsVerified()
+		}
 	}
 
 	return &dto.LoginResponse{
@@ -154,7 +124,6 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 			Status:          string(user.Status),
 			CreatedAt:       user.CreatedAt,
 			HasPassword:     user.HasLocalPassword(),
-			AvatarURL:       avatarURL,
 		},
 	}, nil
 }

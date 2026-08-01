@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -28,19 +30,30 @@ func NewGetUserUseCase(
 }
 
 func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.UserManagementResponse, error) {
-	user, err := uc.userRepo.FindByID(ctx, userID)
+	user, err := uc.userRepo.FindByID(ctx, strings.TrimSpace(userID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
+	return buildUserManagementResponse(ctx, uc.userRoleRepo, uc.roleRepo, user)
+}
+
+func buildUserManagementResponse(ctx context.Context, userRoleRepo domain.UserRoleRepository, roleRepo domain.RoleRepository, user *domain.User) (*dto.UserManagementResponse, error) {
+	userRoles, err := userRoleRepo.FindActiveByUserID(ctx, user.ID)
 	roles := make([]dto.UserRoleSummaryResponse, 0)
 	if err == nil {
 		for _, ur := range userRoles {
 			if !ur.IsUsable() {
 				continue
 			}
-			role, err := uc.roleRepo.FindByID(ctx, ur.RoleID)
+			role, err := roleRepo.FindByID(ctx, ur.RoleID)
 			if err != nil {
 				continue
 			}

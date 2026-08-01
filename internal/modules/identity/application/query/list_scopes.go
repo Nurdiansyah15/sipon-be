@@ -2,9 +2,12 @@ package query
 
 import (
 	"context"
+	"strings"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListScopesUseCase struct {
@@ -16,9 +19,14 @@ func NewListScopesUseCase(roleScopeRepo domain.RoleScopeRepository) *ListScopesU
 }
 
 func (uc *ListScopesUseCase) Execute(ctx context.Context, roleID string) ([]dto.ScopeItem, error) {
+	roleID = strings.TrimSpace(roleID)
+	if roleID == "" {
+		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+	}
+
 	scopes, err := uc.roleScopeRepo.FindByRoleID(ctx, roleID)
 	if err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	items := make([]dto.ScopeItem, 0, len(scopes))

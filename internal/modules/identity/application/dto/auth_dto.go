@@ -66,13 +66,25 @@ type RequestOTPRequest struct {
 	Identifier string `json:"identifier" binding:"required"`
 }
 
+type RequestOTPResponse struct {
+	Message string `json:"message"`
+}
+
 type VerifyOTPRequest struct {
 	Identifier string `json:"identifier" binding:"required"`
 	OTP        string `json:"otp" binding:"required,len=6"`
 }
 
+type VerifyOTPResponse struct {
+	Message string `json:"message"`
+}
+
 type ForgotPasswordRequest struct {
 	Email string `json:"email" binding:"required,email"`
+}
+
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
 }
 
 type ResetPasswordRequest struct {
@@ -81,13 +93,25 @@ type ResetPasswordRequest struct {
 	Password string `json:"password" binding:"required,min=8"`
 }
 
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+}
+
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password" binding:"required"`
 	NewPassword     string `json:"new_password" binding:"required,min=8"`
 }
 
+type ChangePasswordResponse struct {
+	Message string `json:"message"`
+}
+
 type SetPasswordRequest struct {
 	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+type SetPasswordResponse struct {
+	Message string `json:"message"`
 }
 
 type RequestChangeEmailRequest struct {
@@ -114,6 +138,10 @@ type UpdateProfileRequest struct {
 	Fullname *string `json:"fullname,omitempty"`
 	Email    *string `json:"email,omitempty"`
 	Phone    *string `json:"phone,omitempty"`
+}
+
+type UpdateProfileResponse struct {
+	Message string `json:"message"`
 }
 
 type ChangeUsernameRequest struct {
@@ -195,9 +223,11 @@ type CheckUsernameResponse struct {
 }
 
 type ListUsersRequest struct {
-	Status string `form:"status"`
-	RoleID string `form:"role_id"`
-	Search string `form:"search"`
+	Status   string `form:"status"`
+	RoleID   string `form:"role_id"`
+	Search   string `form:"search"`
+	SortBy   string `form:"sort_by"`
+	SortType string `form:"sort_type"`
 	PaginationParams
 }
 
@@ -243,6 +273,8 @@ type ListRolesRequest struct {
 	RoleType   string `form:"role_type"`
 	ScopeType  string `form:"scope_type"`
 	Assignable *bool  `form:"assignable"`
+	SortBy     string `form:"sort_by"`
+	SortType   string `form:"sort_type"`
 	PaginationParams
 }
 
@@ -291,6 +323,8 @@ type ListUserRolesRequest struct {
 	ScopeType string `form:"scope_type"`
 	ScopeID   string `form:"scope_id"`
 	IsActive  *bool  `form:"is_active"`
+	SortBy    string `form:"sort_by"`
+	SortType  string `form:"sort_type"`
 	PaginationParams
 }
 

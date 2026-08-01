@@ -36,7 +36,7 @@ type VerificationCode struct {
 	NewIdentityValue *string
 }
 
-func NewVerificationCode(id, userID string, code OTPCode, purpose CodePurpose, expiresAt time.Time) (*VerificationCode, error) {
+func NewVerificationCode(id, userID, rawCode string, purpose CodePurpose, ttl time.Duration) (*VerificationCode, error) {
 	if purpose != PurposeEmailVerification &&
 		purpose != PurposePhoneVerification &&
 		purpose != PurposeResetPassword &&
@@ -45,24 +45,29 @@ func NewVerificationCode(id, userID string, code OTPCode, purpose CodePurpose, e
 		return nil, kernel.New(ErrCodeVerificationInvalidPurpose)
 	}
 
+	code, err := NewOTPCode(rawCode)
+	if err != nil {
+		return nil, err
+	}
+
 	return &VerificationCode{
 		ID:        id,
 		UserID:    userID,
 		Code:      code,
 		Purpose:   purpose,
-		ExpiresAt: expiresAt,
+		ExpiresAt: time.Now().Add(ttl),
 		CreatedAt: time.Now(),
 	}, nil
 }
 
-func (vc *VerificationCode) Verify(inputCode OTPCode) error {
+func (vc *VerificationCode) Verify(inputCode string) error {
 	if vc.UsedAt != nil {
 		return kernel.New(ErrCodeVerificationCodeUsed)
 	}
 	if vc.IsExpired() {
 		return kernel.New(ErrCodeVerificationCodeExpired)
 	}
-	if vc.Code.String() != inputCode.String() {
+	if !vc.Code.Match(inputCode) {
 		return kernel.New(ErrCodeVerificationCodeMismatch)
 	}
 	now := time.Now()

@@ -17,7 +17,7 @@ func NewPostgresQueryRepo(db *sql.DB) *PostgresQueryRepo {
 	return &PostgresQueryRepo{db: db}
 }
 
-func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID string, search string, page, limit int) ([]*domain.User, int64, error) {
+func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID string, search string, sortBy string, sortType string, page, limit int) ([]*domain.User, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -55,8 +55,23 @@ func (r *PostgresQueryRepo) List(ctx context.Context, status string, roleID stri
 		return nil, 0, fmt.Errorf("count users: %w", err)
 	}
 
+	allowedSortColumns := map[string]string{
+		"username":   "u.username",
+		"email":      "u.email",
+		"status":     "u.status",
+		"created_at": "u.created_at",
+	}
+	orderColumn, ok := allowedSortColumns[sortBy]
+	if !ok {
+		orderColumn = "u.created_at"
+	}
+	orderDir := "DESC"
+	if sortType == "asc" || sortType == "ASC" {
+		orderDir = "ASC"
+	}
+
 	offset := (page - 1) * limit
-	dataQuery := fmt.Sprintf(`SELECT DISTINCT u.id, u.username, u.fullname, u.email, u.phone, u.avatar_key, u.status, u.created_at, u.updated_at, u.last_login_at, u.deleted_at, u.failed_login_attempts, u.locked_until FROM users u%s %s ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d`, joins, whereClause, argIdx, argIdx+1)
+	dataQuery := fmt.Sprintf(`SELECT DISTINCT u.id, u.username, u.fullname, u.email, u.phone, u.avatar_key, u.status, u.created_at, u.updated_at, u.last_login_at, u.deleted_at, u.failed_login_attempts, u.locked_until FROM users u%s %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, joins, whereClause, orderColumn, orderDir, argIdx, argIdx+1)
 	dataArgs := append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, dataArgs...)
@@ -124,7 +139,7 @@ func NewPostgresRoleListRepo(db *sql.DB) *PostgresRoleListRepo {
 	return &PostgresRoleListRepo{db: db}
 }
 
-func (r *PostgresRoleListRepo) List(ctx context.Context, roleType string, scopeType string, assignable *bool, page, limit int) ([]*domain.Role, int64, error) {
+func (r *PostgresRoleListRepo) List(ctx context.Context, roleType string, scopeType string, assignable *bool, sortBy string, sortType string, page, limit int) ([]*domain.Role, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -158,8 +173,23 @@ func (r *PostgresRoleListRepo) List(ctx context.Context, roleType string, scopeT
 		return nil, 0, fmt.Errorf("count roles: %w", err)
 	}
 
+	roleAllowedSort := map[string]string{
+		"name":       "name",
+		"role_type":  "role_type",
+		"scope_type": "scope_type",
+		"created_at": "created_at",
+	}
+	roleOrderCol, ok := roleAllowedSort[sortBy]
+	if !ok {
+		roleOrderCol = "created_at"
+	}
+	roleOrderDir := "DESC"
+	if sortType == "asc" || sortType == "ASC" {
+		roleOrderDir = "ASC"
+	}
+
 	offset := (page - 1) * limit
-	dataQuery := fmt.Sprintf(`SELECT id, name, display_name, description, role_type, scope_type, assignable, created_at, updated_at FROM roles %s ORDER BY created_at DESC LIMIT $%d OFFSET $%d`, whereClause, argIdx, argIdx+1)
+	dataQuery := fmt.Sprintf(`SELECT id, name, display_name, description, role_type, scope_type, assignable, created_at, updated_at FROM roles %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, whereClause, roleOrderCol, roleOrderDir, argIdx, argIdx+1)
 	dataArgs := append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, dataArgs...)
@@ -184,7 +214,7 @@ func NewPostgresUserRoleListRepo(db *sql.DB) *PostgresUserRoleListRepo {
 	return &PostgresUserRoleListRepo{db: db}
 }
 
-func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, page, limit int) ([]*domain.UserRole, int64, error) {
+func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, scopeType, scopeID string, isActive *bool, sortBy string, sortType string, page, limit int) ([]*domain.UserRole, int64, error) {
 	var conditions []string
 	var args []interface{}
 	argIdx := 1
@@ -230,8 +260,22 @@ func (r *PostgresUserRoleListRepo) List(ctx context.Context, userID, roleID, sco
 		return nil, 0, fmt.Errorf("count user roles: %w", err)
 	}
 
+	urAllowedSort := map[string]string{
+		"assigned_at": "assigned_at",
+		"user_id":     "user_id",
+		"role_id":     "role_id",
+	}
+	urOrderCol, ok := urAllowedSort[sortBy]
+	if !ok {
+		urOrderCol = "assigned_at"
+	}
+	urOrderDir := "DESC"
+	if sortType == "asc" || sortType == "ASC" {
+		urOrderDir = "ASC"
+	}
+
 	offset := (page - 1) * limit
-	dataQuery := fmt.Sprintf(`SELECT id, user_id, role_id, scope_type, scope_id, assigned_at, assigned_by, expired_at, is_active, notes, deactivated_at FROM user_roles %s ORDER BY assigned_at DESC LIMIT $%d OFFSET $%d`, whereClause, argIdx, argIdx+1)
+	dataQuery := fmt.Sprintf(`SELECT id, user_id, role_id, scope_type, scope_id, assigned_at, assigned_by, expired_at, is_active, notes, deactivated_at FROM user_roles %s ORDER BY %s %s LIMIT $%d OFFSET $%d`, whereClause, urOrderCol, urOrderDir, argIdx, argIdx+1)
 	dataArgs := append(args, limit, offset)
 
 	rows, err := r.db.QueryContext(ctx, dataQuery, dataArgs...)

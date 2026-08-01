@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListUsersUseCase struct {
@@ -35,16 +36,41 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersReques
 		req.Limit = 10
 	}
 
-	users, total, err := uc.userListRepo.List(ctx, req.Status, req.RoleID, req.Search, req.Page, req.Limit)
+	users, total, err := uc.userListRepo.List(ctx, req.Status, req.RoleID, req.Search, req.SortBy, req.SortType, req.Page, req.Limit)
 	if err != nil {
-		return nil, dto.Meta{}, err
+		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
+	userIDs := make([]string, 0, len(users))
 	items := make([]dto.UserManagementResponse, 0, len(users))
 	for _, user := range users {
-		userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, user.ID)
-		roles := make([]dto.UserRoleSummaryResponse, 0)
-		if err == nil {
+		var phone *string
+		if user.PhoneNumber != nil {
+			s := user.PhoneNumber.String()
+			phone = &s
+		}
+
+		items = append(items, dto.UserManagementResponse{
+			ID:          user.ID,
+			Username:    user.Username.String(),
+			Fullname:    user.Fullname,
+			Email:       user.Email.String(),
+			Phone:       phone,
+			Status:      string(user.Status),
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			LastLoginAt: user.LastLoginAt,
+		})
+		userIDs = append(userIDs, user.ID)
+	}
+
+	if len(userIDs) > 0 {
+		for i := range items {
+			userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, items[i].ID)
+			if err != nil {
+				continue
+			}
+			roles := make([]dto.UserRoleSummaryResponse, 0)
 			for _, ur := range userRoles {
 				if !ur.IsUsable() {
 					continue
@@ -62,26 +88,8 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersReques
 					IsActive:  ur.IsActive,
 				})
 			}
+			items[i].Roles = roles
 		}
-
-		phoneStr := (*string)(nil)
-		if user.PhoneNumber != nil {
-			s := user.PhoneNumber.String()
-			phoneStr = &s
-		}
-
-		items = append(items, dto.UserManagementResponse{
-			ID:          user.ID,
-			Username:    user.Username.String(),
-			Fullname:    user.Fullname,
-			Email:       user.Email.String(),
-			Phone:       phoneStr,
-			Status:      string(user.Status),
-			CreatedAt:   user.CreatedAt,
-			UpdatedAt:   user.UpdatedAt,
-			LastLoginAt: user.LastLoginAt,
-			Roles:       roles,
-		})
 	}
 
 	totalPages := int(math.Ceil(float64(total) / float64(req.Limit)))

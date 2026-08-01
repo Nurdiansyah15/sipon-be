@@ -3,9 +3,11 @@ package command
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/application/query"
 	"sipon-be/internal/modules/identity/domain"
 	"sipon-be/internal/shared/kernel"
 
@@ -27,10 +29,10 @@ func NewAssignRolePermissionUseCase(
 	}
 }
 
-func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assignedBy string, req dto.AssignRolePermissionRequest) error {
-	role, err := uc.roleRepo.FindByID(ctx, roleID)
+func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assignedBy string, req dto.AssignRolePermissionRequest) (*dto.RoleItem, error) {
+	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(roleID))
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
@@ -38,28 +40,32 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case domain.ErrCodeInvalidRoleType:
-				return kernel.New(application.ErrCodeBadRequest)
+				return nil, kernel.New(application.ErrCodeBadRequest)
 			}
 		}
-		return kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
-	permissionKey := domain.PermissionKey(req.PermissionKey)
+	permissionKey := domain.PermissionKey(strings.TrimSpace(req.PermissionKey))
 	var notes *string
-	if req.Notes != "" {
+	if strings.TrimSpace(req.Notes) != "" {
 		notes = &req.Notes
 	}
 
-	rp, err := domain.NewRolePermission(uuid.NewString(), roleID, permissionKey, assignedBy, notes)
+	rp, err := domain.NewRolePermission(uuid.NewString(), role.ID, permissionKey, strings.TrimSpace(assignedBy), notes)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
-	return uc.rolePermRepo.Save(ctx, rp)
+	if err := uc.rolePermRepo.Save(ctx, rp); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
 }
 
 type DeleteRolePermissionUseCase struct {
@@ -71,31 +77,19 @@ func NewDeleteRolePermissionUseCase(roleRepo domain.RoleRepository, rolePermRepo
 	return &DeleteRolePermissionUseCase{roleRepo: roleRepo, rolePermRepo: rolePermRepo}
 }
 
-func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, permissionKey string) error {
-	role, err := uc.roleRepo.FindByID(ctx, roleID)
+func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, permissionKey string) (*dto.RoleItem, error) {
+	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(roleID))
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
-		return kernel.New(application.ErrCodeConflict)
+		return nil, kernel.New(application.ErrCodeConflict)
 	}
 
-	rps, err := uc.rolePermRepo.ListByRoleID(ctx, roleID)
-	if err != nil {
-		return err
+	if err := uc.rolePermRepo.Delete(ctx, role.ID, domain.PermissionKey(strings.TrimSpace(permissionKey))); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	found := false
-	for _, rp := range rps {
-		if string(rp.PermissionKey) == permissionKey {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return kernel.New(application.ErrCodeNotFound)
-	}
-
-	return uc.rolePermRepo.Delete(ctx, roleID, domain.PermissionKey(permissionKey))
+	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
 }

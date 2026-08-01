@@ -25,19 +25,31 @@ func NewVerifyIdentityOTPUseCase(
 	}
 }
 
-func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyOTPRequest) error {
+func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyOTPRequest) (*dto.VerifyOTPResponse, error) {
 	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	identity := user.FindLoginIdentity(identifier.Kind, identifier.Value)
+	if identity == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	if identity.IsVerified() {
+		return &dto.VerifyOTPResponse{Message: "identity sudah terverifikasi"}, nil
 	}
 
 	var purpose domain.CodePurpose
@@ -47,52 +59,40 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 	case domain.LoginIdentifierKindPhone:
 		purpose = domain.PurposePhoneVerification
 	default:
-		purpose = domain.PurposeEmailVerification
+		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
 	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, purpose)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
-	}
-
-	inputOTP, err := domain.NewOTPCode(req.OTP)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	if err := verifCode.Verify(inputOTP); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeMismatch:
-				return kernel.New(application.ErrCodeBadRequest)
-			case domain.ErrCodeVerificationCodeExpired:
-				return kernel.New(application.ErrCodeGone)
-			case domain.ErrCodeVerificationCodeUsed:
-				return kernel.New(application.ErrCodeConflict)
+			case domain.ErrCodeVerificationCodeNotFound:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
-		return kernel.New(application.ErrCodeBadRequest)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	if err := verifCode.Verify(req.OTP); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeVerificationCodeExpired, domain.ErrCodeVerificationCodeUsed, domain.ErrCodeVerificationCodeMismatch:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	identity.MarkVerified()
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
-		return err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	li := user.FindLoginIdentity(identifier.Kind, identifier.Value)
-	if li == nil {
-		li = user.FindLoginIdentityByKind(identifier.Kind)
-	}
-
-	if li == nil {
-		return kernel.New(application.ErrCodeForbidden)
-	}
-
-	li.MarkVerified()
-
-	return uc.userRepo.Update(ctx, user)
+	return &dto.VerifyOTPResponse{Message: "identity berhasil diverifikasi"}, nil
 }

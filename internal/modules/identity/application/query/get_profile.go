@@ -2,6 +2,8 @@ package query
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -42,6 +44,28 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 	}
 
+	credential := user.FindCredential(domain.CredentialTypeLocal)
+	if credential == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	emailIdentity := credential.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	if emailIdentity == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	isEmailVerified := emailIdentity.IsVerified()
+
+	var phoneStr *string
+	var isPhoneVerified bool
+	if user.PhoneNumber != nil {
+		s := user.PhoneNumber.String()
+		phoneStr = &s
+		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+			isPhoneVerified = li.IsVerified()
+		}
+	}
+
 	roles, permissions, scopes, err := resolveSessionRolesPermsScopes(ctx, uc.userRoleRepo, uc.roleRepo, uc.rolePermRepo, uc.roleScopeRepo, userID)
 	if err != nil {
 		return nil, err
@@ -51,21 +75,6 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 	if user.AvatarKey != nil && *user.AvatarKey != "" {
 		url := uc.fileUploader.PublicURL(*user.AvatarKey)
 		avatarURL = &url
-	}
-
-	phoneStr := (*string)(nil)
-	if user.PhoneNumber != nil {
-		s := user.PhoneNumber.String()
-		phoneStr = &s
-	}
-
-	isEmailVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
-		isEmailVerified = li.IsVerified()
-	}
-	isPhoneVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
-		isPhoneVerified = li.IsVerified()
 	}
 
 	return &dto.ProfileResponse{
@@ -86,8 +95,6 @@ func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.P
 	}, nil
 }
 
-// resolveSessionRolesPermsScopes is shared by GetSession and GetProfile — both
-// resolve the same rich role/permission/scope objects for the current user.
 func resolveSessionRolesPermsScopes(
 	ctx context.Context,
 	userRoleRepo domain.UserRoleRepository,
@@ -156,53 +163,63 @@ func resolveSessionRolesPermsScopes(
 
 type MeUseCase struct {
 	userRepo     domain.UserRepository
-	userRoleRepo domain.UserRoleRepository
-	roleRepo     domain.RoleRepository
-	rolePermRepo domain.RolePermissionRepository
 	fileUploader application.FileUploader
 }
 
 func NewMeUseCase(
 	userRepo domain.UserRepository,
-	userRoleRepo domain.UserRoleRepository,
-	roleRepo domain.RoleRepository,
-	rolePermRepo domain.RolePermissionRepository,
 	fileUploader application.FileUploader,
 ) *MeUseCase {
 	return &MeUseCase{
 		userRepo:     userRepo,
-		userRoleRepo: userRoleRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
 		fileUploader: fileUploader,
 	}
 }
 
 func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, error) {
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return nil, kernel.New(application.ErrCodeUnauthorized)
+	}
+
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	credential := user.FindCredential(domain.CredentialTypeLocal)
+	if credential == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	emailIdentity := credential.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	if emailIdentity == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	isEmailVerified := emailIdentity.IsVerified()
+
+	var phoneStr *string
+	var isPhoneVerified bool
+	if user.PhoneNumber != nil {
+		s := user.PhoneNumber.String()
+		phoneStr = &s
+		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+			isPhoneVerified = li.IsVerified()
+		}
 	}
 
 	avatarURL := (*string)(nil)
 	if user.AvatarKey != nil && *user.AvatarKey != "" {
 		url := uc.fileUploader.PublicURL(*user.AvatarKey)
 		avatarURL = &url
-	}
-
-	phoneStr := (*string)(nil)
-	if user.PhoneNumber != nil {
-		s := user.PhoneNumber.String()
-		phoneStr = &s
-	}
-
-	isEmailVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
-		isEmailVerified = li.IsVerified()
-	}
-	isPhoneVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
-		isPhoneVerified = li.IsVerified()
 	}
 
 	return &dto.UserMe{

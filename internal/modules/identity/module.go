@@ -102,12 +102,9 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		tokenGen, transactor, roleAssignment,
 	)
 
-	loginUC := command.NewLoginUseCase(
-		userRepo, userRoleRepo, roleRepo, rolePermRepo,
-		hasher, tokenGen, fileUploader,
-	)
+	loginUC := command.NewLoginUseCase(userRepo, hasher, tokenGen)
 
-	refreshTokenUC := command.NewRefreshTokenUseCase(tokenGen, sessionRevocationStore, userRepo, fileUploader)
+	refreshTokenUC := command.NewRefreshTokenUseCase(tokenGen, sessionRevocationStore, userRepo)
 
 	changePasswordUC := command.NewChangePasswordLocalUseCase(userRepo, hasher)
 	setPasswordUC := command.NewSetPasswordLocalUseCase(userRepo, hasher)
@@ -118,7 +115,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 
 	verifyOTPUC := command.NewVerifyIdentityOTPUseCase(userRepo, verifRepo)
 
-	meUC := query.NewMeUseCase(userRepo, userRoleRepo, roleRepo, rolePermRepo, fileUploader)
+	meUC := query.NewMeUseCase(userRepo, fileUploader)
 
 	forgotPasswordUC := command.NewForgotPasswordUseCase(
 		userRepo, verifRepo, otpGen, emailSender,
@@ -138,7 +135,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		userRepo, userRoleRepo, roleRepo, rolePermRepo, roleScopeRepo,
 	)
 
-	logoutUC := command.NewLogoutUseCase(tokenGen, sessionRevocationStore)
+	logoutUC := command.NewLogoutUseCase(sessionRevocationStore, cfg.JWT.AccessTokenTTL)
 
 	getProfileUC := query.NewGetProfileUseCase(
 		userRepo, userRoleRepo, roleRepo, rolePermRepo, roleScopeRepo, fileUploader,
@@ -150,7 +147,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	changeUsernameUC := command.NewChangeUsernameUseCase(userRepo)
 
 	avatarPresignUC := command.NewAvatarPresignUseCase(fileUploader)
-	avatarConfirmUC := command.NewAvatarConfirmUseCase(userRepo, fileUploader)
+	avatarConfirmUC := command.NewAvatarConfirmUseCase(userRepo, transactor, fileUploader)
 	avatarDeleteUC := command.NewAvatarDeleteUseCase(userRepo, fileUploader)
 
 	createUserUC := command.NewCreateUserUseCase(userRepo, hasher)
@@ -166,16 +163,16 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	getRoleUC := query.NewGetRoleUseCase(roleRepo, rolePermRepo)
 	listPermissionsUC := query.NewListPermissionsUseCase()
 
-	createRoleUC := command.NewCreateRoleUseCase(roleRepo)
-	updateRoleUC := command.NewUpdateRoleUseCase(roleRepo)
+	createRoleUC := command.NewCreateRoleUseCase(roleRepo, rolePermRepo)
+	updateRoleUC := command.NewUpdateRoleUseCase(roleRepo, rolePermRepo)
 
 	assignUserRoleUC := command.NewAssignUserRoleUseCase(
-		userRepo, roleRepo, userRoleRepo, roleAssignment,
+		roleRepo, userRoleRepo, userRepo, rolePermRepo,
 	)
 
-	updateUserRoleUC := command.NewUpdateUserRoleUseCase(userRoleRepo)
-	deactivateUserRoleUC := command.NewDeactivateUserRoleUseCase(userRoleRepo)
-	reactivateUserRoleUC := command.NewReactivateUserRoleUseCase(userRoleRepo)
+	updateUserRoleUC := command.NewUpdateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
+	deactivateUserRoleUC := command.NewDeactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
+	reactivateUserRoleUC := command.NewReactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
 	deleteUserRoleUC := command.NewDeleteUserRoleUseCase(userRoleRepo)
 
 	listUserRolesUC := query.NewListUserRolesUseCase(
@@ -235,6 +232,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		listScopesUC,
 		assignRoleScopeUC,
 		deleteRoleScopeUC,
+		tokenGen,
 	)
 
 	middlewareBuilder := identityHTTP.NewMiddlewareBuilder(

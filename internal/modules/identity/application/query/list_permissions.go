@@ -13,7 +13,7 @@ func NewListPermissionsUseCase() *ListPermissionsUseCase {
 	return &ListPermissionsUseCase{}
 }
 
-func (uc *ListPermissionsUseCase) Execute(ctx context.Context) ([]dto.PermissionItem, error) {
+func (uc *ListPermissionsUseCase) Execute(ctx context.Context) []dto.PermissionItem {
 	items := make([]dto.PermissionItem, 0, len(domain.AllPermissionDefinitions))
 	for _, def := range domain.AllPermissionDefinitions {
 		items = append(items, dto.PermissionItem{
@@ -22,5 +22,5 @@ func (uc *ListPermissionsUseCase) Execute(ctx context.Context) ([]dto.Permission
 			Description: def.Description,
 		})
 	}
-	return items, nil
+	return items
 }

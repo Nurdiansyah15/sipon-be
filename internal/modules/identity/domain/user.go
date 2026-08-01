@@ -71,6 +71,9 @@ const (
 	ErrCodeNoPrimaryIdentity           kernel.Code = "NO_PRIMARY_IDENTITY"
 	ErrCodeUsernameAlreadySet          kernel.Code = "USERNAME_ALREADY_SET"
 	ErrCodeInvalidLoginIdentityValue   kernel.Code = "INVALID_LOGIN_IDENTITY_VALUE"
+	ErrCodeUserIDRequired              kernel.Code = "USER_ID_REQUIRED"
+	ErrCodeUserEmailRequired           kernel.Code = "USER_EMAIL_REQUIRED"
+	ErrCodeUserPhoneNumberInvalid      kernel.Code = "USER_PHONE_NUMBER_INVALID"
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
@@ -208,6 +211,10 @@ func (o OTPCode) String() string {
 	return o.code
 }
 
+func (o OTPCode) Match(input string) bool {
+	return o.code == input
+}
+
 type Username struct {
 	value string
 }
@@ -279,9 +286,18 @@ type User struct {
 }
 
 func NewUser(id string, username Username, fullname *string, email Email, phoneNumber *PhoneNumber) (*User, error) {
-	now := time.Now()
+	if id == "" {
+		return nil, kernel.New(ErrCodeUserIDRequired)
+	}
+	if email == (Email{}) {
+		return nil, kernel.New(ErrCodeUserEmailRequired)
+	}
+	if phoneNumber != nil && *phoneNumber == (PhoneNumber{}) {
+		return nil, kernel.New(ErrCodeUserPhoneNumberInvalid)
+	}
 
-	user := &User{
+	now := time.Now()
+	return &User{
 		ID:          id,
 		Username:    username,
 		Fullname:    fullname,
@@ -290,9 +306,7 @@ func NewUser(id string, username Username, fullname *string, email Email, phoneN
 		Status:      UserStatusActive,
 		CreatedAt:   now,
 		UpdatedAt:   now,
-	}
-
-	return user, nil
+	}, nil
 }
 
 func (u *User) AddCredential(c *Credential) {

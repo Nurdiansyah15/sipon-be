@@ -3,10 +3,8 @@ package query
 import (
 	"context"
 
-	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/domain"
-	"sipon-be/internal/shared/kernel"
 )
 
 type GetSessionUseCase struct {
@@ -36,7 +34,7 @@ func NewGetSessionUseCase(
 func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.SessionResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, err
 	}
 
 	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
@@ -97,8 +95,8 @@ func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.S
 		}
 	}
 
-	name := user.Username.String()
-	if user.Fullname != nil && *user.Fullname != "" {
+	name := ""
+	if user.Fullname != nil {
 		name = *user.Fullname
 	}
 

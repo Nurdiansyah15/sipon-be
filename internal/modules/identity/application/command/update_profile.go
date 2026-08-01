@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"time"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -18,10 +19,22 @@ func NewUpdateProfileUseCase(userRepo domain.UserRepository) *UpdateProfileUseCa
 	return &UpdateProfileUseCase{userRepo: userRepo}
 }
 
-func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req dto.UpdateProfileRequest) error {
+func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	cred := user.FindCredential(domain.CredentialTypeLocal)
+	if cred == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
 	}
 
 	if req.Fullname != nil {
@@ -29,65 +42,64 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 	}
 
 	if req.Email != nil {
-		if emailLI := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); emailLI != nil && emailLI.IsVerified() {
-			return kernel.New(application.ErrCodeConflict)
+		currentEmailIdentity := cred.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+		if currentEmailIdentity != nil && currentEmailIdentity.IsVerified() {
+			return nil, kernel.New(application.ErrCodeConflict)
 		}
 
 		newEmail, err := domain.NewEmail(*req.Email)
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
-			return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
 
-		if newEmail.String() != user.Email.String() {
-			emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindEmail, newEmail.String())
-			if err != nil {
-				return err
-			}
-			if emailExists {
-				return kernel.New(application.ErrCodeConflict)
-			}
-			user.Email = newEmail
+		existingUser, findErr := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, newEmail.String())
+		if findErr == nil && existingUser.ID != userID {
+			return nil, kernel.New(application.ErrCodeConflict)
+		}
+
+		user.Email = newEmail
+		if currentEmailIdentity != nil {
+			currentEmailIdentity.Value = newEmail.String()
 		}
 	}
 
 	if req.Phone != nil {
-		if phoneLI := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); phoneLI != nil && phoneLI.IsVerified() {
-			return kernel.New(application.ErrCodeConflict)
+		if user.PhoneNumber != nil {
+			currentPhoneIdentity := cred.FindLoginIdentity(domain.LoginIdentifierKindPhone, user.PhoneNumber.String())
+			if currentPhoneIdentity != nil && currentPhoneIdentity.IsVerified() {
+				return nil, kernel.New(application.ErrCodeConflict)
+			}
 		}
 
-		if *req.Phone == "" {
-			user.PhoneNumber = nil
-		} else {
-			newPhone, err := domain.NewPhoneNumber(*req.Phone)
-			if err != nil {
-				var ke *kernel.AppError
-				if errors.As(err, &ke) {
-					return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-				}
-				return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		newPhone, err := domain.NewPhoneNumber(*req.Phone)
+		if err != nil {
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
+			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		}
 
-			currentPhone := ""
-			if user.PhoneNumber != nil {
-				currentPhone = user.PhoneNumber.String()
-			}
+		existingUser, findErr := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindPhone, newPhone.String())
+		if findErr == nil && existingUser.ID != userID {
+			return nil, kernel.New(application.ErrCodeConflict)
+		}
 
-			if newPhone.String() != currentPhone {
-				phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, domain.LoginIdentifierKindPhone, newPhone.String())
-				if err != nil {
-					return err
-				}
-				if phoneExists {
-					return kernel.New(application.ErrCodeConflict)
-				}
-				user.PhoneNumber = &newPhone
-			}
+		user.PhoneNumber = &newPhone
+		existingPhoneIdentity := cred.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone)
+		if existingPhoneIdentity != nil {
+			existingPhoneIdentity.Value = newPhone.String()
 		}
 	}
 
-	return uc.userRepo.Update(ctx, user)
+	user.UpdatedAt = time.Now()
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	return &dto.UpdateProfileResponse{Message: "profil berhasil diperbarui"}, nil
 }

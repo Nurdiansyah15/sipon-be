@@ -37,33 +37,36 @@ func NewRequestIdentityOTPUseCase(
 	}
 }
 
-func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) error {
+func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) (*dto.RequestOTPResponse, error) {
 	identifier, err := domain.NewLoginIdentifier(req.Identifier)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	identity := user.FindLoginIdentity(identifier.Kind, identifier.Value)
+	if identity == nil {
+		return nil, kernel.New(application.ErrCodeNotFound)
+	}
+
+	if identity.IsVerified() {
+		return nil, kernel.New(application.ErrCodeConflict)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
 	if err != nil {
-		return err
-	}
-
-	otp, err := domain.NewOTPCode(otpCode)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	var purpose domain.CodePurpose
@@ -73,24 +76,28 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 	case domain.LoginIdentifierKindPhone:
 		purpose = domain.PurposePhoneVerification
 	default:
-		purpose = domain.PurposeEmailVerification
+		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
-	verifCode, err := domain.NewVerificationCode(uuid.NewString(), user.ID, otp, purpose, time.Now().Add(10*time.Minute))
+	verifCode, err := domain.NewVerificationCode(uuid.NewString(), user.ID, otpCode, purpose, 5*time.Minute)
 	if err != nil {
-		return err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	if err := uc.verifRepo.Save(ctx, verifCode); err != nil {
-		return err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	switch identifier.Kind {
 	case domain.LoginIdentifierKindEmail:
-		return uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode)
+		if err := uc.emailSender.SendOTP(identity.Value, user.Username.String(), otpCode); err != nil {
+			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		}
 	case domain.LoginIdentifierKindPhone:
-		return uc.smsSender.SendOTP(identifier.Value, otpCode)
-	default:
-		return uc.emailSender.SendOTP(identifier.Value, user.Username.String(), otpCode)
+		if err := uc.smsSender.SendOTP(identity.Value, otpCode); err != nil {
+			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		}
 	}
+
+	return &dto.RequestOTPResponse{Message: "OTP verifikasi berhasil dikirim"}, nil
 }

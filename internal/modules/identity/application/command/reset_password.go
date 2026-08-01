@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"time"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -28,87 +29,83 @@ func NewResetPasswordUseCase(
 	}
 }
 
-func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswordRequest) error {
-	email, err := domain.NewEmail(req.Email)
+func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswordRequest) (*dto.ResetPasswordResponse, error) {
+	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, req.Email)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			}
 		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	user, err := uc.userRepo.FindByIdentity(ctx, domain.LoginIdentifierKindEmail, email.String())
-	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, domain.PurposeResetPassword)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
-	}
-
-	inputOTP, err := domain.NewOTPCode(req.Token)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	if err := verifCode.Verify(inputOTP); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeVerificationCodeMismatch:
-				return kernel.New(application.ErrCodeBadRequest)
-			case domain.ErrCodeVerificationCodeExpired:
-				return kernel.New(application.ErrCodeGone)
-			case domain.ErrCodeVerificationCodeUsed:
-				return kernel.New(application.ErrCodeConflict)
+			case domain.ErrCodeVerificationCodeNotFound:
+				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
 			}
 		}
-		return kernel.New(application.ErrCodeBadRequest)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
-		return err
+	if err := verifCode.Verify(req.Token); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeVerificationCodeExpired, domain.ErrCodeVerificationCodeUsed, domain.ErrCodeVerificationCodeMismatch:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	plainPw, err := domain.NewPlainPassword(req.Password)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	hashedPassword, err := uc.hasher.Hash(plainPw.String())
-	if err != nil {
-		return err
-	}
-
-	hashedPw, err := domain.NewHashedPassword(hashedPassword)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
-		}
-		return kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
-	}
-
-	if err := user.SetLocalPassword(hashedPw); err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
 			switch ke.Code {
-			case domain.ErrCodeCredentialNotLocal:
-				return kernel.WrapMsg(application.ErrCodeBadRequest, string(ke.Code), ke)
+			case domain.ErrCodePlainPasswordEmpty, domain.ErrCodePlainPasswordTooShort, domain.ErrCodePlainPasswordNoUppercase, domain.ErrCodePlainPasswordNoDigit:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
 			}
 		}
-		return err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	return uc.userRepo.Update(ctx, user)
+	localCred := user.FindCredential(domain.CredentialTypeLocal)
+	if localCred == nil {
+		return nil, kernel.New(application.ErrCodeForbidden)
+	}
+
+	hashedStr, err := uc.hasher.Hash(plainPw.String())
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	hashedPw, err := domain.NewHashedPassword(hashedStr)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	now := time.Now()
+	localCred.SecretHash = &hashedPw
+	localCred.LastChangedAt = &now
+	localCred.UpdatedAt = now
+	user.UpdatedAt = now
+	user.ResetFailedAttempts()
+
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	return &dto.ResetPasswordResponse{Message: "password berhasil direset"}, nil
 }

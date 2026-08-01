@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"errors"
+	"strings"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -15,87 +17,101 @@ type RefreshTokenUseCase struct {
 	tokenGen               application.TokenGenerator
 	sessionRevocationStore application.SessionRevocationStore
 	userRepo               domain.UserRepository
-	fileUploader           application.FileUploader
 }
 
 func NewRefreshTokenUseCase(
 	tokenGen application.TokenGenerator,
 	sessionRevocationStore application.SessionRevocationStore,
 	userRepo domain.UserRepository,
-	fileUploader application.FileUploader,
 ) *RefreshTokenUseCase {
 	return &RefreshTokenUseCase{
 		tokenGen:               tokenGen,
 		sessionRevocationStore: sessionRevocationStore,
 		userRepo:               userRepo,
-		fileUploader:           fileUploader,
 	}
 }
 
 func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshTokenRequest) (*dto.LoginResponse, error) {
-	claims, err := uc.tokenGen.ParseRefreshToken(req.RefreshToken)
+	refreshToken := strings.TrimSpace(req.RefreshToken)
+	if refreshToken == "" {
+		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+	}
+
+	claims, err := uc.tokenGen.ParseRefreshToken(refreshToken)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
 	}
 
-	revokedBefore, err := uc.sessionRevocationStore.RevokedBefore(ctx, claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-	if revokedBefore != nil && claims.IssuedAt.Before(*revokedBefore) {
+	userID := strings.TrimSpace(claims.UserID)
+	if userID == "" {
 		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 
-	deviceRevokedBefore, err := uc.sessionRevocationStore.DeviceRevokedBefore(ctx, claims.UserID, claims.DeviceID)
-	if err != nil {
-		return nil, err
+	if uc.sessionRevocationStore != nil {
+		if revokedBefore, revErr := uc.sessionRevocationStore.RevokedBefore(ctx, userID); revErr == nil && revokedBefore != nil {
+			if claims.IssuedAt.Before(*revokedBefore) {
+				return nil, kernel.New(application.ErrCodeUnauthorized)
+			}
+		}
+		if claims.DeviceID != "" {
+			if revokedBefore, revErr := uc.sessionRevocationStore.DeviceRevokedBefore(ctx, userID, claims.DeviceID); revErr == nil && revokedBefore != nil {
+				if claims.IssuedAt.Before(*revokedBefore) {
+					return nil, kernel.New(application.ErrCodeUnauthorized)
+				}
+			}
+		}
 	}
-	if deviceRevokedBefore != nil && claims.IssuedAt.Before(*deviceRevokedBefore) {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+
+	user, err := uc.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeInvalidLoginIdentityValue:
+				return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	if err := user.EnsureCanLogin(); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case domain.ErrCodeUserBanned:
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+			case domain.ErrCodeUserNotActive:
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+			}
+		}
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	sessionID := uuid.NewString()
-	deviceID := uuid.NewString()
-
-	accessToken, err := uc.tokenGen.GenerateAccessToken(claims.UserID, sessionID, deviceID)
+	accessToken, err := uc.tokenGen.GenerateAccessToken(user.ID, sessionID, claims.DeviceID)
 	if err != nil {
-		return nil, err
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	newRefreshToken, err := uc.tokenGen.GenerateRefreshToken(user.ID, claims.DeviceID)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	refreshToken, err := uc.tokenGen.GenerateRefreshToken(claims.UserID, deviceID)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := uc.userRepo.FindByID(ctx, claims.UserID)
-	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
-	}
-
-	phoneStr := (*string)(nil)
+	emailLI := user.FindLoginIdentity(domain.LoginIdentifierKindEmail, user.Email.String())
+	isEmailVerified := emailLI != nil && emailLI.IsVerified()
+	var phoneStr *string
+	var isPhoneVerified bool
 	if user.PhoneNumber != nil {
 		s := user.PhoneNumber.String()
 		phoneStr = &s
-	}
-
-	isEmailVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindEmail); li != nil {
-		isEmailVerified = li.IsVerified()
-	}
-	isPhoneVerified := false
-	if li := user.FindLoginIdentityByKind(domain.LoginIdentifierKindPhone); li != nil {
-		isPhoneVerified = li.IsVerified()
-	}
-
-	avatarURL := (*string)(nil)
-	if user.AvatarKey != nil && *user.AvatarKey != "" && uc.fileUploader != nil {
-		url := uc.fileUploader.PublicURL(*user.AvatarKey)
-		avatarURL = &url
+		if li := user.FindLoginIdentity(domain.LoginIdentifierKindPhone, s); li != nil {
+			isPhoneVerified = li.IsVerified()
+		}
 	}
 
 	return &dto.LoginResponse{
 		Token:        accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: newRefreshToken,
 		User: dto.UserMe{
 			ID:              user.ID,
 			Username:        user.Username.String(),
@@ -107,7 +123,6 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 			Status:          string(user.Status),
 			CreatedAt:       user.CreatedAt,
 			HasPassword:     user.HasLocalPassword(),
-			AvatarURL:       avatarURL,
 		},
 	}, nil
 }
