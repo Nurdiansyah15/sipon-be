@@ -240,6 +240,16 @@ type UserRoleSummaryResponse struct {
 	IsActive  bool    `json:"is_active"`
 }
 
+// UserSummaryResult is NOT an HTTP response shape (no json tags) — it's the
+// return type of GetUserSummaryUseCase, consumed only by identity's own
+// contract.go to build the cross-module Contract.UserSummary DTO.
+type UserSummaryResult struct {
+	ID       string
+	Username string
+	Email    string
+	Status   string
+}
+
 type UserManagementResponse struct {
 	ID          string                    `json:"id"`
 	Username    string                    `json:"username"`

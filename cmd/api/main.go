@@ -55,8 +55,8 @@ func main() {
 	engine.Use(middleware.RequestLogger(lg))
 	engine.Use(middleware.ErrorHandler(lg))
 
-	if cfg.RateLimit.Enabled && identity.Services.RateLimiter != nil {
-		engine.Use(middleware.RateLimitByIP(identity.Services.RateLimiter, cfg.RateLimit))
+	if cfg.RateLimit.Enabled && identity.RateLimiter() != nil {
+		engine.Use(middleware.RateLimitByIP(identity.RateLimiter(), cfg.RateLimit))
 		lg.Info("rate limiting diaktifkan")
 	}
 
