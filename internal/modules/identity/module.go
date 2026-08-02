@@ -35,6 +35,12 @@ type Module struct {
 
 	// getUserSummaryUC backs Contract.GetUserSummary — see contract.go.
 	getUserSummaryUC *query.GetUserSummaryUseCase
+
+	// The 3 fields below back Contract.CreateAccountWithNIS/
+	// AddNISLoginIdentity/UpdateFullname — see contract.go.
+	createAccountWithNISUC *command.CreateAccountWithNISUseCase
+	addNISLoginIdentityUC  *command.AddNISLoginIdentityUseCase
+	updateFullnameUC       *command.UpdateFullnameUseCase
 }
 
 func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Module {
@@ -151,6 +157,10 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	getUserUC := query.NewGetUserUseCase(userRepo, userRoleRepo, roleRepo)
 	getUserSummaryUC := query.NewGetUserSummaryUseCase(userRepo)
 
+	createAccountWithNISUC := command.NewCreateAccountWithNISUseCase(userRepo, hasher)
+	addNISLoginIdentityUC := command.NewAddNISLoginIdentityUseCase(userRepo)
+	updateFullnameUC := command.NewUpdateFullnameUseCase(userRepo)
+
 	listRolesUC := query.NewListRolesUseCase(roleListRepo)
 	getRoleUC := query.NewGetRoleUseCase(roleRepo, rolePermRepo)
 	listPermissionsUC := query.NewListPermissionsUseCase()
@@ -237,11 +247,14 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	)
 
 	return &Module{
-		handler:           handler,
-		middlewareBuilder: middlewareBuilder,
-		rateLimiter:       rateLimiter,
-		principalBuilder:  principalBuilder,
-		getUserSummaryUC:  getUserSummaryUC,
+		handler:                handler,
+		middlewareBuilder:      middlewareBuilder,
+		rateLimiter:            rateLimiter,
+		principalBuilder:       principalBuilder,
+		getUserSummaryUC:       getUserSummaryUC,
+		createAccountWithNISUC: createAccountWithNISUC,
+		addNISLoginIdentityUC:  addNISLoginIdentityUC,
+		updateFullnameUC:       updateFullnameUC,
 	}
 }
 
@@ -256,28 +269,19 @@ func (m *Module) RateLimiter() ports.RateLimiter {
 	return m.rateLimiter
 }
 
-// UserSummary is identity's own contract-boundary DTO — deliberately NOT
-// userentity.User and NOT dto.UserManagementResponse (that one is
-// admin/query-shaped and will change for reasons unrelated to this contract).
-type UserSummary struct {
-	UserID   string
-	Username string
-	Email    string
-	IsActive bool
+// AuthMiddleware and PrincipalMiddleware exist solely for cmd/api/main.go to
+// hand ready-made gin.HandlerFunc values to OTHER modules (e.g. kesantrian)
+// that need JWT auth / principal loading but must never gain access to
+// identity's TokenGenerator/SessionStore/PrincipalBuilder/PrincipalCache
+// themselves. Deliberately on *Module, NOT on Contract — exactly like
+// RateLimiter() — so a module receiving identity.Contract cannot reach
+// these. See docs/architecture/module-boundaries.md.
+func (m *Module) AuthMiddleware() gin.HandlerFunc {
+	return m.middlewareBuilder.JWTAuth()
 }
 
-// Principal mirrors infrastructure/principal.Principal's shape but is its
-// own type — the contract must not leak the principal package.
-type Principal struct {
-	UserID      string
-	Roles       []string
-	Permissions []string
-	Scopes      []ScopeInfo
-}
-
-type ScopeInfo struct {
-	ScopeType string
-	ScopeID   *string
+func (m *Module) PrincipalMiddleware() gin.HandlerFunc {
+	return m.middlewareBuilder.PrincipalLoad()
 }
 
 func (m *Module) GetUserSummary(ctx context.Context, userID string) (*UserSummary, error) {
@@ -286,10 +290,13 @@ func (m *Module) GetUserSummary(ctx context.Context, userID string) (*UserSummar
 		return nil, err
 	}
 	return &UserSummary{
-		UserID:   res.ID,
-		Username: res.Username,
-		Email:    res.Email,
-		IsActive: res.Status == string(userconstant.UserStatusActive),
+		UserID:    res.ID,
+		Username:  res.Username,
+		Email:     res.Email,
+		IsActive:  res.Status == string(userconstant.UserStatusActive),
+		Fullname:  res.Fullname,
+		Phone:     res.Phone,
+		AvatarKey: res.AvatarKey,
 	}, nil
 }
 
@@ -303,4 +310,28 @@ func (m *Module) GetPrincipal(ctx context.Context, userID string) (*Principal, e
 		scopes[i] = ScopeInfo{ScopeType: s.ScopeType, ScopeID: s.ScopeID}
 	}
 	return &Principal{UserID: p.UserID, Roles: p.Roles, Permissions: p.Permissions, Scopes: scopes}, nil
+}
+
+func (m *Module) CreateAccountWithNIS(ctx context.Context, in CreateAccountInput) (*CreateAccountResult, error) {
+	res, err := m.createAccountWithNISUC.Execute(ctx, command.CreateAccountWithNISInput{
+		Username: in.Username,
+		Email:    in.Email,
+		Fullname: in.Fullname,
+		NISValue: in.NISValue,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &CreateAccountResult{
+		UserID:            res.UserID,
+		GeneratedPassword: res.GeneratedPassword,
+	}, nil
+}
+
+func (m *Module) AddNISLoginIdentity(ctx context.Context, userID, nisValue string) error {
+	return m.addNISLoginIdentityUC.Execute(ctx, userID, nisValue)
+}
+
+func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname string) error {
+	return m.updateFullnameUC.Execute(ctx, userID, fullname)
 }

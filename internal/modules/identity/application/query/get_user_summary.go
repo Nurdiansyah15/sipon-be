@@ -36,10 +36,19 @@ func (uc *GetUserSummaryUseCase) Execute(ctx context.Context, userID string) (*d
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
+	var phone *string
+	if user.PhoneNumber != nil {
+		p := user.PhoneNumber.String()
+		phone = &p
+	}
+
 	return &dto.UserSummaryResult{
-		ID:       user.ID,
-		Username: user.Username.String(),
-		Email:    user.Email.String(),
-		Status:   string(user.Status),
+		ID:        user.ID,
+		Username:  user.Username.String(),
+		Email:     user.Email.String(),
+		Status:    string(user.Status),
+		Fullname:  user.Fullname,
+		Phone:     phone,
+		AvatarKey: user.AvatarKey,
 	}, nil
 }

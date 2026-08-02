@@ -15,6 +15,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	identityModule "sipon-be/internal/modules/identity"
+	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
@@ -47,6 +48,12 @@ func main() {
 	defer redisClient.Close()
 
 	identity := identityModule.NewModule(db, redisClient, cfg)
+	kesantrian := kesantrianModule.NewModule(
+		db, redisClient, cfg,
+		identity, // *identity.Module satisfies identity.Contract
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
 
 	engine := gin.New()
 
@@ -69,6 +76,7 @@ func main() {
 	}
 
 	identity.RegisterRoutes(engine)
+	kesantrian.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,

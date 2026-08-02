@@ -18,6 +18,7 @@ const (
 	LoginIdentifierKindEmail    LoginIdentifierKind = "EMAIL"
 	LoginIdentifierKindPhone    LoginIdentifierKind = "PHONE"
 	LoginIdentifierKindUsername LoginIdentifierKind = "USERNAME"
+	LoginIdentifierKindNIS      LoginIdentifierKind = "NIS"
 )
 
 type LoginIdentityStatus string

@@ -244,10 +244,13 @@ type UserRoleSummaryResponse struct {
 // return type of GetUserSummaryUseCase, consumed only by identity's own
 // contract.go to build the cross-module Contract.UserSummary DTO.
 type UserSummaryResult struct {
-	ID       string
-	Username string
-	Email    string
-	Status   string
+	ID        string
+	Username  string
+	Email     string
+	Status    string
+	Fullname  *string
+	Phone     *string
+	AvatarKey *string
 }
 
 type UserManagementResponse struct {

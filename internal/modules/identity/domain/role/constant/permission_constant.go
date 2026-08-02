@@ -16,6 +16,7 @@ const (
 	PermissionDeactivateUser        PermissionKey = "deactivate_user"
 	PermissionManageRoles           PermissionKey = "manage_roles"
 	PermissionManageRolePermissions PermissionKey = "manage_role_permissions"
+	PermissionManageSantri          PermissionKey = "manage_santri"
 )
 
 type PermissionDefinition struct {
@@ -32,6 +33,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionDeactivateUser, DisplayName: "Deactivate User", Description: "Allows deactivating user accounts"},
 	{Key: PermissionManageRoles, DisplayName: "Manage Roles", Description: "Allows managing role definitions"},
 	{Key: PermissionManageRolePermissions, DisplayName: "Manage Role Permissions", Description: "Allows managing permissions assigned to roles"},
+	{Key: PermissionManageSantri, DisplayName: "Manage Santri", Description: "Allows managing santri profiles, requests, and documents"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -60,6 +62,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionDeactivateUser,
 		PermissionManageRoles,
 		PermissionManageRolePermissions,
+		PermissionManageSantri,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -68,11 +71,13 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionDeactivateUser,
 		PermissionManageRoles,
 		PermissionManageRolePermissions,
+		PermissionManageSantri,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
 		PermissionResetUserPassword,
 		PermissionDeactivateUser,
+		PermissionManageSantri,
 	},
 	MemberRoleName: {},
 }
@@ -125,5 +130,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageRolePermissions,
 		DisplayName: "Manage Role Permissions",
 		Description: "Allows managing permissions assigned to roles",
+	},
+	PermissionManageSantri: {
+		Key:         PermissionManageSantri,
+		DisplayName: "Manage Santri",
+		Description: "Allows managing santri profiles, requests, and documents",
 	},
 }

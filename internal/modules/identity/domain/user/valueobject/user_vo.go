@@ -19,6 +19,16 @@ var phoneRegex = regexp.MustCompile(`^\+?[1-9]\d{6,14}$`)
 var uppercaseRegex = regexp.MustCompile(`[A-Z]`)
 var digitRegexCompiled = regexp.MustCompile(`[0-9]`)
 
+// nisLoginPattern is identity's OWN copy of the NIS shape, used only to
+// auto-detect a NIS at login time — it deliberately does NOT import
+// kesantrian's NIS value object (identity must not depend on kesantrian).
+// The authoritative NIS format validation still lives exactly once, in
+// kesantrian's own domain/santri/valueobject/nis.go; this copy exists
+// purely because a raw NIS digit string (e.g. "1000112345") also matches
+// phoneRegex below, and without this check it would be misclassified as
+// PHONE — for which no login identity exists — before ever reaching here.
+var nisLoginPattern = regexp.MustCompile(`^1000[12][0-9]{5}$`)
+
 type Email struct {
 	value string
 }
@@ -189,6 +199,10 @@ func NewLoginIdentifier(raw string) (LoginIdentifier, error) {
 		return LoginIdentifier{Kind: constant.LoginIdentifierKindEmail, Value: raw}, nil
 	}
 
+	if nisLoginPattern.MatchString(raw) {
+		return LoginIdentifier{Kind: constant.LoginIdentifierKindNIS, Value: raw}, nil
+	}
+
 	normalizedPhone := NormalizePhoneNumber(raw)
 	if phoneRegex.MatchString(normalizedPhone) {
 		return LoginIdentifier{Kind: constant.LoginIdentifierKindPhone, Value: normalizedPhone}, nil
@@ -234,6 +248,13 @@ func NormalizeLoginIdentityValue(kind constant.LoginIdentifierKind, rawValue str
 		if len(rawValue) > 30 {
 			return "", kernel.New(constant.ErrCodeUsernameTooLong)
 		}
+		return rawValue, nil
+
+	case constant.LoginIdentifierKindNIS:
+		// Pass-through: NIS format is validated once by the caller (e.g.
+		// kesantrian's own NIS value object) before it ever reaches
+		// identity — identity trusts the value it's handed here, mirroring
+		// sipon-api's own login_identity.go NIS branch.
 		return rawValue, nil
 
 	default:
