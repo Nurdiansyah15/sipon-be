@@ -29,7 +29,8 @@ const santriColumns = `
 	father, father_pn, father_nik, father_job, father_graduate, father_income,
 	mother, mother_pn, mother_nik, mother_job, mother_graduate, mother_income,
 	guardian_relationship, guardian, guardian_pn, guardian_nik, guardian_job, guardian_graduate, guardian_income,
-	created_at, updated_at, deleted_at
+	created_at, updated_at, deleted_at,
+	status, status_changed_by, status_changed_at, status_notes
 `
 
 var santriSortColumns = map[string]string{
@@ -59,7 +60,8 @@ func (r *PostgresSantriRepository) Save(ctx context.Context, s *entity.Santri) e
 		$31,$32,$33,$34,$35,$36,
 		$37,$38,$39,$40,$41,$42,
 		$43,$44,$45,$46,$47,$48,$49,
-		$50,$51,$52
+		$50,$51,$52,
+		$53,$54,$55,$56
 	)`
 
 	_, err := execer.ExecContext(ctx, query, r.args(s)...)
@@ -85,8 +87,9 @@ func (r *PostgresSantriRepository) Update(ctx context.Context, s *entity.Santri)
 		father=$30, father_pn=$31, father_nik=$32, father_job=$33, father_graduate=$34, father_income=$35,
 		mother=$36, mother_pn=$37, mother_nik=$38, mother_job=$39, mother_graduate=$40, mother_income=$41,
 		guardian_relationship=$42, guardian=$43, guardian_pn=$44, guardian_nik=$45, guardian_job=$46, guardian_graduate=$47, guardian_income=$48,
-		updated_at=$49, deleted_at=$50
-		WHERE id=$51 AND deleted_at IS NULL`
+		updated_at=$49, deleted_at=$50,
+		status=$51, status_changed_by=$52, status_changed_at=$53, status_notes=$54
+		WHERE id=$55 AND deleted_at IS NULL`
 
 	args := []interface{}{
 		s.UserID, nullStr(nisString(s.NIS)), nullStr(s.Nickname), nullStr(s.Program), nullStr(s.Option), nullStr(s.Hobby), nullStr(s.Purpose), nullStr(s.MotivationEntry), nullStr(s.POB), nullTimeVal(s.DOB), nullStr(s.Blood),
@@ -99,6 +102,7 @@ func (r *PostgresSantriRepository) Update(ctx context.Context, s *entity.Santri)
 		nullStr(s.Mother), nullStr(s.MotherPN), nullStr(s.MotherNIK), nullStr(s.MotherJob), nullStr(s.MotherGraduate), nullStr(s.MotherIncome),
 		nullStr(s.GuardianRelationship), nullStr(s.Guardian), nullStr(s.GuardianPN), nullStr(s.GuardianNIK), nullStr(s.GuardianJob), nullStr(s.GuardianGraduate), nullStr(s.GuardianIncome),
 		s.UpdatedAt, nullTimeVal(s.DeletedAt),
+		string(s.Status), nullStr(s.StatusChangedBy), nullTimeVal(s.StatusChangedAt), nullStr(s.StatusNotes),
 		s.ID,
 	}
 
@@ -201,6 +205,7 @@ func (r *PostgresSantriRepository) args(s *entity.Santri) []interface{} {
 		nullStr(s.Mother), nullStr(s.MotherPN), nullStr(s.MotherNIK), nullStr(s.MotherJob), nullStr(s.MotherGraduate), nullStr(s.MotherIncome),
 		nullStr(s.GuardianRelationship), nullStr(s.Guardian), nullStr(s.GuardianPN), nullStr(s.GuardianNIK), nullStr(s.GuardianJob), nullStr(s.GuardianGraduate), nullStr(s.GuardianIncome),
 		s.CreatedAt, s.UpdatedAt, nullTimeVal(s.DeletedAt),
+		string(s.Status), nullStr(s.StatusChangedBy), nullTimeVal(s.StatusChangedAt), nullStr(s.StatusNotes),
 	}
 }
 
@@ -220,6 +225,9 @@ func (r *PostgresSantriRepository) scan(sc scanner) (*entity.Santri, error) {
 		guardianRel, guardian, guardianPN, guardianNIK, guardianJob, guardianGraduate, guardianIncome sql.NullString
 		createdAt, updatedAt                                                                          time.Time
 		deletedAt                                                                                     sql.NullTime
+		status, statusChangedBy                                                                       sql.NullString
+		statusChangedAt                                                                               sql.NullTime
+		statusNotes                                                                                   sql.NullString
 	)
 
 	err := sc.Scan(
@@ -233,6 +241,7 @@ func (r *PostgresSantriRepository) scan(sc scanner) (*entity.Santri, error) {
 		&mother, &motherPN, &motherNIK, &motherJob, &motherGraduate, &motherIncome,
 		&guardianRel, &guardian, &guardianPN, &guardianNIK, &guardianJob, &guardianGraduate, &guardianIncome,
 		&createdAt, &updatedAt, &deletedAt,
+		&status, &statusChangedBy, &statusChangedAt, &statusNotes,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -300,9 +309,13 @@ func (r *PostgresSantriRepository) scan(sc scanner) (*entity.Santri, error) {
 		GuardianGraduate:     strFromNull(guardianGraduate),
 		GuardianIncome:       strFromNull(guardianIncome),
 
-		CreatedAt: createdAt,
-		UpdatedAt: updatedAt,
-		DeletedAt: timeFromNull(deletedAt),
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
+		DeletedAt:      timeFromNull(deletedAt),
+		Status:         constant.SantriStatus(blankToSantri(status)),
+		StatusChangedBy: strFromNull(statusChangedBy),
+		StatusChangedAt: timeFromNull(statusChangedAt),
+		StatusNotes:     strFromNull(statusNotes),
 	}
 
 	if nis.Valid && nis.String != "" {
@@ -313,6 +326,35 @@ func (r *PostgresSantriRepository) scan(sc scanner) (*entity.Santri, error) {
 	}
 
 	return s, nil
+}
+
+func blankToSantri(s sql.NullString) string {
+	if !s.Valid || s.String == "" {
+		return "SANTRI"
+	}
+	return s.String
+}
+
+func (r *PostgresSantriRepository) FindMaxSequence(ctx context.Context, prefix string) (int, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	if _, err := execer.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, prefix); err != nil {
+		return 0, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("advisory lock: %w", err))
+	}
+
+	var maxSeq sql.NullInt64
+	row := execer.QueryRowContext(ctx,
+		`SELECT MAX(CAST(SUBSTRING(nis FROM 8) AS INTEGER)) FROM santri WHERE nis LIKE $1 AND deleted_at IS NULL`,
+		prefix+"%",
+	)
+	if err := row.Scan(&maxSeq); err != nil {
+		return 0, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("find max sequence: %w", err))
+	}
+
+	if !maxSeq.Valid {
+		return 0, nil
+	}
+	return int(maxSeq.Int64), nil
 }
 
 func nisString(nis *valueobject.NIS) *string {

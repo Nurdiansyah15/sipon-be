@@ -17,6 +17,8 @@ const (
 	PermissionManageRoles           PermissionKey = "manage_roles"
 	PermissionManageRolePermissions PermissionKey = "manage_role_permissions"
 	PermissionManageSantri          PermissionKey = "manage_santri"
+	PermissionManagePSB             PermissionKey = "manage_psb"
+	PermissionManagePSBSettings     PermissionKey = "manage_psb_settings"
 )
 
 type PermissionDefinition struct {
@@ -34,6 +36,8 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManageRoles, DisplayName: "Manage Roles", Description: "Allows managing role definitions"},
 	{Key: PermissionManageRolePermissions, DisplayName: "Manage Role Permissions", Description: "Allows managing permissions assigned to roles"},
 	{Key: PermissionManageSantri, DisplayName: "Manage Santri", Description: "Allows managing santri profiles, requests, and documents"},
+	{Key: PermissionManagePSB, DisplayName: "Manage PSB", Description: "Allows managing PSB registration: verifying documents, accept/reject, verify re-registration, generate NIS"},
+	{Key: PermissionManagePSBSettings, DisplayName: "Manage PSB Settings", Description: "Allows managing PSB periods, quotas, fees, bank accounts, and purging period data"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -63,6 +67,8 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageRoles,
 		PermissionManageRolePermissions,
 		PermissionManageSantri,
+		PermissionManagePSB,
+		PermissionManagePSBSettings,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -72,12 +78,16 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageRoles,
 		PermissionManageRolePermissions,
 		PermissionManageSantri,
+		PermissionManagePSB,
+		PermissionManagePSBSettings,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
 		PermissionResetUserPassword,
 		PermissionDeactivateUser,
 		PermissionManageSantri,
+		PermissionManagePSB,
+		PermissionManagePSBSettings,
 	},
 	MemberRoleName: {},
 }
@@ -135,5 +145,15 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageSantri,
 		DisplayName: "Manage Santri",
 		Description: "Allows managing santri profiles, requests, and documents",
+	},
+	PermissionManagePSB: {
+		Key:         PermissionManagePSB,
+		DisplayName: "Manage PSB",
+		Description: "Allows managing PSB registration: verifying documents, accept/reject, verify re-registration, generate NIS",
+	},
+	PermissionManagePSBSettings: {
+		Key:         PermissionManagePSBSettings,
+		DisplayName: "Manage PSB Settings",
+		Description: "Allows managing PSB periods, quotas, fees, bank accounts, and purging period data",
 	},
 }

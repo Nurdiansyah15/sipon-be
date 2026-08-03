@@ -1,6 +1,7 @@
 package kesantrian
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
@@ -21,9 +22,10 @@ import (
 // needed yet: kesantrian has no rate limiter of its own and no other module
 // calls into it — YAGNI, see docs/architecture/module-boundaries.md).
 type Module struct {
-	handler       *kesantrianHTTP.SantriHandler
-	jwtAuth       gin.HandlerFunc
-	principalLoad gin.HandlerFunc
+	handler                            *kesantrianHTTP.SantriHandler
+	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
+	jwtAuth                            gin.HandlerFunc
+	principalLoad                      gin.HandlerFunc
 }
 
 // NewModule takes identity as identity.Contract (not *identity.Module) —
@@ -77,6 +79,9 @@ func NewModule(
 	dokumenVerifyUC := command.NewDokumenVerifyUseCase(dokumenRepo, transactor)
 	dokumenRejectUC := command.NewDokumenRejectUseCase(dokumenRepo, transactor)
 
+	createSantriFromPendaftaranUC := command.NewCreateSantriFromPendaftaranUseCase(santriRepo, dokumenRepo, provisioner, transactor)
+	changeSantriStatusUC := command.NewChangeSantriStatusUseCase(santriRepo)
+
 	handler := kesantrianHTTP.NewSantriHandler(
 		getSantriUC,
 		updateSantriUC,
@@ -95,12 +100,97 @@ func NewModule(
 		dokumenDeleteUC,
 		dokumenVerifyUC,
 		dokumenRejectUC,
+		createSantriFromPendaftaranUC,
+		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	kesantrianHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) CreateSantriFromPendaftaran(ctx context.Context, in CreateSantriFromPendaftaranInput) (*CreateSantriFromPendaftaranResult, error) {
+	dok := make([]command.PendaftaranDokumenInput, len(in.Dokumen))
+	for i, d := range in.Dokumen {
+		dok[i] = command.PendaftaranDokumenInput{
+			Kind:             d.Kind,
+			Key:              d.Key,
+			OriginalFilename: d.OriginalFilename,
+			MimeType:         d.MimeType,
+			Size:             d.Size,
+			VerifiedBy:       d.VerifiedBy,
+			VerifiedAt:       d.VerifiedAt,
+		}
+	}
+	result, err := m.createSantriFromPendaftaranUC.Execute(ctx, command.CreateSantriFromPendaftaranCmd{
+		UserID:    in.UserID,
+		Gender:    in.Gender,
+		EntryYear: in.EntryYear,
+
+		Nickname:        in.Nickname,
+		Program:         in.Program,
+		Hobby:           in.Hobby,
+		Purpose:         in.Purpose,
+		MotivationEntry: in.MotivationEntry,
+		POB:             in.POB,
+		DOB:             in.DOB,
+		Blood:           in.Blood,
+
+		Address:     in.Address,
+		SubDistrict: in.SubDistrict,
+		District:    in.District,
+		Province:    in.Province,
+		PostalCode:  in.PostalCode,
+
+		PreviousPondokName:    in.PreviousPondokName,
+		PreviousPondokAddress: in.PreviousPondokAddress,
+		PreviousPondokDiv:     in.PreviousPondokDiv,
+		PreviousPondokTime:    in.PreviousPondokTime,
+
+		NIK:   in.NIK,
+		NoKK:  in.NoKK,
+		NISN:  in.NISN,
+		NoKIP: in.NoKIP,
+		NoKKS: in.NoKKS,
+		NoPKH: in.NoPKH,
+
+		Workplace:  in.Workplace,
+		Department: in.Department,
+
+		HomeStatus: in.HomeStatus,
+
+		Father:         in.Father,
+		FatherPN:       in.FatherPN,
+		FatherNIK:      in.FatherNIK,
+		FatherJob:      in.FatherJob,
+		FatherGraduate: in.FatherGraduate,
+		FatherIncome:   in.FatherIncome,
+
+		Mother:         in.Mother,
+		MotherPN:       in.MotherPN,
+		MotherNIK:      in.MotherNIK,
+		MotherJob:      in.MotherJob,
+		MotherGraduate: in.MotherGraduate,
+		MotherIncome:   in.MotherIncome,
+
+		GuardianRelationship: in.GuardianRelationship,
+		Guardian:             in.Guardian,
+		GuardianPN:           in.GuardianPN,
+		GuardianNIK:          in.GuardianNIK,
+		GuardianJob:          in.GuardianJob,
+		GuardianGraduate:     in.GuardianGraduate,
+		GuardianIncome:       in.GuardianIncome,
+
+		Dokumen: dok,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &CreateSantriFromPendaftaranResult{
+		SantriID: result.SantriID,
+		NIS:      result.NIS,
+	}, nil
 }

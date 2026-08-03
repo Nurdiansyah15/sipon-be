@@ -25,5 +25,6 @@ type SantriRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.Santri, error)
 	FindByUserID(ctx context.Context, userID string) (*entity.Santri, error)
 	FindByNIS(ctx context.Context, nis string) (*entity.Santri, error)
+	FindMaxSequence(ctx context.Context, prefix string) (int, error)
 	List(ctx context.Context, query SantriListQuery) (*SantriListResult, error)
 }

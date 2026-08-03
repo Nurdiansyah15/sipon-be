@@ -40,6 +40,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *SantriHandler, jwtAuth, principa
 			admin.GET("/:id/dokumen", h.AdminDokumenList)
 			admin.POST("/verify/:id", h.DokumenVerify)
 			admin.POST("/reject/:id", h.DokumenReject)
+			admin.POST("/:id/status", h.ChangeSantriStatus)
 		}
 	}
 }

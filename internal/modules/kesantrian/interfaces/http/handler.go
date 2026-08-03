@@ -33,6 +33,9 @@ type SantriHandler struct {
 	dokumenDeleteUC    *command.DokumenDeleteUseCase
 	dokumenVerifyUC    *command.DokumenVerifyUseCase
 	dokumenRejectUC    *command.DokumenRejectUseCase
+
+	createSantriFromPendaftaranUC *command.CreateSantriFromPendaftaranUseCase
+	changeSantriStatusUC          *command.ChangeSantriStatusUseCase
 }
 
 func NewSantriHandler(
@@ -53,6 +56,8 @@ func NewSantriHandler(
 	dokumenDeleteUC *command.DokumenDeleteUseCase,
 	dokumenVerifyUC *command.DokumenVerifyUseCase,
 	dokumenRejectUC *command.DokumenRejectUseCase,
+	createSantriFromPendaftaranUC *command.CreateSantriFromPendaftaranUseCase,
+	changeSantriStatusUC *command.ChangeSantriStatusUseCase,
 ) *SantriHandler {
 	return &SantriHandler{
 		getSantriUC:            getSantriUC,
@@ -70,8 +75,10 @@ func NewSantriHandler(
 		adminDokumenListUC:     adminDokumenListUC,
 		dokumenAccessUC:        dokumenAccessUC,
 		dokumenDeleteUC:        dokumenDeleteUC,
-		dokumenVerifyUC:        dokumenVerifyUC,
-		dokumenRejectUC:        dokumenRejectUC,
+		dokumenVerifyUC:    dokumenVerifyUC,
+		dokumenRejectUC:    dokumenRejectUC,
+		createSantriFromPendaftaranUC: createSantriFromPendaftaranUC,
+		changeSantriStatusUC:          changeSantriStatusUC,
 	}
 }
 
@@ -315,6 +322,22 @@ func (h *SantriHandler) DokumenReject(c *gin.Context) {
 		return
 	}
 	resp, err := h.dokumenRejectUC.Execute(c.Request.Context(), verifierID, dokumenID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, resp.Message, resp)
+}
+
+func (h *SantriHandler) ChangeSantriStatus(c *gin.Context) {
+	adminID := middleware.GetUserID(c)
+	santriID := c.Param("id")
+	var req command.ChangeSantriStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.changeSantriStatusUC.Execute(c.Request.Context(), santriID, adminID, req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return

@@ -74,6 +74,11 @@ type Santri struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt *time.Time
+
+	Status           constant.SantriStatus
+	StatusChangedBy  *string
+	StatusChangedAt  *time.Time
+	StatusNotes      *string
 }
 
 func NewSantri(id, userID string) (*Santri, error) {
@@ -84,6 +89,7 @@ func NewSantri(id, userID string) (*Santri, error) {
 	return &Santri{
 		ID:        id,
 		UserID:    userID,
+		Status:    constant.SantriStatusSantri,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
@@ -104,4 +110,29 @@ func (s *Santri) SoftDelete() {
 	now := time.Now()
 	s.DeletedAt = &now
 	s.UpdatedAt = now
+}
+
+func (s *Santri) MarkAlumni(changedBy string) error {
+	if s.Status != constant.SantriStatusSantri {
+		return kernel.New(constant.CodeSantriInvalidStatus)
+	}
+	now := time.Now()
+	s.Status = constant.SantriStatusAlumni
+	s.StatusChangedBy = &changedBy
+	s.StatusChangedAt = &now
+	s.UpdatedAt = now
+	return nil
+}
+
+func (s *Santri) MarkDropOut(changedBy string, notes *string) error {
+	if s.Status != constant.SantriStatusSantri {
+		return kernel.New(constant.CodeSantriInvalidStatus)
+	}
+	now := time.Now()
+	s.Status = constant.SantriStatusDropOut
+	s.StatusChangedBy = &changedBy
+	s.StatusChangedAt = &now
+	s.StatusNotes = notes
+	s.UpdatedAt = now
+	return nil
 }

@@ -16,6 +16,7 @@ import (
 
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
+	psbModule "sipon-be/internal/modules/psb"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
@@ -55,6 +56,14 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	psb := psbModule.NewModule(
+		db, cfg,
+		identity,      // identity.Contract
+		kesantrian,    // kesantrian.Contract (needs CreateSantriFromPendaftaran)
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	engine := gin.New()
 
 	engine.Use(middleware.RequestID())
@@ -77,6 +86,7 @@ func main() {
 
 	identity.RegisterRoutes(engine)
 	kesantrian.RegisterRoutes(engine)
+	psb.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
