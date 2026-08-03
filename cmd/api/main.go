@@ -64,6 +64,18 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	const pendingUploadExpireDays = 1
+
+	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
+		lg.Warn("gagal set lifecycle pending upload (identity)", slog.Any("error", err))
+	}
+	if err := kesantrian.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
+		lg.Warn("gagal set lifecycle pending upload (kesantrian)", slog.Any("error", err))
+	}
+	if err := psb.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
+		lg.Warn("gagal set lifecycle pending upload (psb)", slog.Any("error", err))
+	}
+
 	engine := gin.New()
 
 	engine.Use(middleware.RequestID())

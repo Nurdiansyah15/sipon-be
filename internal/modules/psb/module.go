@@ -1,6 +1,7 @@
 package psb
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
@@ -8,6 +9,7 @@ import (
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/modules/psb/application/command"
+	ports "sipon-be/internal/modules/psb/application/ports"
 	"sipon-be/internal/modules/psb/application/query"
 	"sipon-be/internal/modules/psb/infrastructure/external"
 	"sipon-be/internal/modules/psb/infrastructure/kesantriangateway"
@@ -18,6 +20,7 @@ import (
 
 type Module struct {
 	handler       *psbHTTP.PsbHandler
+	fileUploader  ports.FileUploader
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
 }
@@ -53,14 +56,14 @@ func NewModule(
 	listPendaftaran := query.NewListPendaftaranUseCase(pendaftarRepo)
 	listReviews := query.NewListReviewsUseCase(reviewRepo)
 	dokumenList := query.NewDokumenListUseCase(pendaftarRepo, settingRepo, dokumenRepo)
+	dokumenAccess := query.NewDokumenAccessUseCase(pendaftarRepo, settingRepo, dokumenRepo, fileUploader)
 
-	upsertFormulir := command.NewUpsertFormulirUseCase(settingRepo, pendaftarRepo)
-	pendaftarAction := command.NewPendaftarActionUseCase(pendaftarRepo)
-	adminReview := command.NewAdminReviewUseCase(pendaftarRepo, reviewRepo)
+	upsertFormulir := command.NewUpsertFormulirUseCase(settingRepo, pendaftarRepo, dokumenRepo, fileUploader)
+	pendaftarAction := command.NewPendaftarActionUseCase(pendaftarRepo, dokumenRepo, fileUploader)
+	adminReview := command.NewAdminReviewUseCase(pendaftarRepo, reviewRepo, dokumenRepo)
 	generateNIS := command.NewGenerateNISUseCase(pendaftarRepo, settingRepo, dokumenRepo, kesantrianGW)
 
 	dokumenPresign := command.NewDokumenPresignUseCase(fileUploader)
-	dokumenConfirm := command.NewDokumenConfirmUseCase(pendaftarRepo, settingRepo, dokumenRepo, fileUploader, transactor)
 	dokumenDelete := command.NewDokumenDeleteUseCase(pendaftarRepo, dokumenRepo, fileUploader, settingRepo, transactor)
 	dokumenVerify := command.NewDokumenVerifyUseCase(dokumenRepo)
 	dokumenReject := command.NewDokumenRejectUseCase(dokumenRepo)
@@ -71,14 +74,18 @@ func NewModule(
 	handler := psbHTTP.NewPsbHandler(
 		settingQuery, getPendaftaran, listPendaftaran, listReviews,
 		upsertFormulir, pendaftarAction, adminReview, generateNIS,
-		dokumenPresign, dokumenConfirm, dokumenDelete, dokumenVerify, dokumenReject, dokumenList,
+		dokumenPresign, dokumenDelete, dokumenVerify, dokumenReject, dokumenList, dokumenAccess,
 		manageSetting, purgePeriod,
 	)
 
-	return &Module{handler: handler, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	psbHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
+	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
 }

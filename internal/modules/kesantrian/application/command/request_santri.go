@@ -54,7 +54,7 @@ func (uc *RequestSantriUseCase) Execute(ctx context.Context, userID string) (*dt
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.requestRepo.Save(txCtx, req)
 	}); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, application.WrapConflictErr(err, requestconstant.CodeSantriRequestAlreadyExists)
 	}
 
 	return &dto.RequestSantriResponse{ID: req.ID, Message: "permintaan menjadi santri berhasil diajukan"}, nil

@@ -49,15 +49,16 @@ func (uc *DokumenDeleteUseCase) Execute(ctx context.Context, userID, dokumenID s
 		return nil, kernel.New(application.ErrCodeForbidden)
 	}
 
-	dokumen.SoftDelete()
+	if err := uc.fileUploader.DeleteObject(ctx, dokumen.Key, ports.PrivacyPrivate); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
 
+	dokumen.SoftDelete()
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.dokumenRepo.Update(txCtx, dokumen)
 	}); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
-
-	_ = uc.fileUploader.DeleteObject(ctx, dokumen.Key, ports.PrivacyPrivate)
 
 	return &dto.MessageResponse{Message: "dokumen berhasil dihapus"}, nil
 }

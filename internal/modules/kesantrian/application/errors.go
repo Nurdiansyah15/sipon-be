@@ -30,3 +30,14 @@ func WrapRepoErr(err error, notFoundCode kernel.Code) error {
 	}
 	return kernel.Wrap(ErrCodeInternal, err)
 }
+
+// WrapConflictErr maps a domain-level "duplicate/already exists" kernel.Code
+// (typically raised on a unique-constraint violation) to ErrCodeConflict,
+// and anything else to ErrCodeInternal.
+func WrapConflictErr(err error, conflictCode kernel.Code) error {
+	var ke *kernel.AppError
+	if errors.As(err, &ke) && ke.Code == conflictCode {
+		return kernel.Wrap(ErrCodeConflict, err)
+	}
+	return kernel.Wrap(ErrCodeInternal, err)
+}

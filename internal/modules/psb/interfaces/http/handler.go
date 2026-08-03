@@ -23,11 +23,11 @@ type PsbHandler struct {
 	generateNIS     *command.GenerateNISUseCase
 
 	dokumenPresign  *command.DokumenPresignUseCase
-	dokumenConfirm  *command.DokumenConfirmUseCase
 	dokumenDelete   *command.DokumenDeleteUseCase
 	dokumenVerify   *command.DokumenVerifyUseCase
 	dokumenReject   *command.DokumenRejectUseCase
 	dokumenList     *query.DokumenListUseCase
+	dokumenAccess   *query.DokumenAccessUseCase
 
 	manageSetting *command.ManageSettingUseCase
 	purgePeriod   *command.PurgePeriodUseCase
@@ -43,11 +43,11 @@ func NewPsbHandler(
 	adminReview *command.AdminReviewUseCase,
 	generateNIS *command.GenerateNISUseCase,
 	dokumenPresign *command.DokumenPresignUseCase,
-	dokumenConfirm *command.DokumenConfirmUseCase,
 	dokumenDelete *command.DokumenDeleteUseCase,
 	dokumenVerify *command.DokumenVerifyUseCase,
 	dokumenReject *command.DokumenRejectUseCase,
 	dokumenList *query.DokumenListUseCase,
+	dokumenAccess *query.DokumenAccessUseCase,
 	manageSetting *command.ManageSettingUseCase,
 	purgePeriod *command.PurgePeriodUseCase,
 ) *PsbHandler {
@@ -61,11 +61,11 @@ func NewPsbHandler(
 		adminReview:     adminReview,
 		generateNIS:     generateNIS,
 		dokumenPresign:  dokumenPresign,
-		dokumenConfirm:  dokumenConfirm,
 		dokumenDelete:   dokumenDelete,
 		dokumenVerify:   dokumenVerify,
 		dokumenReject:   dokumenReject,
 		dokumenList:     dokumenList,
+		dokumenAccess:   dokumenAccess,
 		manageSetting:   manageSetting,
 		purgePeriod:     purgePeriod,
 	}
@@ -127,7 +127,11 @@ func (h *PsbHandler) SubmitDaftarUlang(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	result, err := h.pendaftarAction.SubmitDaftarUlang(c.Request.Context(), userID, p.PsbSettingID)
+	var body struct {
+		Dokumen []dto.FormulirDokumenItem `json:"dokumen"`
+	}
+	_ = c.ShouldBindJSON(&body)
+	result, err := h.pendaftarAction.SubmitDaftarUlang(c.Request.Context(), userID, p.PsbSettingID, body.Dokumen)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -164,21 +168,6 @@ func (h *PsbHandler) DokumenPresign(c *gin.Context) {
 	respond.OK(c, "presign url berhasil dibuat", resp)
 }
 
-func (h *PsbHandler) DokumenConfirm(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	var req dto.DokumenConfirmRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		httperror.Handle(c, err)
-		return
-	}
-	resp, err := h.dokumenConfirm.Execute(c.Request.Context(), userID, req)
-	if err != nil {
-		httperror.Handle(c, err)
-		return
-	}
-	respond.Created(c, "dokumen berhasil dikonfirmasi", resp)
-}
-
 func (h *PsbHandler) DokumenList(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	items, err := h.dokumenList.Execute(c.Request.Context(), userID)
@@ -187,6 +176,17 @@ func (h *PsbHandler) DokumenList(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "daftar dokumen berhasil diambil", items)
+}
+
+func (h *PsbHandler) DokumenAccess(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	dokumenID := c.Param("id")
+	resp, err := h.dokumenAccess.Execute(c.Request.Context(), userID, dokumenID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "akses dokumen berhasil dibuat", resp)
 }
 
 func (h *PsbHandler) DokumenDelete(c *gin.Context) {
@@ -244,6 +244,16 @@ func (h *PsbHandler) AdminDokumenList(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "daftar dokumen berhasil diambil", items)
+}
+
+func (h *PsbHandler) AdminDokumenAccess(c *gin.Context) {
+	dokumenID := c.Param("dokumenId")
+	resp, err := h.dokumenAccess.ExecuteAdmin(c.Request.Context(), dokumenID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "akses dokumen berhasil dibuat", resp)
 }
 
 func (h *PsbHandler) AdminDokumenVerify(c *gin.Context) {

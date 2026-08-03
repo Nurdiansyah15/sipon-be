@@ -32,6 +32,7 @@ type Module struct {
 	middlewareBuilder *identityHTTP.MiddlewareBuilder
 	rateLimiter       ports.RateLimiter
 	principalBuilder  *principal.Builder
+	fileUploader      ports.FileUploader
 
 	// getUserSummaryUC backs Contract.GetUserSummary — see contract.go.
 	getUserSummaryUC *query.GetUserSummaryUseCase
@@ -251,6 +252,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		middlewareBuilder:      middlewareBuilder,
 		rateLimiter:            rateLimiter,
 		principalBuilder:       principalBuilder,
+		fileUploader:           fileUploader,
 		getUserSummaryUC:       getUserSummaryUC,
 		createAccountWithNISUC: createAccountWithNISUC,
 		addNISLoginIdentityUC:  addNISLoginIdentityUC,
@@ -334,4 +336,8 @@ func (m *Module) AddNISLoginIdentity(ctx context.Context, userID, nisValue strin
 
 func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname string) error {
 	return m.updateFullnameUC.Execute(ctx, userID, fullname)
+}
+
+func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
+	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
 }

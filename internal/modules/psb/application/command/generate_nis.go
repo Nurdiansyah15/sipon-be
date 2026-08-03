@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"sipon-be/internal/modules/kesantrian"
@@ -46,6 +47,13 @@ func (uc *GenerateNISUseCase) Execute(ctx context.Context, pendaftarID, adminID 
 	docs, err := uc.dokumenRepo.FindByPendaftarIDAndStage(ctx, pendaftarID, dconstant.StageDaftarUlang)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	for _, d := range docs {
+		if d.Status != dconstant.DokumenStatusVerified {
+			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity,
+				fmt.Errorf("dokumen %s belum diverifikasi", d.Kind))
+		}
 	}
 
 	entryYear := time.Now().Format("06")

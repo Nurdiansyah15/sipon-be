@@ -65,7 +65,7 @@ func (uc *CreateSantriUseCase) Execute(ctx context.Context, req dto.CreateSantri
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.santriRepo.Save(txCtx, santri)
 	}); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, application.WrapConflictErr(err, santriconstant.CodeSantriDuplicate)
 	}
 
 	return &dto.CreateSantriResponse{

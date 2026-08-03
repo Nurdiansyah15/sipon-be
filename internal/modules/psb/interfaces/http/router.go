@@ -18,8 +18,8 @@ func RegisterRoutes(router *gin.RouterGroup, h *PsbHandler, jwtAuth, principalLo
 		psb.GET("/pendaftaran/riwayat", h.GetRiwayat)
 
 		psb.POST("/dokumen/presign", h.DokumenPresign)
-		psb.POST("/dokumen/confirm", h.DokumenConfirm)
 		psb.GET("/dokumen", h.DokumenList)
+		psb.GET("/dokumen/:id/access", h.DokumenAccess)
 		psb.DELETE("/dokumen/:id", h.DokumenDelete)
 
 		psb.POST("/daftar-ulang/submit", h.SubmitDaftarUlang)
@@ -31,6 +31,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *PsbHandler, jwtAuth, principalLo
 			admin.GET("/pendaftaran/:id", h.AdminGetPendaftaran)
 			admin.GET("/pendaftaran/:id/riwayat", h.AdminGetRiwayat)
 			admin.GET("/pendaftaran/:id/dokumen", h.AdminDokumenList)
+			admin.GET("/pendaftaran/:id/dokumen/:dokumenId/access", h.AdminDokumenAccess)
 			admin.POST("/pendaftaran/:id/dokumen/:dokumenId/verify", h.AdminDokumenVerify)
 			admin.POST("/pendaftaran/:id/dokumen/:dokumenId/reject", h.AdminDokumenReject)
 			admin.POST("/pendaftaran/:id/request-revision", h.AdminRequestRevision)
@@ -46,7 +47,11 @@ func RegisterRoutes(router *gin.RouterGroup, h *PsbHandler, jwtAuth, principalLo
 				settings.GET("", h.ListSettings)
 				settings.POST("", h.CreateSetting)
 				settings.PUT("/:id", h.UpdateSetting)
-				settings.POST("/:id/purge", h.PurgePeriod)
+				// TODO: dinonaktifkan sementara — hard-delete pendaftar/pendaftar_dokumen
+				// belum membersihkan file MinIO terkait (orphan permanen). Aktifkan lagi
+				// setelah PurgePeriodUseCase diperbaiki untuk menghapus objek MinIO dulu
+				// sebelum hard-delete DB.
+				// settings.POST("/:id/purge", h.PurgePeriod)
 			}
 		}
 	}

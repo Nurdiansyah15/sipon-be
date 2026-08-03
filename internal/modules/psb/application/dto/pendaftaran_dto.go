@@ -56,6 +56,14 @@ type UpsertFormulirRequest struct {
 	GuardianJob          *string `json:"guardian_job,omitempty"`
 	GuardianGraduate     *string `json:"guardian_graduate,omitempty"`
 	GuardianIncome       *string `json:"guardian_income,omitempty"`
+
+	Dokumen []FormulirDokumenItem `json:"dokumen,omitempty"`
+}
+
+type FormulirDokumenItem struct {
+	Stage string `json:"stage" binding:"required"`
+	Kind  string `json:"kind" binding:"required"`
+	Key   string `json:"key" binding:"required"`
 }
 
 type PendaftarResponse struct {

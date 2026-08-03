@@ -3,11 +3,14 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 
 	"sipon-be/internal/modules/psb/application"
 	"sipon-be/internal/modules/psb/application/dto"
+	dconstant "sipon-be/internal/modules/psb/domain/dokumen/constant"
+	drepo "sipon-be/internal/modules/psb/domain/dokumen/repository"
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
 	rconstant "sipon-be/internal/modules/psb/domain/review/constant"
@@ -19,10 +22,19 @@ import (
 type AdminReviewUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	reviewRepo    rrepo.PendaftarReviewRepository
+	dokumenRepo   drepo.PendaftarDokumenRepository
 }
 
-func NewAdminReviewUseCase(pendaftarRepo prepo.PendaftarRepository, reviewRepo rrepo.PendaftarReviewRepository) *AdminReviewUseCase {
-	return &AdminReviewUseCase{pendaftarRepo: pendaftarRepo, reviewRepo: reviewRepo}
+func NewAdminReviewUseCase(
+	pendaftarRepo prepo.PendaftarRepository,
+	reviewRepo rrepo.PendaftarReviewRepository,
+	dokumenRepo drepo.PendaftarDokumenRepository,
+) *AdminReviewUseCase {
+	return &AdminReviewUseCase{
+		pendaftarRepo: pendaftarRepo,
+		reviewRepo:    reviewRepo,
+		dokumenRepo:   dokumenRepo,
+	}
 }
 
 func (uc *AdminReviewUseCase) RequestRevision(ctx context.Context, pendaftarID, adminID string, notes *string) (*dto.MessageResponse, error) {
@@ -69,6 +81,18 @@ func (uc *AdminReviewUseCase) Accept(ctx context.Context, pendaftarID, adminID s
 	p, err := uc.pendaftarRepo.FindByID(ctx, pendaftarID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, pconstant.CodePendaftarNotFound)
+	}
+
+	docs, err := uc.dokumenRepo.FindByPendaftarIDAndStage(ctx, pendaftarID, dconstant.StagePendaftaran)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	for _, d := range docs {
+		if d.Status != dconstant.DokumenStatusVerified {
+			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity,
+				fmt.Errorf("dokumen %s belum diverifikasi", d.Kind))
+		}
 	}
 
 	if err := p.Accept(adminID); err != nil {

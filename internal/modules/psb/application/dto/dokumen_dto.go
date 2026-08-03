@@ -40,5 +40,6 @@ type DokumenItemResponse struct {
 }
 
 type DokumenAccessResponse struct {
-	URL string `json:"url"`
+	AccessURL string `json:"access_url"`
+	ExpiresIn int    `json:"expires_in"`
 }

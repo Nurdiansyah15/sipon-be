@@ -10,6 +10,8 @@ type FileUploader interface {
 	ConfirmUpload(ctx context.Context, key string) error
 	MarkDeleted(ctx context.Context, key string) error
 	DeleteObject(ctx context.Context, key string, privacy PrivacyRule) error
+	PromoteUpload(ctx context.Context, stagingKey, finalKey string, privacy PrivacyRule) error
+	EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error
 	PublicURL(key string) string
 	KeyFromURL(url string) string
 }

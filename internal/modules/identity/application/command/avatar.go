@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"path"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 	}
 
 	ext := avatarExtByContentType[ct]
-	objectName := path.Join("avatars", uuid.NewString()+ext)
+	objectName := path.Join("pending", "avatars", uuid.NewString()+ext)
 
 	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, ct, avatarPresignTTL, ports.PrivacyPublic)
 	if err != nil {
@@ -87,7 +88,7 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 	}
 
 	normalizedKey := uc.fileUploader.KeyFromURL(key)
-	if normalizedKey == "" {
+	if normalizedKey == "" || !strings.HasPrefix(normalizedKey, "pending/") {
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
@@ -103,23 +104,32 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	oldKey := user.AvatarKey
-	user.AvatarKey = &normalizedKey
+	if err := uc.fileUploader.ConfirmUpload(ctx, normalizedKey); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
 
+	oldKey := user.AvatarKey
+	finalKey := strings.TrimPrefix(normalizedKey, "pending/")
+
+	if err := uc.fileUploader.PromoteUpload(ctx, normalizedKey, finalKey, ports.PrivacyPublic); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	user.AvatarKey = &finalKey
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.userRepo.Update(txCtx, user)
 	}); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	_ = uc.fileUploader.ConfirmUpload(ctx, normalizedKey)
-
-	if oldKey != nil && *oldKey != normalizedKey {
-		_ = uc.fileUploader.MarkDeleted(ctx, *oldKey)
+	if oldKey != nil && *oldKey != finalKey {
+		if err := uc.fileUploader.MarkDeleted(ctx, *oldKey); err != nil {
+			slog.Warn("identity: best-effort hapus avatar lama gagal", "key", *oldKey, "error", err)
+		}
 	}
 
 	return &dto.AvatarConfirmResponse{
-		AvatarURL: uc.fileUploader.PublicURL(normalizedKey),
+		AvatarURL: uc.fileUploader.PublicURL(finalKey),
 	}, nil
 }
 
@@ -157,14 +167,16 @@ func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) (*dto
 	}
 
 	oldKey := user.AvatarKey
-	user.AvatarKey = nil
-
-	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
-	}
 
 	if oldKey != nil && *oldKey != "" {
-		_ = uc.fileUploader.MarkDeleted(ctx, *oldKey)
+		if err := uc.fileUploader.MarkDeleted(ctx, *oldKey); err != nil {
+			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		}
+	}
+
+	user.AvatarKey = nil
+	if err := uc.userRepo.Update(ctx, user); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	return &dto.ChangeIdentityResponse{Message: "avatar berhasil dihapus"}, nil

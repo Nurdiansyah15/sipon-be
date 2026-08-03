@@ -47,7 +47,7 @@ func (uc *DokumenPresignUseCase) Execute(ctx context.Context, req dto.DokumenPre
 	}
 
 	ext := dokumenExtByContentType[ct]
-	objectName := path.Join("santri", "dokumen", string(kind), uuid.NewString()+ext)
+	objectName := path.Join("pending", "santri", "dokumen", string(kind), uuid.NewString()+ext)
 
 	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, ct, dokumenPresignTTL, ports.PrivacyPrivate)
 	if err != nil {
@@ -89,7 +89,21 @@ func (uc *DokumenConfirmUseCase) Execute(ctx context.Context, userID string, req
 	}
 
 	kind := dokumenconstant.DokumenKind(req.Kind)
-	dokumen, err := dokumenentity.NewSantriDokumen(uuid.NewString(), santri.ID, kind, req.Key)
+	stagingKey := req.Key
+	if !strings.HasPrefix(stagingKey, "pending/") {
+		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+	}
+
+	if err := uc.fileUploader.ConfirmUpload(ctx, stagingKey); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	finalKey := strings.TrimPrefix(stagingKey, "pending/")
+	if err := uc.fileUploader.PromoteUpload(ctx, stagingKey, finalKey, ports.PrivacyPrivate); err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	dokumen, err := dokumenentity.NewSantriDokumen(uuid.NewString(), santri.ID, kind, finalKey)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -102,8 +116,6 @@ func (uc *DokumenConfirmUseCase) Execute(ctx context.Context, userID string, req
 	}); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
-
-	_ = uc.fileUploader.ConfirmUpload(ctx, req.Key)
 
 	return &dto.DokumenConfirmResponse{
 		ID:        dokumen.ID,

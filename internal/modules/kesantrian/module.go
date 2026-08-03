@@ -9,6 +9,7 @@ import (
 
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/modules/kesantrian/application/command"
+	ports "sipon-be/internal/modules/kesantrian/application/ports"
 	"sipon-be/internal/modules/kesantrian/application/query"
 	"sipon-be/internal/modules/kesantrian/infrastructure/external"
 	"sipon-be/internal/modules/kesantrian/infrastructure/identitygateway"
@@ -24,6 +25,7 @@ import (
 type Module struct {
 	handler                            *kesantrianHTTP.SantriHandler
 	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
+	fileUploader                       ports.FileUploader
 	jwtAuth                            gin.HandlerFunc
 	principalLoad                      gin.HandlerFunc
 }
@@ -104,7 +106,7 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -193,4 +195,8 @@ func (m *Module) CreateSantriFromPendaftaran(ctx context.Context, in CreateSantr
 		SantriID: result.SantriID,
 		NIS:      result.NIS,
 	}, nil
+}
+
+func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
+	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
 }

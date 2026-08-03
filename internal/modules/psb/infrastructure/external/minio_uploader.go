@@ -11,6 +11,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	"github.com/minio/minio-go/v7/pkg/lifecycle"
 )
 
 const defaultSigningRegion = "us-east-1"
@@ -105,6 +106,39 @@ func (u *MinioFileUploader) DeleteObject(ctx context.Context, key string, privac
 	}
 
 	return u.client.RemoveObject(ctx, bucket, key, minio.RemoveObjectOptions{})
+}
+
+func (u *MinioFileUploader) PromoteUpload(ctx context.Context, stagingKey, finalKey string, privacy ports.PrivacyRule) error {
+	if u == nil {
+		return nil
+	}
+	bucket := u.bucket
+	if privacy == ports.PrivacyPrivate {
+		bucket = u.privateBucket
+	}
+	dst := minio.CopyDestOptions{Bucket: bucket, Object: finalKey}
+	src := minio.CopySrcOptions{Bucket: bucket, Object: stagingKey}
+	if _, err := u.client.CopyObject(ctx, dst, src); err != nil {
+		return fmt.Errorf("promote upload copy: %w", err)
+	}
+	if err := u.client.RemoveObject(ctx, bucket, stagingKey, minio.RemoveObjectOptions{}); err != nil {
+		return fmt.Errorf("promote upload cleanup staging: %w", err)
+	}
+	return nil
+}
+
+func (u *MinioFileUploader) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
+	if u == nil {
+		return nil
+	}
+	cfg := lifecycle.NewConfiguration()
+	cfg.Rules = []lifecycle.Rule{{
+		ID:         "expire-pending-uploads",
+		Status:     "Enabled",
+		RuleFilter: lifecycle.Filter{Prefix: "pending/"},
+		Expiration: lifecycle.Expiration{Days: lifecycle.ExpirationDays(expireDays)},
+	}}
+	return u.client.SetBucketLifecycle(ctx, u.privateBucket, cfg)
 }
 
 func (u *MinioFileUploader) GeneratePresignedDownloadURL(ctx context.Context, key string, expiry time.Duration, privacy ports.PrivacyRule) (string, error) {
