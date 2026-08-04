@@ -20,6 +20,10 @@ const (
 	PermissionManagePSB             PermissionKey = "manage_psb"
 	PermissionManagePSBSettings     PermissionKey = "manage_psb_settings"
 	PermissionManageDokumen         PermissionKey = "manage_dokumen"
+	PermissionCreateArticle         PermissionKey = "create_article"
+	PermissionEditArticle           PermissionKey = "edit_article"
+	PermissionPublishArticle        PermissionKey = "publish_article"
+	PermissionManageArticleCategory PermissionKey = "manage_article_category"
 )
 
 type PermissionDefinition struct {
@@ -40,6 +44,10 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManagePSB, DisplayName: "Manage PSB", Description: "Allows managing PSB registration: verifying documents, accept/reject, verify re-registration, generate NIS"},
 	{Key: PermissionManagePSBSettings, DisplayName: "Manage PSB Settings", Description: "Allows managing PSB periods, quotas, fees, bank accounts, and purging period data"},
 	{Key: PermissionManageDokumen, DisplayName: "Manage Dokumen", Description: "Allows managing administrative document assets for public/private download"},
+	{Key: PermissionCreateArticle, DisplayName: "Create Article", Description: "Allows creating new articles"},
+	{Key: PermissionEditArticle, DisplayName: "Edit Article", Description: "Allows editing and deleting articles"},
+	{Key: PermissionPublishArticle, DisplayName: "Publish Article", Description: "Allows publishing and archiving articles"},
+	{Key: PermissionManageArticleCategory, DisplayName: "Manage Article Category", Description: "Allows managing article categories"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -72,6 +80,10 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
 		PermissionManageDokumen,
+		PermissionCreateArticle,
+		PermissionEditArticle,
+		PermissionPublishArticle,
+		PermissionManageArticleCategory,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -84,6 +96,10 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
 		PermissionManageDokumen,
+		PermissionCreateArticle,
+		PermissionEditArticle,
+		PermissionPublishArticle,
+		PermissionManageArticleCategory,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -93,6 +109,10 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
 		PermissionManageDokumen,
+		PermissionCreateArticle,
+		PermissionEditArticle,
+		PermissionPublishArticle,
+		PermissionManageArticleCategory,
 	},
 	MemberRoleName: {},
 }
@@ -165,5 +185,25 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageDokumen,
 		DisplayName: "Manage Dokumen",
 		Description: "Allows managing administrative document assets for public/private download",
+	},
+	PermissionCreateArticle: {
+		Key:         PermissionCreateArticle,
+		DisplayName: "Create Article",
+		Description: "Allows creating new articles",
+	},
+	PermissionEditArticle: {
+		Key:         PermissionEditArticle,
+		DisplayName: "Edit Article",
+		Description: "Allows editing and deleting articles",
+	},
+	PermissionPublishArticle: {
+		Key:         PermissionPublishArticle,
+		DisplayName: "Publish Article",
+		Description: "Allows publishing and archiving articles",
+	},
+	PermissionManageArticleCategory: {
+		Key:         PermissionManageArticleCategory,
+		DisplayName: "Manage Article Category",
+		Description: "Allows managing article categories",
 	},
 }

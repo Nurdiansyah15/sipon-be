@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 
+	articleModule "sipon-be/internal/modules/article"
 	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
@@ -71,6 +72,12 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	article := articleModule.NewModule(
+		db, cfg,
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	const pendingUploadExpireDays = 1
 
 	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
@@ -110,6 +117,7 @@ func main() {
 	kesantrian.RegisterRoutes(engine)
 	psb.RegisterRoutes(engine)
 	dokumenAset.RegisterRoutes(engine)
+	article.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
