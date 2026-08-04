@@ -24,7 +24,7 @@ const pendaftarColumns = `
 	father, father_pn, father_nik, father_job, father_graduate, father_income,
 	mother, mother_pn, mother_nik, mother_job, mother_graduate, mother_income,
 	guardian_relationship, guardian, guardian_pn, guardian_nik, guardian_job, guardian_graduate, guardian_income,
-	status, accepted_by, accepted_at, santri_id, nis,
+	status, accepted_by, accepted_at, santri_id, nis, no_regis,
 	created_at, updated_at, deleted_at
 `
 
@@ -41,7 +41,7 @@ func (r *PostgresPendaftarRepository) Save(ctx context.Context, p *pentity.Penda
 	query := `INSERT INTO pendaftar (` + pendaftarColumns + `) VALUES (` +
 		`$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,` +
 		`$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,` +
-		`$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57)`
+		`$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58)`
 	_, err := execer.ExecContext(ctx, query,
 		p.ID, p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program),
 		nullStr(p.Nickname), nullStr(p.Hobby), nullStr(p.Purpose), nullStr(p.MotivationEntry), nullStr(p.POB), nullTimeVal(p.DOB), nullStr(p.Blood),
@@ -53,7 +53,7 @@ func (r *PostgresPendaftarRepository) Save(ctx context.Context, p *pentity.Penda
 		nullStr(p.Father), nullStr(p.FatherPN), nullStr(p.FatherNIK), nullStr(p.FatherJob), nullStr(p.FatherGraduate), nullStr(p.FatherIncome),
 		nullStr(p.Mother), nullStr(p.MotherPN), nullStr(p.MotherNIK), nullStr(p.MotherJob), nullStr(p.MotherGraduate), nullStr(p.MotherIncome),
 		nullStr(p.GuardianRelationship), nullStr(p.Guardian), nullStr(p.GuardianPN), nullStr(p.GuardianNIK), nullStr(p.GuardianJob), nullStr(p.GuardianGraduate), nullStr(p.GuardianIncome),
-		string(p.Status), nullStr(p.AcceptedBy), nullTimeVal(p.AcceptedAt), nullStr(p.SantriID), nullStr(p.NIS),
+		string(p.Status), nullStr(p.AcceptedBy), nullTimeVal(p.AcceptedAt), nullStr(p.SantriID), nullStr(p.NIS), nullStr(p.NoRegis),
 		p.CreatedAt, p.UpdatedAt, nullTimeVal(p.DeletedAt),
 	)
 	if err != nil {
@@ -78,8 +78,8 @@ func (r *PostgresPendaftarRepository) Update(ctx context.Context, p *pentity.Pen
 		`father=$30, father_pn=$31, father_nik=$32, father_job=$33, father_graduate=$34, father_income=$35,` +
 		`mother=$36, mother_pn=$37, mother_nik=$38, mother_job=$39, mother_graduate=$40, mother_income=$41,` +
 		`guardian_relationship=$42, guardian=$43, guardian_pn=$44, guardian_nik=$45, guardian_job=$46, guardian_graduate=$47, guardian_income=$48,` +
-		`status=$49, accepted_by=$50, accepted_at=$51, santri_id=$52, nis=$53,` +
-		`updated_at=$54, deleted_at=$55 WHERE id=$56 AND deleted_at IS NULL`
+		`status=$49, accepted_by=$50, accepted_at=$51, santri_id=$52, nis=$53, no_regis=$54,` +
+		`updated_at=$55, deleted_at=$56 WHERE id=$57 AND deleted_at IS NULL`
 	res, err := execer.ExecContext(ctx, query,
 		p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program),
 		nullStr(p.Nickname), nullStr(p.Hobby), nullStr(p.Purpose), nullStr(p.MotivationEntry), nullStr(p.POB), nullTimeVal(p.DOB), nullStr(p.Blood),
@@ -90,7 +90,7 @@ func (r *PostgresPendaftarRepository) Update(ctx context.Context, p *pentity.Pen
 		nullStr(p.Father), nullStr(p.FatherPN), nullStr(p.FatherNIK), nullStr(p.FatherJob), nullStr(p.FatherGraduate), nullStr(p.FatherIncome),
 		nullStr(p.Mother), nullStr(p.MotherPN), nullStr(p.MotherNIK), nullStr(p.MotherJob), nullStr(p.MotherGraduate), nullStr(p.MotherIncome),
 		nullStr(p.GuardianRelationship), nullStr(p.Guardian), nullStr(p.GuardianPN), nullStr(p.GuardianNIK), nullStr(p.GuardianJob), nullStr(p.GuardianGraduate), nullStr(p.GuardianIncome),
-		string(p.Status), nullStr(p.AcceptedBy), nullTimeVal(p.AcceptedAt), nullStr(p.SantriID), nullStr(p.NIS),
+		string(p.Status), nullStr(p.AcceptedBy), nullTimeVal(p.AcceptedAt), nullStr(p.SantriID), nullStr(p.NIS), nullStr(p.NoRegis),
 		p.UpdatedAt, nullTimeVal(p.DeletedAt), p.ID,
 	)
 	if err != nil {
@@ -113,6 +113,22 @@ func (r *PostgresPendaftarRepository) FindByUserIDAndSetting(ctx context.Context
 	execer := execerFromContext(ctx, r.db)
 	row := execer.QueryRowContext(ctx, `SELECT `+pendaftarColumns+` FROM pendaftar WHERE user_id=$1 AND psb_setting_id=$2 AND deleted_at IS NULL`, userID, psbSettingID)
 	return scanPendaftar(row)
+}
+
+func (r *PostgresPendaftarRepository) FindLatestNoRegis(ctx context.Context) (*string, error) {
+	execer := execerFromContext(ctx, r.db)
+	var noRegis sql.NullString
+	err := execer.QueryRowContext(ctx, `SELECT no_regis FROM pendaftar WHERE no_regis IS NOT NULL ORDER BY created_at DESC LIMIT 1`).Scan(&noRegis)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("find latest no_regis: %w", err))
+	}
+	if !noRegis.Valid {
+		return nil, nil
+	}
+	return &noRegis.String, nil
 }
 
 func (r *PostgresPendaftarRepository) CountBySettingAndProgram(ctx context.Context, psbSettingID, program string) (int64, error) {
@@ -199,7 +215,7 @@ func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 		mother, motherPN, motherNIK, motherJob, motherGraduate, motherIncome sql.NullString
 		guardianRel, guardian, guardianPN, guardianNIK, guardianJob, guardianGraduate, guardianIncome sql.NullString
 		status                                                         sql.NullString
-		acceptedBy, santriID, nisVal                                   sql.NullString
+		acceptedBy, santriID, nisVal, noRegis                          sql.NullString
 		acceptedAt                                                     sql.NullTime
 		createdAt, updatedAt                                           time.Time
 		deletedAt                                                      sql.NullTime
@@ -216,7 +232,7 @@ func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 		&father, &fatherPN, &fatherNIK, &fatherJob, &fatherGraduate, &fatherIncome,
 		&mother, &motherPN, &motherNIK, &motherJob, &motherGraduate, &motherIncome,
 		&guardianRel, &guardian, &guardianPN, &guardianNIK, &guardianJob, &guardianGraduate, &guardianIncome,
-		&status, &acceptedBy, &acceptedAt, &santriID, &nisVal,
+		&status, &acceptedBy, &acceptedAt, &santriID, &nisVal, &noRegis,
 		&createdAt, &updatedAt, &deletedAt,
 	)
 	if err != nil {
@@ -281,6 +297,7 @@ func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 		AcceptedAt:           timeFromNull(acceptedAt),
 		SantriID:             strFromNull(santriID),
 		NIS:                  strFromNull(nisVal),
+		NoRegis:              strFromNull(noRegis),
 		CreatedAt:            createdAt,
 		UpdatedAt:            updatedAt,
 		DeletedAt:            timeFromNull(deletedAt),

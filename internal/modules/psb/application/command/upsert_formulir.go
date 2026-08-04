@@ -2,8 +2,11 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -59,6 +62,11 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
+		noRegis, err := generateNoRegis(ctx, uc.pendaftarRepo)
+		if err != nil {
+			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		}
+		p.NoRegis = &noRegis
 	}
 
 	err = p.UpsertFormulir(func(p *pentity.Pendaftar) {
@@ -190,7 +198,33 @@ func mapPendaftarToResponse(p *pentity.Pendaftar) *dto.PendaftarResponse {
 		GuardianRelationship: p.GuardianRelationship, Guardian: p.Guardian, GuardianPN: p.GuardianPN,
 		GuardianNIK: p.GuardianNIK, GuardianJob: p.GuardianJob, GuardianGraduate: p.GuardianGraduate, GuardianIncome: p.GuardianIncome,
 		Status: string(p.Status), AcceptedBy: p.AcceptedBy, AcceptedAt: p.AcceptedAt,
-		SantriID: p.SantriID, NIS: p.NIS,
+		SantriID: p.SantriID, NIS: p.NIS, NoRegis: p.NoRegis,
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
+}
+
+func generateNoRegis(ctx context.Context, repo prepo.PendaftarRepository) (string, error) {
+	latest, err := repo.FindLatestNoRegis(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	year := time.Now().Format("06")
+	prefix := "P1000" + year
+
+	if latest == nil {
+		return prefix + "000", nil
+	}
+
+	regYear := (*latest)[5:7]
+	seqNum := 0
+	if regYear <= year {
+		seqStr := (*latest)[7:10]
+		s, err := strconv.Atoi(seqStr)
+		if err == nil {
+			seqNum = s + 1
+		}
+	}
+
+	return prefix + fmt.Sprintf("%03d", seqNum), nil
 }

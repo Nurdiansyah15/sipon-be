@@ -62,7 +62,7 @@ func mapPendaftarToResponse(p *pentity.Pendaftar) *dto.PendaftarResponse {
 		GuardianRelationship: p.GuardianRelationship, Guardian: p.Guardian, GuardianPN: p.GuardianPN,
 		GuardianNIK: p.GuardianNIK, GuardianJob: p.GuardianJob, GuardianGraduate: p.GuardianGraduate, GuardianIncome: p.GuardianIncome,
 		Status: string(p.Status), AcceptedBy: p.AcceptedBy, AcceptedAt: p.AcceptedAt,
-		SantriID: p.SantriID, NIS: p.NIS,
+		SantriID: p.SantriID, NIS: p.NIS, NoRegis: p.NoRegis,
 		CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }

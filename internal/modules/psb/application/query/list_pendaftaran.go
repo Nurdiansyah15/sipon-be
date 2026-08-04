@@ -51,6 +51,7 @@ func (uc *ListPendaftaranUseCase) Execute(ctx context.Context, q dto.ListPendaft
 			Program:      p.Program,
 			Status:       string(p.Status),
 			NIS:          p.NIS,
+			NoRegis:      p.NoRegis,
 			CreatedAt:    p.CreatedAt.Format("2006-01-02"),
 		}
 	}

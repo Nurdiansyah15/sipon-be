@@ -131,6 +131,7 @@ type PendaftarResponse struct {
 	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
 	SantriID   *string    `json:"santri_id,omitempty"`
 	NIS        *string    `json:"nis,omitempty"`
+	NoRegis    *string    `json:"no_regis,omitempty"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -151,6 +152,7 @@ type ListPendaftarItem struct {
 	Program      *string `json:"program,omitempty"`
 	Status       string  `json:"status"`
 	NIS          *string `json:"nis,omitempty"`
+	NoRegis      *string `json:"no_regis,omitempty"`
 	CreatedAt    string  `json:"created_at"`
 }
 

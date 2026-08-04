@@ -72,6 +72,7 @@ type Pendaftar struct {
 	AcceptedAt *time.Time
 	SantriID   *string
 	NIS        *string
+	NoRegis    *string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

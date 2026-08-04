@@ -25,5 +25,6 @@ type PendaftarRepository interface {
 	FindByUserIDAndSetting(ctx context.Context, userID, psbSettingID string) (*entity.Pendaftar, error)
 	CountBySettingAndProgram(ctx context.Context, psbSettingID, program string) (int64, error)
 	List(ctx context.Context, query PendaftarListQuery) (*PendaftarListResult, error)
+	FindLatestNoRegis(ctx context.Context) (*string, error)
 	HardDeleteBySettingID(ctx context.Context, psbSettingID string) (int64, error)
 }
