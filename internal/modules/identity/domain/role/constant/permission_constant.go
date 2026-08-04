@@ -19,6 +19,7 @@ const (
 	PermissionManageSantri          PermissionKey = "manage_santri"
 	PermissionManagePSB             PermissionKey = "manage_psb"
 	PermissionManagePSBSettings     PermissionKey = "manage_psb_settings"
+	PermissionManageDokumen         PermissionKey = "manage_dokumen"
 )
 
 type PermissionDefinition struct {
@@ -38,6 +39,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManageSantri, DisplayName: "Manage Santri", Description: "Allows managing santri profiles, requests, and documents"},
 	{Key: PermissionManagePSB, DisplayName: "Manage PSB", Description: "Allows managing PSB registration: verifying documents, accept/reject, verify re-registration, generate NIS"},
 	{Key: PermissionManagePSBSettings, DisplayName: "Manage PSB Settings", Description: "Allows managing PSB periods, quotas, fees, bank accounts, and purging period data"},
+	{Key: PermissionManageDokumen, DisplayName: "Manage Dokumen", Description: "Allows managing administrative document assets for public/private download"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -69,6 +71,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageSantri,
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
+		PermissionManageDokumen,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -80,6 +83,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageSantri,
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
+		PermissionManageDokumen,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -88,6 +92,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageSantri,
 		PermissionManagePSB,
 		PermissionManagePSBSettings,
+		PermissionManageDokumen,
 	},
 	MemberRoleName: {},
 }
@@ -155,5 +160,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManagePSBSettings,
 		DisplayName: "Manage PSB Settings",
 		Description: "Allows managing PSB periods, quotas, fees, bank accounts, and purging period data",
+	},
+	PermissionManageDokumen: {
+		Key:         PermissionManageDokumen,
+		DisplayName: "Manage Dokumen",
+		Description: "Allows managing administrative document assets for public/private download",
 	},
 }

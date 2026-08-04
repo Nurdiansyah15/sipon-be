@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 
+	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	psbModule "sipon-be/internal/modules/psb"
@@ -64,6 +65,12 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	dokumenAset := dokumenAsetModule.NewModule(
+		db, cfg,
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	const pendingUploadExpireDays = 1
 
 	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
@@ -74,6 +81,9 @@ func main() {
 	}
 	if err := psb.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
 		lg.Warn("gagal set lifecycle pending upload (psb)", slog.Any("error", err))
+	}
+	if err := dokumenAset.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
+		lg.Warn("gagal set lifecycle pending upload (dokumen_aset)", slog.Any("error", err))
 	}
 
 	engine := gin.New()
@@ -99,6 +109,7 @@ func main() {
 	identity.RegisterRoutes(engine)
 	kesantrian.RegisterRoutes(engine)
 	psb.RegisterRoutes(engine)
+	dokumenAset.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
