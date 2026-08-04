@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"sipon-be/internal/modules/article/domain/article/constant"
@@ -17,6 +18,7 @@ const articleColumns = `
 	a.id, a.title, a.content, a.summary, a.category_id,
 	ac.name AS category_name,
 	a.status, a.author, a.thumbnail_url, a.view_count, a.is_featured,
+	a.source_id, a.original_url, a.is_manual,
 	a.created_by, a.updated_by, a.published_at, a.archived_at,
 	a.created_at, a.updated_at, a.deleted_at
 `
@@ -45,17 +47,17 @@ func (r *PostgresArticleRepository) Save(ctx context.Context, a *entity.Article)
 
 	query := `INSERT INTO articles (
 		id, title, content, summary, category_id, status, author,
-		thumbnail_url, view_count, is_featured, created_by,
-		published_at, created_at, updated_at
+		thumbnail_url, view_count, is_featured, source_id, original_url, is_manual,
+		created_by, published_at, created_at, updated_at
 	) VALUES (
-		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
 	)`
 
 	_, err := execer.ExecContext(ctx, query,
 		a.ID, a.Title, a.Content, nullStr(a.Summary), nullStr(a.CategoryID),
 		string(a.Status), a.Author, nullStr(a.ThumbnailURL),
-		a.ViewCount, a.IsFeatured, nullStr(a.CreatedBy),
-		nullTimeVal(a.PublishedAt), a.CreatedAt, a.UpdatedAt,
+		a.ViewCount, a.IsFeatured, nullStr(a.SourceID), nullStr(a.OriginalURL), a.IsManual,
+		nullStr(a.CreatedBy), nullTimeVal(a.PublishedAt), a.CreatedAt, a.UpdatedAt,
 	)
 	if err != nil {
 		return kernel.Wrap(constant.CodeArticlePersistenceFailed, fmt.Errorf("save article: %w", err))
@@ -191,6 +193,8 @@ func (r *PostgresArticleRepository) scan(sc scanner) (*entity.Article, error) {
 		thumbnailURL                           sql.NullString
 		viewCount                              int
 		isFeatured                             bool
+		sourceID, originalURL                  sql.NullString
+		isManual                               bool
 		createdBy, updatedBy                   sql.NullString
 		publishedAt, archivedAt                sql.NullTime
 		createdAt, updatedAt                   time.Time
@@ -200,6 +204,7 @@ func (r *PostgresArticleRepository) scan(sc scanner) (*entity.Article, error) {
 	err := sc.Scan(
 		&id, &title, &content, &summary, &categoryID, &categoryName,
 		&status, &author, &thumbnailURL, &viewCount, &isFeatured,
+		&sourceID, &originalURL, &isManual,
 		&createdBy, &updatedBy, &publishedAt, &archivedAt,
 		&createdAt, &updatedAt, &deletedAt,
 	)
@@ -222,6 +227,9 @@ func (r *PostgresArticleRepository) scan(sc scanner) (*entity.Article, error) {
 		ThumbnailURL: strFromNull(thumbnailURL),
 		ViewCount:    viewCount,
 		IsFeatured:   isFeatured,
+		SourceID:     strFromNull(sourceID),
+		OriginalURL:  strFromNull(originalURL),
+		IsManual:     isManual,
 		CreatedBy:    strFromNull(createdBy),
 		UpdatedBy:    strFromNull(updatedBy),
 		PublishedAt:  timeFromNull(publishedAt),
@@ -230,4 +238,87 @@ func (r *PostgresArticleRepository) scan(sc scanner) (*entity.Article, error) {
 		UpdatedAt:    updatedAt,
 		DeletedAt:    timeFromNull(deletedAt),
 	}, nil
+}
+
+func (r *PostgresArticleRepository) SaveScraped(ctx context.Context, input repository.SaveScrapedInput) (string, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	articleID := input.Title + "-" + input.OriginalURL // placeholder
+	_ = articleID
+
+	status := "draft"
+	pubDate := time.Now()
+	if input.PubDate != nil {
+		pubDate = *input.PubDate
+	}
+
+	var publishedAt *time.Time
+	if input.AutoPublish {
+		status = "published"
+		publishedAt = &pubDate
+	}
+
+	query := `INSERT INTO articles (
+		id, title, content, summary, category_id, status, author,
+		thumbnail_url, view_count, is_featured, source_id, original_url, is_manual,
+		created_by, published_at, created_at, updated_at
+	) VALUES (
+		gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
+	) ON CONFLICT (original_url) WHERE original_url IS NOT NULL AND deleted_at IS NULL DO NOTHING RETURNING id`
+
+	row := execer.QueryRowContext(ctx, query,
+		input.Title, input.Content, summaryOrNil(input.Summary), nullStr(input.CategoryID),
+		status, input.Author, nullStr(input.Thumbnail), 0, false,
+		nullStr(&input.SourceID), nullStr(&input.OriginalURL), false,
+		nil, nullTimeVal(publishedAt), time.Now(), time.Now(),
+	)
+
+	var id string
+	if err := row.Scan(&id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", kernel.Wrap(constant.CodeArticlePersistenceFailed, fmt.Errorf("save scraped article: %w", err))
+	}
+	return id, nil
+}
+
+func (r *PostgresArticleRepository) ExistingURLs(ctx context.Context, urls []string) (map[string]bool, error) {
+	result := make(map[string]bool)
+	if len(urls) == 0 {
+		return result, nil
+	}
+
+	execer := execerFromContext(ctx, r.db)
+	placeholders := make([]string, len(urls))
+	args := make([]interface{}, len(urls))
+	for i, u := range urls {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = u
+	}
+
+	query := fmt.Sprintf(`SELECT original_url FROM articles WHERE original_url IN (%s) AND deleted_at IS NULL`,
+		strings.Join(placeholders, ","))
+
+	rows, err := execer.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, err
+		}
+		result[url] = true
+	}
+	return result, rows.Err()
+}
+
+func summaryOrNil(s string) interface{} {
+	if s == "" {
+		return nil
+	}
+	return s
 }

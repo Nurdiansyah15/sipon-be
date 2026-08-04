@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/article/application"
 	"sipon-be/internal/modules/article/application/dto"
 	ports "sipon-be/internal/modules/article/application/ports"
+	"sipon-be/internal/modules/article/application/thumbnail"
 	articleconst "sipon-be/internal/modules/article/domain/article/constant"
 	articlerepo "sipon-be/internal/modules/article/domain/article/repository"
 	"sipon-be/internal/shared/kernel"
@@ -55,7 +56,7 @@ func (uc *UpdateArticleUseCase) Execute(ctx context.Context, articleID, userID s
 		article.Author = *req.Author
 	}
 	if req.ThumbnailURL != nil {
-		article.ThumbnailURL = normalizeThumbnailKeyPtr(uc.fileUploader, req.ThumbnailURL)
+		article.ThumbnailURL = thumbnail.ToStorage(req.ThumbnailURL)
 	}
 	if req.IsFeatured != nil {
 		article.IsFeatured = *req.IsFeatured

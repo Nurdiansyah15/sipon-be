@@ -20,6 +20,9 @@ type Article struct {
 	ThumbnailURL *string
 	ViewCount    int
 	IsFeatured   bool
+	SourceID     *string
+	OriginalURL  *string
+	IsManual     bool
 	CreatedBy    *string
 	UpdatedBy    *string
 	PublishedAt  *time.Time
@@ -38,6 +41,9 @@ type ArticleParams struct {
 	Author       string
 	ThumbnailURL *string
 	IsFeatured   bool
+	SourceID     *string
+	OriginalURL  *string
+	IsManual     bool
 	CreatedBy    *string
 }
 
@@ -52,6 +58,11 @@ func NewArticle(params ArticleParams) (*Article, error) {
 		return nil, kernel.New(constant.CodeArticleAuthorRequired)
 	}
 
+	isManual := params.IsManual
+	if !isManual && params.CreatedBy == nil {
+		isManual = true
+	}
+
 	now := time.Now()
 	a := &Article{
 		ID:           params.ID,
@@ -63,6 +74,9 @@ func NewArticle(params ArticleParams) (*Article, error) {
 		Author:       strings.TrimSpace(params.Author),
 		ThumbnailURL: normalizeOptionalStr(params.ThumbnailURL),
 		IsFeatured:   params.IsFeatured,
+		SourceID:     normalizeOptionalStr(params.SourceID),
+		OriginalURL:  normalizeOptionalStr(params.OriginalURL),
+		IsManual:     isManual,
 		CreatedBy:    normalizeOptionalStr(params.CreatedBy),
 		CreatedAt:    now,
 		UpdatedAt:    now,

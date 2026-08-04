@@ -6,6 +6,7 @@ import (
 	"sipon-be/internal/modules/article/application"
 	"sipon-be/internal/modules/article/application/dto"
 	ports "sipon-be/internal/modules/article/application/ports"
+	"sipon-be/internal/modules/article/application/thumbnail"
 	articleconst "sipon-be/internal/modules/article/domain/article/constant"
 	articleentity "sipon-be/internal/modules/article/domain/article/entity"
 	articlerepo "sipon-be/internal/modules/article/domain/article/repository"
@@ -42,7 +43,7 @@ func (uc *CreateArticleUseCase) Execute(ctx context.Context, req dto.CreateArtic
 		Summary:      req.Summary,
 		CategoryID:   req.CategoryID,
 		Author:       req.Author,
-		ThumbnailURL: normalizeThumbnailKeyPtr(uc.fileUploader, req.ThumbnailURL),
+		ThumbnailURL: thumbnail.ToStorage(req.ThumbnailURL),
 		IsFeatured:   req.IsFeatured,
 		CreatedBy:    &userID,
 	})
@@ -67,20 +68,14 @@ func (uc *CreateArticleUseCase) Execute(ctx context.Context, req dto.CreateArtic
 	return &dto.ArticleMutationResponse{ID: articleID}, nil
 }
 
-func normalizeThumbnailKeyPtr(uploader ports.FileUploader, raw *string) *string {
-	if raw == nil {
-		return nil
-	}
-	v := *raw
-	if v == "" {
-		return nil
-	}
-	return &v
-}
-
-func confirmThumbnailKey(ctx context.Context, uploader ports.FileUploader, key *string) {
-	if uploader == nil || key == nil || *key == "" {
+func confirmThumbnailKey(ctx context.Context, uploader ports.FileUploader, storedKey *string) {
+	if uploader == nil || storedKey == nil || *storedKey == "" {
 		return
 	}
-	_ = uploader.ConfirmUpload(ctx, *key)
+	// Only confirm S3 keys, not external URLs
+	if !thumbnail.IsS3(storedKey) {
+		return
+	}
+	key := thumbnail.ExtractKey(storedKey)
+	_ = uploader.ConfirmUpload(ctx, key)
 }

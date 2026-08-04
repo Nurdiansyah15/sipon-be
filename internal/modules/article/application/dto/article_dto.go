@@ -78,6 +78,7 @@ type ArticleDetailResponse struct {
 	Status       string     `json:"status"`
 	Author       string     `json:"author"`
 	ThumbnailURL *string    `json:"thumbnail_url,omitempty"`
+	OriginalURL  *string    `json:"original_url,omitempty"`
 	ViewCount    int        `json:"view_count"`
 	IsFeatured   bool       `json:"is_featured"`
 	CreatedBy    *string    `json:"created_by,omitempty"`

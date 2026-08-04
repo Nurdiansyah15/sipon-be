@@ -51,3 +51,23 @@ func RegisterRoutes(router *gin.RouterGroup, h *ArticleHandler, jwtAuth, princip
 		}
 	}
 }
+
+func RegisterSourceRoutes(router *gin.RouterGroup, h *SourceHandler, jwtAuth, principalLoad gin.HandlerFunc) {
+	sources := router.Group("/api/v1/web/article-sources")
+	sources.Use(jwtAuth, principalLoad)
+	{
+		sources.GET("", h.ListSources)
+
+		write := sources.Group("")
+		write.Use(middleware.RequirePermission("manage_article_sources"))
+		{
+			write.POST("", h.CreateSource)
+			write.PUT("/:source_id", h.UpdateSource)
+			write.DELETE("/:source_id", h.DeleteSource)
+			write.POST("/:source_id/scrape", h.ScrapeAllNow)
+			write.POST("/:source_id/categories", h.CreateSourceCategory)
+			write.PUT("/categories/:category_id", h.UpdateSourceCategory)
+			write.DELETE("/categories/:category_id", h.DeleteSourceCategory)
+		}
+	}
+}

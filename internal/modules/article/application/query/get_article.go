@@ -6,6 +6,7 @@ import (
 	"sipon-be/internal/modules/article/application"
 	"sipon-be/internal/modules/article/application/dto"
 	ports "sipon-be/internal/modules/article/application/ports"
+	"sipon-be/internal/modules/article/application/thumbnail"
 	articleconst "sipon-be/internal/modules/article/domain/article/constant"
 	articleentity "sipon-be/internal/modules/article/domain/article/entity"
 	articlerepo "sipon-be/internal/modules/article/domain/article/repository"
@@ -39,6 +40,7 @@ func mapArticleToDetail(a *articleentity.Article, uploader ports.FileUploader) *
 		Status:       string(a.Status),
 		Author:       a.Author,
 		ThumbnailURL: resolveThumbnailURL(uploader, a.ThumbnailURL),
+		OriginalURL:  a.OriginalURL,
 		ViewCount:    a.ViewCount,
 		IsFeatured:   a.IsFeatured,
 		CreatedBy:    a.CreatedBy,
@@ -50,10 +52,15 @@ func mapArticleToDetail(a *articleentity.Article, uploader ports.FileUploader) *
 	}
 }
 
-func resolveThumbnailURL(uploader ports.FileUploader, key *string) *string {
-	if uploader == nil || key == nil || *key == "" {
-		return key
+func resolveThumbnailURL(uploader ports.FileUploader, storedKey *string) *string {
+	if storedKey == nil || *storedKey == "" {
+		return storedKey
 	}
-	u := uploader.PublicURL(*key)
-	return &u
+
+	var s3Resolver func(key string) string
+	if uploader != nil {
+		s3Resolver = uploader.PublicURL
+	}
+
+	return thumbnail.FromStorage(storedKey, s3Resolver)
 }

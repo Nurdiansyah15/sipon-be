@@ -24,6 +24,7 @@ const (
 	PermissionEditArticle           PermissionKey = "edit_article"
 	PermissionPublishArticle        PermissionKey = "publish_article"
 	PermissionManageArticleCategory PermissionKey = "manage_article_category"
+	PermissionManageArticleSources  PermissionKey = "manage_article_sources"
 )
 
 type PermissionDefinition struct {
@@ -48,6 +49,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionEditArticle, DisplayName: "Edit Article", Description: "Allows editing and deleting articles"},
 	{Key: PermissionPublishArticle, DisplayName: "Publish Article", Description: "Allows publishing and archiving articles"},
 	{Key: PermissionManageArticleCategory, DisplayName: "Manage Article Category", Description: "Allows managing article categories"},
+	{Key: PermissionManageArticleSources, DisplayName: "Manage Article Sources", Description: "Allows managing article RSS sources, category mapping, and triggering scrapes"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -84,6 +86,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionEditArticle,
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
+		PermissionManageArticleSources,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -100,6 +103,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionEditArticle,
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
+		PermissionManageArticleSources,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -113,6 +117,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionEditArticle,
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
+		PermissionManageArticleSources,
 	},
 	MemberRoleName: {},
 }
@@ -205,5 +210,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageArticleCategory,
 		DisplayName: "Manage Article Category",
 		Description: "Allows managing article categories",
+	},
+	PermissionManageArticleSources: {
+		Key:         PermissionManageArticleSources,
+		DisplayName: "Manage Article Sources",
+		Description: "Allows managing article RSS sources, category mapping, and triggering scrapes",
 	},
 }

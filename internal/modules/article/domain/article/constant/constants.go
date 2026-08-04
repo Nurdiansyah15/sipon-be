@@ -34,4 +34,18 @@ const (
 	CodeCategorySlugRequired      kernel.Code = "CATEGORY_SLUG_REQUIRED"
 	CodeCategoryPersistenceFailed kernel.Code = "CATEGORY_PERSISTENCE_FAILED"
 	CodeCategoryQueryFailed       kernel.Code = "CATEGORY_QUERY_FAILED"
+
+	CodeSourceNotFound              kernel.Code = "SOURCE_NOT_FOUND"
+	CodeSourceDuplicateKey          kernel.Code = "SOURCE_DUPLICATE_KEY"
+	CodeSourceKeyRequired           kernel.Code = "SOURCE_KEY_REQUIRED"
+	CodeSourceURLRequired           kernel.Code = "SOURCE_URL_REQUIRED"
+	CodeSourcePersistenceFailed     kernel.Code = "SOURCE_PERSISTENCE_FAILED"
+	CodeSourceQueryFailed           kernel.Code = "SOURCE_QUERY_FAILED"
+	CodeSelectorNotFound            kernel.Code = "SELECTOR_NOT_FOUND"
+	CodeSelectorPersistenceFailed   kernel.Code = "SELECTOR_PERSISTENCE_FAILED"
+	CodeSourceCategoryNotFound          kernel.Code = "SOURCE_CATEGORY_NOT_FOUND"
+	CodeSourceCategoryDuplicate         kernel.Code = "SOURCE_CATEGORY_DUPLICATE"
+	CodeSourceCategoryKeyRequired       kernel.Code = "SOURCE_CATEGORY_KEY_REQUIRED"
+	CodeSourceCategoryPersistenceFailed kernel.Code = "SOURCE_CATEGORY_PERSISTENCE_FAILED"
+	CodeSourceCategoryQueryFailed       kernel.Code = "SOURCE_CATEGORY_QUERY_FAILED"
 )

@@ -9,12 +9,14 @@ import (
 	"sipon-be/internal/modules/article/application/query"
 	"sipon-be/internal/modules/article/infrastructure/external"
 	"sipon-be/internal/modules/article/infrastructure/persistence"
+	"sipon-be/internal/modules/article/infrastructure/scraper"
 	articleHTTP "sipon-be/internal/modules/article/interfaces/http"
 	"sipon-be/internal/shared/config"
 )
 
 type Module struct {
 	handler       *articleHTTP.ArticleHandler
+	sourceHandler *articleHTTP.SourceHandler
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
 }
@@ -52,6 +54,22 @@ func NewModule(
 	deleteCategoryUC := command.NewDeleteCategoryUseCase(categoryRepo)
 	listCategoriesUC := query.NewListCategoriesUseCase(categoryRepo)
 
+	sourceRepo := persistence.NewPostgresSourceRepository(db)
+	selectorRepo := persistence.NewPostgresSourceSelectorRepository(db)
+	sourceCategoryRepo := persistence.NewPostgresSourceCategoryRepository(db)
+	scraperSourceRepo := persistence.NewPostgresScraperSourceRepo(db)
+
+	scrapePipeline := scraper.NewPipeline(articleRepo, 3)
+
+	listSourcesUC := query.NewListSourcesUseCase(sourceRepo, selectorRepo, sourceCategoryRepo)
+	createSourceUC := command.NewCreateSourceUseCase(sourceRepo, selectorRepo)
+	updateSourceUC := command.NewUpdateSourceUseCase(sourceRepo, selectorRepo)
+	deleteSourceUC := command.NewDeleteSourceUseCase(sourceRepo)
+	createSourceCategoryUC := command.NewCreateSourceCategoryUseCase(sourceCategoryRepo)
+	updateSourceCategoryUC := command.NewUpdateSourceCategoryUseCase(sourceCategoryRepo)
+	deleteSourceCategoryUC := command.NewDeleteSourceCategoryUseCase(sourceCategoryRepo)
+	triggerScrapeAllUC := command.NewTriggerScrapeAllUseCase(sourceRepo, sourceCategoryRepo, scraperSourceRepo, scrapePipeline)
+
 	handler := articleHTTP.NewArticleHandler(
 		createArticleUC,
 		updateArticleUC,
@@ -67,8 +85,20 @@ func NewModule(
 		fileUploader,
 	)
 
+	sourceHandler := articleHTTP.NewSourceHandler(
+		listSourcesUC,
+		createSourceUC,
+		updateSourceUC,
+		deleteSourceUC,
+		createSourceCategoryUC,
+		updateSourceCategoryUC,
+		deleteSourceCategoryUC,
+		triggerScrapeAllUC,
+	)
+
 	return &Module{
 		handler:       handler,
+		sourceHandler: sourceHandler,
 		jwtAuth:       jwtAuth,
 		principalLoad: principalLoad,
 	}
@@ -77,4 +107,5 @@ func NewModule(
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	articleHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+	articleHTTP.RegisterSourceRoutes(grp, m.sourceHandler, m.jwtAuth, m.principalLoad)
 }
