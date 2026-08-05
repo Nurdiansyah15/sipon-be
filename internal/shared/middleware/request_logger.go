@@ -21,16 +21,24 @@ func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
 		requestID, _ := c.Get("request_id")
 		rid, _ := requestID.(string)
 
-		attrs := []slog.Attr{
-			slog.String("method", method),
-			slog.String("path", path),
-			slog.Int("status", status),
-			slog.Duration("duration", duration),
-			slog.String("request_id", rid),
-			slog.String("client_ip", c.ClientIP()),
-		}
+	attrs := []slog.Attr{
+		slog.String("method", method),
+		slog.String("path", path),
+		slog.Int("status", status),
+		slog.Duration("duration", duration),
+		slog.String("request_id", rid),
+		slog.String("client_ip", c.ClientIP()),
+	}
 
-		switch {
+	if status >= 500 {
+		if v, ok := c.Get("internal_err"); ok {
+			if err, ok := v.(error); ok {
+				attrs = append(attrs, slog.String("error", err.Error()))
+			}
+		}
+	}
+
+	switch {
 		case status >= 500:
 			logger.LogAttrs(c.Request.Context(), slog.LevelError, "request completed", attrs...)
 		case status >= 400:

@@ -145,10 +145,18 @@ func (r *PostgresAccountingPeriodRepository) HasOverlap(ctx context.Context, sta
 	execer := execerFromContext(ctx, r.db)
 
 	var exists bool
-	err := execer.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE id!=$1 AND start_date<=$2 AND end_date>=$3)`,
-		excludeID, endDate, startDate,
-	).Scan(&exists)
+	var err error
+	if excludeID == "" {
+		err = execer.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE start_date<=$1 AND end_date>=$2)`,
+			endDate, startDate,
+		).Scan(&exists)
+	} else {
+		err = execer.QueryRowContext(ctx,
+			`SELECT EXISTS(SELECT 1 FROM accounting_periods WHERE id!=$1 AND start_date<=$2 AND end_date>=$3)`,
+			excludeID, endDate, startDate,
+		).Scan(&exists)
+	}
 	if err != nil {
 		return false, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("has overlap: %w", err))
 	}

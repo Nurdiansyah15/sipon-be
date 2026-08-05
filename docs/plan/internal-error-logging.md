@@ -95,7 +95,12 @@ Poin penting:
 
 ## Status
 
-Belum diimplementasikan — ini baru rencana. Perbaikan status code
-duplicate/conflict (pendaftar/santri yang salah ke-mapping jadi 500 padahal
-harusnya 409) dikerjakan terpisah, langsung sebagai fix (lihat commit
-terkait), tidak lewat dokumen plan ini.
+**Sudah diimplementasikan** di `internal/shared/middleware/request_logger.go:33-38`.
+
+Error 500 sekarang otomatis ke-log dengan detail error Go asli di server, berdampingan dengan `request_id` yang sama seperti yang dikembalikan ke client. Contoh output log:
+
+```
+time=2026-08-05T06:18:57.362Z level=ERROR msg="request completed" method=POST path=/api/v1/web/keuangan/admin/components status=500 duration=13.594255ms request_id=1275211b-5525-48e7-aef5-84776ccae6f4 client_ip=172.22.0.1 error="code: ERR_INTERNAL, message: , err: code: FEE_COMPONENT_QUERY_FAILED, message: , err: exists by code: ERROR: invalid input syntax for type uuid: \"\" (SQLSTATE 22P02)"
+```
+
+Perbaikan status code duplicate/conflict (pendaftar/santri yang salah ke-mapping jadi 500 padahal harusnya 409) dikerjakan terpisah, langsung sebagai fix (lihat commit terkait), tidak lewat dokumen plan ini.

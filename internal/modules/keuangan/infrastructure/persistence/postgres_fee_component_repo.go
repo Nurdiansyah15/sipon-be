@@ -142,8 +142,14 @@ func (r *PostgresFeeComponentRepository) ExistsByCode(ctx context.Context, code 
 	execer := execerFromContext(ctx, r.db)
 
 	var exists bool
-	query := `SELECT EXISTS(SELECT 1 FROM fee_components WHERE code=$1 AND deleted_at IS NULL AND id!=$2)`
-	err := execer.QueryRowContext(ctx, query, code, excludeID).Scan(&exists)
+	var err error
+	if excludeID == "" {
+		query := `SELECT EXISTS(SELECT 1 FROM fee_components WHERE code=$1 AND deleted_at IS NULL)`
+		err = execer.QueryRowContext(ctx, query, code).Scan(&exists)
+	} else {
+		query := `SELECT EXISTS(SELECT 1 FROM fee_components WHERE code=$1 AND deleted_at IS NULL AND id!=$2)`
+		err = execer.QueryRowContext(ctx, query, code, excludeID).Scan(&exists)
+	}
 	if err != nil {
 		return false, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("exists by code: %w", err))
 	}
