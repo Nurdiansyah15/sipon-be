@@ -27,11 +27,20 @@ type BillingSchemeResponse struct {
 }
 
 type BillingSchemeItemResponse struct {
-	ID              string   `json:"id"`
-	FeeComponentID  string   `json:"fee_component_id"`
-	AmountOverride  *float64 `json:"amount_override,omitempty"`
-	IsRequired      bool     `json:"is_required"`
-	SortOrder       int      `json:"sort_order"`
+	ID              string                    `json:"id"`
+	FeeComponentID  string                    `json:"fee_component_id"`
+	FeeComponent    *FeeComponentBriefResponse `json:"fee_component,omitempty"`
+	AmountOverride  *float64                  `json:"amount_override,omitempty"`
+	IsRequired      bool                      `json:"is_required"`
+	SortOrder       int                       `json:"sort_order"`
+}
+
+type FeeComponentBriefResponse struct {
+	ID     string  `json:"id"`
+	Code   string  `json:"code"`
+	Name   string  `json:"name"`
+	Type   string  `json:"type"`
+	Amount float64 `json:"amount"`
 }
 
 type AddSchemeItemRequest struct {

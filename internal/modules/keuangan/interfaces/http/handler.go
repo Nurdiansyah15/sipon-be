@@ -46,6 +46,7 @@ type KeuanganHandler struct {
 
 	listFeeComponentsUC  *query.ListFeeComponentsUseCase
 	listBillingSchemesUC *query.ListBillingSchemesUseCase
+	getBillingSchemeUC   *query.GetBillingSchemeUseCase
 	listInvoicesUC       *query.ListInvoicesUseCase
 	getInvoiceUC         *query.GetInvoiceUseCase
 	myInvoicesUC         *query.MyInvoicesUseCase
@@ -96,6 +97,7 @@ func NewKeuanganHandler(
 	lockPeriodUC *command.LockPeriodUseCase,
 	listFeeComponentsUC *query.ListFeeComponentsUseCase,
 	listBillingSchemesUC *query.ListBillingSchemesUseCase,
+	getBillingSchemeUC *query.GetBillingSchemeUseCase,
 	listInvoicesUC *query.ListInvoicesUseCase,
 	getInvoiceUC *query.GetInvoiceUseCase,
 	myInvoicesUC *query.MyInvoicesUseCase,
@@ -143,6 +145,7 @@ func NewKeuanganHandler(
 		lockPeriodUC:           lockPeriodUC,
 		listFeeComponentsUC:    listFeeComponentsUC,
 		listBillingSchemesUC:   listBillingSchemesUC,
+		getBillingSchemeUC:     getBillingSchemeUC,
 		listInvoicesUC:         listInvoicesUC,
 		getInvoiceUC:           getInvoiceUC,
 		myInvoicesUC:           myInvoicesUC,
@@ -294,6 +297,16 @@ func (h *KeuanganHandler) DeleteBillingScheme(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "skema billing berhasil dihapus", nil)
+}
+
+func (h *KeuanganHandler) GetBillingScheme(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.getBillingSchemeUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail skema billing berhasil diambil", resp)
 }
 
 func (h *KeuanganHandler) AddSchemeItem(c *gin.Context) {

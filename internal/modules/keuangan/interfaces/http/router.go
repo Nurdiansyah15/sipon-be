@@ -24,6 +24,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.DELETE("/components/:id", middleware.RequirePermission("manage_keuangan"), h.DeleteFeeComponent)
 
 		admin.GET("/schemes", middleware.RequirePermission("manage_keuangan"), h.ListBillingSchemes)
+		admin.GET("/schemes/:id", middleware.RequirePermission("manage_keuangan"), h.GetBillingScheme)
 		admin.POST("/schemes", middleware.RequirePermission("manage_keuangan"), h.CreateBillingScheme)
 		admin.PUT("/schemes/:id", middleware.RequirePermission("manage_keuangan"), h.UpdateBillingScheme)
 		admin.DELETE("/schemes/:id", middleware.RequirePermission("manage_keuangan"), h.DeleteBillingScheme)

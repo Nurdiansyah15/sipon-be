@@ -68,6 +68,7 @@ func NewModule(
 
 	listFeeComponentsUC := query.NewListFeeComponentsUseCase(feeComponentRepo)
 	listBillingSchemesUC := query.NewListBillingSchemesUseCase(billingSchemeRepo)
+	getBillingSchemeUC := query.NewGetBillingSchemeUseCase(billingSchemeRepo, feeComponentRepo)
 	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo)
 	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo)
 	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo)
@@ -113,6 +114,7 @@ func NewModule(
 		lockPeriodUC,
 		listFeeComponentsUC,
 		listBillingSchemesUC,
+		getBillingSchemeUC,
 		listInvoicesUC,
 		getInvoiceUC,
 		myInvoicesUC,
