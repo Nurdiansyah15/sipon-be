@@ -82,8 +82,17 @@ type CreateSantriFromPendaftaranResult struct {
 	NIS      string
 }
 
+type SantriBasicInfo struct {
+	SantriID string
+	UserID   string
+	NIS      *string
+	Status   string
+}
+
 type Contract interface {
 	CreateSantriFromPendaftaran(ctx context.Context, in CreateSantriFromPendaftaranInput) (*CreateSantriFromPendaftaranResult, error)
+	ListActiveSantriIDs(ctx context.Context) ([]string, error)
+	GetSantriByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
 }
 
 var _ Contract = (*Module)(nil)

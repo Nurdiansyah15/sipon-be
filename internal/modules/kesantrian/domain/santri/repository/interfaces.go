@@ -19,6 +19,13 @@ type SantriListResult struct {
 	Total int64
 }
 
+type SantriBasicInfo struct {
+	SantriID string
+	UserID   string
+	NIS      *string
+	Status   string
+}
+
 type SantriRepository interface {
 	Save(ctx context.Context, santri *entity.Santri) error
 	Update(ctx context.Context, santri *entity.Santri) error
@@ -27,4 +34,6 @@ type SantriRepository interface {
 	FindByNIS(ctx context.Context, nis string) (*entity.Santri, error)
 	FindMaxSequence(ctx context.Context, prefix string) (int, error)
 	List(ctx context.Context, query SantriListQuery) (*SantriListResult, error)
+	ListActiveIDs(ctx context.Context) ([]string, error)
+	FindBasicByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
 }

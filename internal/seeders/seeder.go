@@ -23,6 +23,7 @@ func NewRegistry() *Registry {
 	}
 	r.register(&RoleSeeder{})
 	r.register(&UserSeeder{})
+	r.register(&COASeeder{})
 	return r
 }
 

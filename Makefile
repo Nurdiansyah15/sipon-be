@@ -64,7 +64,7 @@ migrate-up:
 	docker compose -f docker-compose.dev.yml run --rm migrate up
 
 migrate-down:
-	docker compose -f docker-compose.dev.yml run --rm migrate down
+	docker compose -f docker-compose.dev.yml run --rm migrate down 1
 
 migrate-fresh:
 	docker compose -f docker-compose.dev.yml run --rm migrate fresh

@@ -25,6 +25,8 @@ import (
 type Module struct {
 	handler                            *kesantrianHTTP.SantriHandler
 	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
+	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
+	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
 	fileUploader                       ports.FileUploader
 	jwtAuth                            gin.HandlerFunc
 	principalLoad                      gin.HandlerFunc
@@ -83,6 +85,8 @@ func NewModule(
 
 	createSantriFromPendaftaranUC := command.NewCreateSantriFromPendaftaranUseCase(santriRepo, dokumenRepo, provisioner, transactor)
 	changeSantriStatusUC := command.NewChangeSantriStatusUseCase(santriRepo)
+	listActiveSantriIDsUC := query.NewListActiveSantriIDsUseCase(santriRepo)
+	getSantriByUserIDUC := query.NewGetSantriByUserIDUseCase(santriRepo)
 
 	handler := kesantrianHTTP.NewSantriHandler(
 		getSantriUC,
@@ -106,7 +110,7 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -199,4 +203,21 @@ func (m *Module) CreateSantriFromPendaftaran(ctx context.Context, in CreateSantr
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+func (m *Module) ListActiveSantriIDs(ctx context.Context) ([]string, error) {
+	return m.listActiveSantriIDsUC.Execute(ctx)
+}
+
+func (m *Module) GetSantriByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error) {
+	result, err := m.getSantriByUserIDUC.Execute(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &SantriBasicInfo{
+		SantriID: result.SantriID,
+		UserID:   result.UserID,
+		NIS:      result.NIS,
+		Status:   result.Status,
+	}, nil
 }

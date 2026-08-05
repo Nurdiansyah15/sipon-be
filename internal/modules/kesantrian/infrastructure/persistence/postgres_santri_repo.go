@@ -364,3 +364,48 @@ func nisString(nis *valueobject.NIS) *string {
 	v := nis.String()
 	return &v
 }
+
+func (r *PostgresSantriRepository) ListActiveIDs(ctx context.Context) ([]string, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT id FROM santri WHERE deleted_at IS NULL AND status = 'SANTRI'`,
+	)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("list active santri ids: %w", err))
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("scan santri id: %w", err))
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("iterate santri ids: %w", err))
+	}
+	return ids, nil
+}
+
+func (r *PostgresSantriRepository) FindBasicByUserID(ctx context.Context, userID string) (*repository.SantriBasicInfo, error) {
+	execer := execerFromContext(ctx, r.db)
+	var info repository.SantriBasicInfo
+	var nis sql.NullString
+
+	row := execer.QueryRowContext(ctx,
+		`SELECT id, user_id, nis, status FROM santri WHERE user_id=$1 AND deleted_at IS NULL`,
+		userID,
+	)
+	if err := row.Scan(&info.SantriID, &info.UserID, &nis, &info.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, kernel.New(constant.CodeSantriNotFound)
+		}
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("find basic by user id: %w", err))
+	}
+	if nis.Valid {
+		info.NIS = &nis.String
+	}
+	return &info, nil
+}

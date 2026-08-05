@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS finance_audit_logs;
+DROP TABLE IF EXISTS journal_entry_lines;
+DROP TABLE IF EXISTS journal_entries;
+DROP TRIGGER IF EXISTS trg_check_period_overlap ON accounting_periods;
+DROP FUNCTION IF EXISTS check_period_overlap();
+DROP TABLE IF EXISTS accounting_periods;
+DROP TABLE IF EXISTS accounts;
+DROP TABLE IF EXISTS invoice_adjustments;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS invoices;
+DROP TABLE IF EXISTS santri_billing_assignments;
+DROP TABLE IF EXISTS billing_scheme_items;
+DROP TABLE IF EXISTS billing_schemes;
+DROP TABLE IF EXISTS fee_components;

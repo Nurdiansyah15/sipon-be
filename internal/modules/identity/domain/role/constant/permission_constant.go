@@ -25,6 +25,12 @@ const (
 	PermissionPublishArticle        PermissionKey = "publish_article"
 	PermissionManageArticleCategory PermissionKey = "manage_article_category"
 	PermissionManageArticleSources  PermissionKey = "manage_article_sources"
+	PermissionManageKeuangan        PermissionKey = "manage_keuangan"
+	PermissionVerifyPayment         PermissionKey = "verify_payment"
+	PermissionViewKeuanganReports   PermissionKey = "view_keuangan_reports"
+	PermissionManageAccounts        PermissionKey = "manage_accounts"
+	PermissionManageJournal         PermissionKey = "manage_journal"
+	PermissionClosePeriod           PermissionKey = "close_period"
 )
 
 type PermissionDefinition struct {
@@ -50,6 +56,12 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionPublishArticle, DisplayName: "Publish Article", Description: "Allows publishing and archiving articles"},
 	{Key: PermissionManageArticleCategory, DisplayName: "Manage Article Category", Description: "Allows managing article categories"},
 	{Key: PermissionManageArticleSources, DisplayName: "Manage Article Sources", Description: "Allows managing article RSS sources, category mapping, and triggering scrapes"},
+	{Key: PermissionManageKeuangan, DisplayName: "Manage Keuangan", Description: "Allows managing fee components, billing schemes, invoices, and payments"},
+	{Key: PermissionVerifyPayment, DisplayName: "Verify Payment", Description: "Allows verifying and rejecting manual payments"},
+	{Key: PermissionViewKeuanganReports, DisplayName: "View Keuangan Reports", Description: "Allows accessing financial reports: summary, outstanding, ledger, trial balance, balance sheet, income statement"},
+	{Key: PermissionManageAccounts, DisplayName: "Manage Accounts", Description: "Allows managing chart of accounts (COA)"},
+	{Key: PermissionManageJournal, DisplayName: "Manage Journal", Description: "Allows creating and cancelling manual journal entries"},
+	{Key: PermissionClosePeriod, DisplayName: "Close Period", Description: "Allows creating, closing, reopening, and locking accounting periods"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -87,6 +99,12 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
 		PermissionManageArticleSources,
+		PermissionManageKeuangan,
+		PermissionVerifyPayment,
+		PermissionViewKeuanganReports,
+		PermissionManageAccounts,
+		PermissionManageJournal,
+		PermissionClosePeriod,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -104,6 +122,12 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
 		PermissionManageArticleSources,
+		PermissionManageKeuangan,
+		PermissionVerifyPayment,
+		PermissionViewKeuanganReports,
+		PermissionManageAccounts,
+		PermissionManageJournal,
+		PermissionClosePeriod,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -118,6 +142,12 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionPublishArticle,
 		PermissionManageArticleCategory,
 		PermissionManageArticleSources,
+		PermissionManageKeuangan,
+		PermissionVerifyPayment,
+		PermissionViewKeuanganReports,
+		PermissionManageAccounts,
+		PermissionManageJournal,
+		PermissionClosePeriod,
 	},
 	MemberRoleName: {},
 }
@@ -215,5 +245,35 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageArticleSources,
 		DisplayName: "Manage Article Sources",
 		Description: "Allows managing article RSS sources, category mapping, and triggering scrapes",
+	},
+	PermissionManageKeuangan: {
+		Key:         PermissionManageKeuangan,
+		DisplayName: "Manage Keuangan",
+		Description: "Allows managing fee components, billing schemes, invoices, and payments",
+	},
+	PermissionVerifyPayment: {
+		Key:         PermissionVerifyPayment,
+		DisplayName: "Verify Payment",
+		Description: "Allows verifying and rejecting manual payments",
+	},
+	PermissionViewKeuanganReports: {
+		Key:         PermissionViewKeuanganReports,
+		DisplayName: "View Keuangan Reports",
+		Description: "Allows accessing financial reports: summary, outstanding, ledger, trial balance, balance sheet, income statement",
+	},
+	PermissionManageAccounts: {
+		Key:         PermissionManageAccounts,
+		DisplayName: "Manage Accounts",
+		Description: "Allows managing chart of accounts (COA)",
+	},
+	PermissionManageJournal: {
+		Key:         PermissionManageJournal,
+		DisplayName: "Manage Journal",
+		Description: "Allows creating and cancelling manual journal entries",
+	},
+	PermissionClosePeriod: {
+		Key:         PermissionClosePeriod,
+		DisplayName: "Close Period",
+		Description: "Allows creating, closing, reopening, and locking accounting periods",
 	},
 }

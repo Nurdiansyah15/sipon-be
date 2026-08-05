@@ -1,0 +1,179 @@
+package keuangan
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/gin-gonic/gin"
+
+	"sipon-be/internal/modules/keuangan/application/command"
+	"sipon-be/internal/modules/keuangan/application/query"
+	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
+	"sipon-be/internal/modules/keuangan/infrastructure/kesantriangateway"
+	"sipon-be/internal/modules/keuangan/infrastructure/persistence"
+	keuanganHTTP "sipon-be/internal/modules/keuangan/interfaces/http"
+	"sipon-be/internal/modules/kesantrian"
+	"sipon-be/internal/shared/config"
+)
+
+type Module struct {
+	handler        *keuanganHTTP.KeuanganHandler
+	transactor     *persistence.PostgresTransactor
+	invoiceRepo    *persistence.PostgresInvoiceRepository
+	jwtAuth        gin.HandlerFunc
+	principalLoad  gin.HandlerFunc
+}
+
+func NewModule(
+	db *sql.DB,
+	cfg *config.Config,
+	kesantrianContract kesantrian.Contract,
+	jwtAuth gin.HandlerFunc,
+	principalLoad gin.HandlerFunc,
+) *Module {
+	kesantrianReader := kesantriangateway.New(kesantrianContract)
+	feeComponentRepo := persistence.NewPostgresFeeComponentRepository(db)
+	billingSchemeRepo := persistence.NewPostgresBillingSchemeRepository(db)
+	assignmentRepo := persistence.NewPostgresSantriBillingAssignmentRepository(db)
+	invoiceRepo := persistence.NewPostgresInvoiceRepository(db)
+	paymentRepo := persistence.NewPostgresPaymentRepository(db)
+	adjustmentRepo := persistence.NewPostgresAdjustmentRepository(db)
+	accountRepo := persistence.NewPostgresAccountRepository(db)
+	journalRepo := persistence.NewPostgresJournalRepository(db)
+	periodRepo := persistence.NewPostgresAccountingPeriodRepository(db)
+	transactor := persistence.NewPostgresTransactor(db)
+
+	autoPostingService := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)
+
+	createFeeComponentUC := command.NewCreateFeeComponentUseCase(feeComponentRepo)
+	updateFeeComponentUC := command.NewUpdateFeeComponentUseCase(feeComponentRepo)
+	createBillingSchemeUC := command.NewCreateBillingSchemeUseCase(billingSchemeRepo)
+	updateBillingSchemeUC := command.NewUpdateBillingSchemeUseCase(billingSchemeRepo)
+	assignSchemeToSantriUC := command.NewAssignSchemeToSantriUseCase(assignmentRepo, billingSchemeRepo)
+	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, transactor)
+	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, kesantrianReader, transactor)
+	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo)
+	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo)
+	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo)
+	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor)
+	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
+	createAccountUC := command.NewCreateAccountUseCase(accountRepo)
+	updateAccountUC := command.NewUpdateAccountUseCase(accountRepo)
+	createManualJournalUC := command.NewCreateManualJournalUseCase(journalRepo, accountRepo, periodRepo)
+	cancelJournalUC := command.NewCancelJournalUseCase(journalRepo)
+	createPeriodUC := command.NewCreatePeriodUseCase(periodRepo)
+	closePeriodUC := command.NewClosePeriodUseCase(periodRepo)
+	reopenPeriodUC := command.NewReopenPeriodUseCase(periodRepo)
+	lockPeriodUC := command.NewLockPeriodUseCase(periodRepo)
+
+	listFeeComponentsUC := query.NewListFeeComponentsUseCase(feeComponentRepo)
+	listBillingSchemesUC := query.NewListBillingSchemesUseCase(billingSchemeRepo)
+	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo)
+	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo)
+	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo)
+	listPaymentsUC := query.NewListPaymentsUseCase(paymentRepo)
+	getPaymentUC := query.NewGetPaymentUseCase(paymentRepo)
+	myPaymentsUC := query.NewMyPaymentsUseCase(paymentRepo, invoiceRepo)
+	listAccountsUC := query.NewListAccountsUseCase(accountRepo)
+	getAccountUC := query.NewGetAccountUseCase(accountRepo)
+	listJournalEntriesUC := query.NewListJournalEntriesUseCase(journalRepo)
+	getJournalEntryUC := query.NewGetJournalEntryUseCase(journalRepo)
+	listPeriodsUC := query.NewListPeriodsUseCase(periodRepo)
+	getActivePeriodUC := query.NewGetActivePeriodUseCase(periodRepo)
+	listAssignmentsUC := query.NewListAssignmentsUseCase(db)
+	reportSummaryUC := query.NewReportSummaryUseCase(db)
+	reportOutstandingUC := query.NewReportOutstandingUseCase(db)
+	reportLedgerUC := query.NewReportLedgerUseCase(db, accountRepo)
+	reportTrialBalanceUC := query.NewReportTrialBalanceUseCase(db, accountRepo, periodRepo)
+	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(db, accountRepo)
+	reportIncomeStatementUC := query.NewReportIncomeStatementUseCase(db, accountRepo, periodRepo)
+
+	_ = autoPostingService
+
+	handler := keuanganHTTP.NewKeuanganHandler(
+		createFeeComponentUC,
+		updateFeeComponentUC,
+		createBillingSchemeUC,
+		updateBillingSchemeUC,
+		assignSchemeToSantriUC,
+		createInvoiceUC,
+		createInvoiceBatchUC,
+		cancelInvoiceUC,
+		applyAdjustmentUC,
+		createManualPaymentUC,
+		verifyPaymentUC,
+		rejectPaymentUC,
+		createAccountUC,
+		updateAccountUC,
+		createManualJournalUC,
+		cancelJournalUC,
+		createPeriodUC,
+		closePeriodUC,
+		reopenPeriodUC,
+		lockPeriodUC,
+		listFeeComponentsUC,
+		listBillingSchemesUC,
+		listInvoicesUC,
+		getInvoiceUC,
+		myInvoicesUC,
+		listPaymentsUC,
+		getPaymentUC,
+		myPaymentsUC,
+		listAccountsUC,
+		getAccountUC,
+		listJournalEntriesUC,
+		getJournalEntryUC,
+		listPeriodsUC,
+		getActivePeriodUC,
+		listAssignmentsUC,
+		reportSummaryUC,
+		reportOutstandingUC,
+		reportLedgerUC,
+		reportTrialBalanceUC,
+		reportBalanceSheetUC,
+		reportIncomeStatementUC,
+		feeComponentRepo,
+		billingSchemeRepo,
+		accountRepo,
+		invoiceRepo,
+	)
+
+	return &Module{
+		handler:       handler,
+		transactor:    transactor,
+		invoiceRepo:   invoiceRepo,
+		jwtAuth:       jwtAuth,
+		principalLoad: principalLoad,
+	}
+}
+
+func (m *Module) RegisterRoutes(router gin.IRouter) {
+	grp := router.Group("/")
+	keuanganHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) GetOutstandingInvoices(ctx context.Context, santriID string) (*OutstandingSummary, error) {
+	invoices, err := m.invoiceRepo.FindOutstandingBySantriID(ctx, santriID)
+	if err != nil {
+		return nil, err
+	}
+
+	total := 0.0
+	count := 0
+	for _, inv := range invoices {
+		if inv.HasOutstanding() {
+			total += inv.RemainingAmount()
+			count++
+		}
+	}
+
+	return &OutstandingSummary{
+		HasOutstanding:   count > 0,
+		TotalOutstanding: total,
+		Count:            count,
+	}, nil
+}
+
+func (m *Module) HasPaidComponent(ctx context.Context, santriID, componentCode, periode string) (bool, error) {
+	return m.invoiceRepo.HasPaidComponent(ctx, santriID, componentCode, periode)
+}

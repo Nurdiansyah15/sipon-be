@@ -18,6 +18,7 @@ import (
 	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
+	keuanganModule "sipon-be/internal/modules/keuangan"
 	psbModule "sipon-be/internal/modules/psb"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
@@ -78,6 +79,13 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	keuangan := keuanganModule.NewModule(
+		db, cfg,
+		kesantrian, // kesantrian.Contract
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	const pendingUploadExpireDays = 1
 
 	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
@@ -118,6 +126,7 @@ func main() {
 	psb.RegisterRoutes(engine)
 	dokumenAset.RegisterRoutes(engine)
 	article.RegisterRoutes(engine)
+	keuangan.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
