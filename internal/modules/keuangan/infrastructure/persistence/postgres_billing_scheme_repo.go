@@ -128,6 +128,14 @@ func (r *PostgresBillingSchemeRepository) List(ctx context.Context, q repository
 		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("iterate billing scheme rows: %w", err))
 	}
 
+	for _, scheme := range items {
+		schemeItems, err := r.findItemsBySchemeID(ctx, scheme.ID)
+		if err != nil {
+			return nil, err
+		}
+		scheme.Items = schemeItems
+	}
+
 	return &repository.BillingSchemeListResult{Items: items, Total: total}, nil
 }
 
@@ -274,6 +282,20 @@ func (r *PostgresSantriBillingAssignmentRepository) FindActiveBySantriID(ctx con
 		santriID,
 	)
 	return r.scanAssignment(row)
+}
+
+func (r *PostgresSantriBillingAssignmentRepository) EndAssignment(ctx context.Context, id string, effectiveUntil time.Time) error {
+	execer := execerFromContext(ctx, r.db)
+
+	res, err := execer.ExecContext(ctx, `UPDATE santri_billing_assignments SET effective_until=$1 WHERE id=$2`, effectiveUntil, id)
+	if err != nil {
+		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("end assignment: %w", err))
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return kernel.New(constant.CodeBillingSchemeNotFound)
+	}
+	return nil
 }
 
 func (r *PostgresSantriBillingAssignmentRepository) scanAssignment(sc scanner) (*entity.SantriBillingAssignment, error) {

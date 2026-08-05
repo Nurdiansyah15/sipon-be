@@ -17,7 +17,7 @@ func NewCancelInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository) *CancelInvoi
 	return &CancelInvoiceUseCase{invoiceRepo: invoiceRepo}
 }
 
-func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.MessageResponse, error) {
+func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.InvoiceResponse, error) {
 	inv, err := uc.invoiceRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
@@ -31,5 +31,5 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.Me
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	return &dto.MessageResponse{Message: "Invoice berhasil dibatalkan"}, nil
+	return toInvoiceResponse(inv), nil
 }

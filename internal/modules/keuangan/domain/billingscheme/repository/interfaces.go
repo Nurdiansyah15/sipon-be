@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 )
@@ -29,4 +30,5 @@ type BillingSchemeRepository interface {
 type SantriBillingAssignmentRepository interface {
 	Save(ctx context.Context, assignment *entity.SantriBillingAssignment) error
 	FindActiveBySantriID(ctx context.Context, santriID string) (*entity.SantriBillingAssignment, error)
+	EndAssignment(ctx context.Context, id string, effectiveUntil time.Time) error
 }

@@ -17,7 +17,7 @@ func NewRejectPaymentUseCase(paymentRepo payRepo.PaymentRepository) *RejectPayme
 	return &RejectPaymentUseCase{paymentRepo: paymentRepo}
 }
 
-func (uc *RejectPaymentUseCase) Execute(ctx context.Context, paymentID string) (*dto.MessageResponse, error) {
+func (uc *RejectPaymentUseCase) Execute(ctx context.Context, paymentID string) (*dto.PaymentResponse, error) {
 	payment, err := uc.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
@@ -31,5 +31,5 @@ func (uc *RejectPaymentUseCase) Execute(ctx context.Context, paymentID string) (
 		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
 	}
 
-	return &dto.MessageResponse{Message: "Pembayaran berhasil ditolak"}, nil
+	return toPaymentResponse(payment), nil
 }

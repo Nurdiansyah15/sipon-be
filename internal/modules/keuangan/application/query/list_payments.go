@@ -3,6 +3,8 @@ package query
 import (
 	"context"
 
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
 	"sipon-be/internal/modules/keuangan/application"
@@ -11,10 +13,12 @@ import (
 
 type ListPaymentsUseCase struct {
 	paymentRepo payRepo.PaymentRepository
+	invoiceRepo invRepo.InvoiceRepository
+	accountRepo accRepo.AccountRepository
 }
 
-func NewListPaymentsUseCase(paymentRepo payRepo.PaymentRepository) *ListPaymentsUseCase {
-	return &ListPaymentsUseCase{paymentRepo: paymentRepo}
+func NewListPaymentsUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, accountRepo accRepo.AccountRepository) *ListPaymentsUseCase {
+	return &ListPaymentsUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, accountRepo: accountRepo}
 }
 
 func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentListQuery) ([]dto.PaymentResponse, *dto.Meta, error) {
@@ -38,25 +42,15 @@ func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentLis
 
 	items := make([]dto.PaymentResponse, len(result.Items))
 	for i, p := range result.Items {
-		resp := dto.PaymentResponse{
-			ID:              p.ID,
-			PaymentNumber:   p.PaymentNumber,
-			InvoiceID:       p.InvoiceID,
-			DebitAccountID:  p.DebitAccountID,
-			Amount:          p.Amount,
-			Method:          string(p.Method),
-			ReferenceNumber: p.ReferenceNumber,
-			PaymentDate:     p.PaymentDate.Format("2006-01-02"),
-			Status:          string(p.Status),
-			VerifiedBy:      p.VerifiedBy,
-			Notes:           p.Notes,
-			ProofKey:        p.ProofKey,
-			CreatedAt:       p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt:       p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		resp := buildPaymentResponse(p)
+		if inv, err := uc.invoiceRepo.FindByID(ctx, p.InvoiceID); err == nil {
+			invResp := buildInvoiceResponse(ctx, inv, nil)
+			resp.Invoice = &invResp
 		}
-		if p.VerifiedAt != nil {
-			s := p.VerifiedAt.Format("2006-01-02T15:04:05Z07:00")
-			resp.VerifiedAt = &s
+		if p.DebitAccountID != nil {
+			if acc, err := uc.accountRepo.FindByID(ctx, *p.DebitAccountID); err == nil {
+				resp.DebitAccount = &dto.AccountBriefResponse{ID: acc.ID, Code: acc.Code, Name: acc.Name, Type: string(acc.Type)}
+			}
 		}
 		items[i] = resp
 	}

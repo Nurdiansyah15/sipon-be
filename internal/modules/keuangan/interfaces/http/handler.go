@@ -6,10 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/command"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/query"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsEntity "sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
@@ -325,20 +327,30 @@ func (h *KeuanganHandler) AddSchemeItem(c *gin.Context) {
 		return
 	}
 	if err := h.billingSchemeRepo.AddItems(c.Request.Context(), schemeID, []*bsEntity.BillingSchemeItem{item}); err != nil {
+		httperror.Handle(c, application.WrapConflictErr(err, bsConst.CodeSchemeItemDuplicate))
+		return
+	}
+	resp, err := h.getBillingSchemeUC.Execute(c.Request.Context(), schemeID)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.Created(c, "item skema berhasil ditambahkan", nil)
+	respond.Created(c, "item skema berhasil ditambahkan", resp)
 }
 
 func (h *KeuanganHandler) RemoveSchemeItem(c *gin.Context) {
 	schemeID := c.Param("id")
 	itemID := c.Param("itemId")
 	if err := h.billingSchemeRepo.RemoveItem(c.Request.Context(), schemeID, itemID); err != nil {
+		httperror.Handle(c, application.WrapRepoErr(err, bsConst.CodeSchemeItemNotFound))
+		return
+	}
+	resp, err := h.getBillingSchemeUC.Execute(c.Request.Context(), schemeID)
+	if err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, "item skema berhasil dihapus", nil)
+	respond.OK(c, "item skema berhasil dihapus", resp)
 }
 
 func (h *KeuanganHandler) AssignSchemeToSantri(c *gin.Context) {
@@ -443,7 +455,7 @@ func (h *KeuanganHandler) CancelInvoice(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, resp.Message, resp)
+	respond.OK(c, "invoice berhasil dibatalkan", resp)
 }
 
 func (h *KeuanganHandler) ApplyAdjustment(c *gin.Context) {
@@ -519,7 +531,7 @@ func (h *KeuanganHandler) RejectPayment(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.OK(c, resp.Message, resp)
+	respond.OK(c, "pembayaran berhasil ditolak", resp)
 }
 
 func (h *KeuanganHandler) MyInvoices(c *gin.Context) {

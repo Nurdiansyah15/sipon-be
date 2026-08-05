@@ -20,7 +20,7 @@ type UpdateFeeComponentRequest struct {
 
 type FeeComponentListQuery struct {
 	Type   *string `form:"type"`
-	Active *bool   `form:"active"`
+	Active *bool   `form:"is_active"`
 	Page   int     `form:"page"`
 	Limit  int     `form:"limit"`
 }

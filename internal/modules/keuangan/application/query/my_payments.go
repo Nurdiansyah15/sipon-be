@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
@@ -13,10 +14,11 @@ import (
 type MyPaymentsUseCase struct {
 	paymentRepo payRepo.PaymentRepository
 	invoiceRepo invRepo.InvoiceRepository
+	accountRepo accRepo.AccountRepository
 }
 
-func NewMyPaymentsUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository) *MyPaymentsUseCase {
-	return &MyPaymentsUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo}
+func NewMyPaymentsUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, accountRepo accRepo.AccountRepository) *MyPaymentsUseCase {
+	return &MyPaymentsUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, accountRepo: accountRepo}
 }
 
 func (uc *MyPaymentsUseCase) Execute(ctx context.Context, userID string, query dto.PaymentListQuery) ([]dto.PaymentResponse, *dto.Meta, error) {
@@ -61,26 +63,14 @@ func (uc *MyPaymentsUseCase) Execute(ctx context.Context, userID string, query d
 		if err != nil {
 			return nil, nil, application.WrapRepoErr(err, payConst.CodePaymentQueryFailed)
 		}
+		invResp := buildInvoiceResponse(ctx, inv, nil)
 		for _, p := range payResult.Items {
-			resp := dto.PaymentResponse{
-				ID:              p.ID,
-				PaymentNumber:   p.PaymentNumber,
-				InvoiceID:       p.InvoiceID,
-				DebitAccountID:  p.DebitAccountID,
-				Amount:          p.Amount,
-				Method:          string(p.Method),
-				ReferenceNumber: p.ReferenceNumber,
-				PaymentDate:     p.PaymentDate.Format("2006-01-02"),
-				Status:          string(p.Status),
-				VerifiedBy:      p.VerifiedBy,
-				Notes:           p.Notes,
-				ProofKey:        p.ProofKey,
-				CreatedAt:       p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-				UpdatedAt:       p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			}
-			if p.VerifiedAt != nil {
-				s := p.VerifiedAt.Format("2006-01-02T15:04:05Z07:00")
-				resp.VerifiedAt = &s
+			resp := buildPaymentResponse(p)
+			resp.Invoice = &invResp
+			if p.DebitAccountID != nil {
+				if acc, err := uc.accountRepo.FindByID(ctx, *p.DebitAccountID); err == nil {
+					resp.DebitAccount = &dto.AccountBriefResponse{ID: acc.ID, Code: acc.Code, Name: acc.Name, Type: string(acc.Type)}
+				}
 			}
 			allPayments = append(allPayments, resp)
 		}

@@ -3,18 +3,34 @@ package query
 import (
 	"context"
 
+	adjRepo "sipon-be/internal/modules/keuangan/domain/adjustment/repository"
+	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 )
 
 type GetInvoiceUseCase struct {
-	invoiceRepo invRepo.InvoiceRepository
+	invoiceRepo      invRepo.InvoiceRepository
+	feeComponentRepo feeRepo.FeeComponentRepository
+	paymentRepo      payRepo.PaymentRepository
+	adjustmentRepo   adjRepo.AdjustmentRepository
 }
 
-func NewGetInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository) *GetInvoiceUseCase {
-	return &GetInvoiceUseCase{invoiceRepo: invoiceRepo}
+func NewGetInvoiceUseCase(
+	invoiceRepo invRepo.InvoiceRepository,
+	feeComponentRepo feeRepo.FeeComponentRepository,
+	paymentRepo payRepo.PaymentRepository,
+	adjustmentRepo adjRepo.AdjustmentRepository,
+) *GetInvoiceUseCase {
+	return &GetInvoiceUseCase{
+		invoiceRepo:      invoiceRepo,
+		feeComponentRepo: feeComponentRepo,
+		paymentRepo:      paymentRepo,
+		adjustmentRepo:   adjustmentRepo,
+	}
 }
 
 func (uc *GetInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.InvoiceResponse, error) {
@@ -23,28 +39,21 @@ func (uc *GetInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.Invoi
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	resp := &dto.InvoiceResponse{
-		ID:              inv.ID,
-		InvoiceNumber:   inv.InvoiceNumber,
-		SantriID:        inv.SantriID,
-		UserID:          inv.UserID,
-		BillingSchemeID: inv.BillingSchemeID,
-		FeeComponentID:  inv.FeeComponentID,
-		Periode:         inv.Periode,
-		TahunAjaran:     inv.TahunAjaran,
-		Amount:          inv.Amount,
-		DiscountAmount:  inv.DiscountAmount,
-		PaidAmount:      inv.PaidAmount,
-		Status:          string(inv.Status),
-		DueDate:         inv.DueDate.Format("2006-01-02"),
-		Notes:           inv.Notes,
-		CreatedAt:       inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:       inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-	if inv.IssuedAt != nil {
-		s := inv.IssuedAt.Format("2006-01-02T15:04:05Z07:00")
-		resp.IssuedAt = &s
+	resp := buildInvoiceResponse(ctx, inv, uc.feeComponentRepo)
+
+	if payments, err := uc.paymentRepo.FindByInvoiceID(ctx, inv.ID); err == nil {
+		resp.Payments = make([]dto.PaymentResponse, len(payments))
+		for i, p := range payments {
+			resp.Payments[i] = buildPaymentResponse(p)
+		}
 	}
 
-	return resp, nil
+	if adjustments, err := uc.adjustmentRepo.FindByInvoiceID(ctx, inv.ID); err == nil {
+		resp.Adjustments = make([]dto.InvoiceAdjustmentResponse, len(adjustments))
+		for i, a := range adjustments {
+			resp.Adjustments[i] = buildAdjustmentResponse(a)
+		}
+	}
+
+	return &resp, nil
 }

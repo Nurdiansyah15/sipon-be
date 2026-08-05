@@ -23,6 +23,13 @@ type AccountListQuery struct {
 	Limit  int     `form:"limit"`
 }
 
+type AccountBriefResponse struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 type AccountResponse struct {
 	ID            string  `json:"id"`
 	Code          string  `json:"code"`

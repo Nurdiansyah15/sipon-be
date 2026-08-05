@@ -37,23 +37,28 @@ func (uc *AssignSchemeToSantriUseCase) Execute(ctx context.Context, cmd AssignSc
 		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
 	}
 
-	existing, _ := uc.assignmentRepo.FindActiveBySantriID(ctx, cmd.SantriID)
-	if existing != nil {
-		return nil, kernel.New(bsConst.CodeSchemeAssignmentExists)
-	}
-
 	effectiveFrom, err := time.Parse("2006-01-02", cmd.EffectiveFrom)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal berlaku tidak valid", err)
 	}
 
 	var effectiveUntil *time.Time
 	if cmd.EffectiveUntil != nil {
 		t, err := time.Parse("2006-01-02", *cmd.EffectiveUntil)
 		if err != nil {
-			return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal berakhir tidak valid", err)
 		}
 		effectiveUntil = &t
+	}
+
+	existing, _ := uc.assignmentRepo.FindActiveBySantriID(ctx, cmd.SantriID)
+	if existing != nil {
+		if !existing.EffectiveFrom.Before(effectiveFrom) {
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "tanggal berlaku skema baru harus setelah tanggal mulai skema yang sedang aktif", nil)
+		}
+		if err := uc.assignmentRepo.EndAssignment(ctx, existing.ID, effectiveFrom.AddDate(0, 0, -1)); err != nil {
+			return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		}
 	}
 
 	assignment, err := bsEntity.NewSantriBillingAssignment(
@@ -65,8 +70,12 @@ func (uc *AssignSchemeToSantriUseCase) Execute(ctx context.Context, cmd AssignSc
 	}
 
 	if err := uc.assignmentRepo.Save(ctx, assignment); err != nil {
-		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		return nil, application.WrapConflictErr(err, bsConst.CodeSchemeAssignmentExists)
 	}
 
-	return &dto.MessageResponse{Message: "Skema berhasil di-assign ke santri"}, nil
+	message := "Skema berhasil ditetapkan ke santri"
+	if existing != nil {
+		message = "Skema santri berhasil diganti"
+	}
+	return &dto.MessageResponse{Message: message}, nil
 }

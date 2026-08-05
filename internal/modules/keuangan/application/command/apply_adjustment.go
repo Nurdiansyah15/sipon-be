@@ -23,7 +23,7 @@ func NewApplyAdjustmentUseCase(adjRepo adjRepo.AdjustmentRepository, invoiceRepo
 	return &ApplyAdjustmentUseCase{adjRepo: adjRepo, invoiceRepo: invoiceRepo}
 }
 
-func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string, req dto.ApplyAdjustmentRequest, appliedBy string) (*dto.MessageResponse, error) {
+func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string, req dto.ApplyAdjustmentRequest, appliedBy string) (*dto.InvoiceResponse, error) {
 	inv, err := uc.invoiceRepo.FindByID(ctx, invoiceID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
@@ -52,5 +52,5 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	return &dto.MessageResponse{Message: "Potongan berhasil diterapkan"}, nil
+	return toInvoiceResponse(inv), nil
 }

@@ -11,7 +11,7 @@ type UpdateBillingSchemeRequest struct {
 }
 
 type BillingSchemeListQuery struct {
-	Active *bool `form:"active"`
+	Active *bool `form:"is_active"`
 	Page   int   `form:"page"`
 	Limit  int   `form:"limit"`
 }
