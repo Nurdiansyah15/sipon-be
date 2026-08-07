@@ -2,11 +2,15 @@ package query
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
+	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
 	userrepo "sipon-be/internal/modules/identity/domain/user/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetSessionUseCase struct {
@@ -36,12 +40,19 @@ func NewGetSessionUseCase(
 func (uc *GetSessionUseCase) Execute(ctx context.Context, userID string) (*dto.SessionResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari data pengguna", err)
 	}
 
 	userRoles, err := uc.userRoleRepo.FindActiveByUserID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari role pengguna", err)
 	}
 
 	roles := make([]dto.SessionRole, 0, len(userRoles))

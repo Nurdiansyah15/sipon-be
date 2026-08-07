@@ -18,7 +18,7 @@ type RolePermission struct {
 
 func NewRolePermission(id, roleID string, permissionKey constant.PermissionKey, assignedBy string, notes *string) (*RolePermission, error) {
 	if !constant.IsValidPermissionKey(permissionKey) {
-		return nil, kernel.New(constant.ErrCodeInvalidPermissionKey)
+		return nil, kernel.WrapMsg(constant.ErrCodeInvalidPermissionKey, "Permission key tidak valid", nil)
 	}
 
 	return &RolePermission{

@@ -21,12 +21,12 @@ func NewListScopesUseCase(roleScopeRepo rolerepo.RoleScopeRepository) *ListScope
 func (uc *ListScopesUseCase) Execute(ctx context.Context, roleID string) ([]dto.ScopeItem, error) {
 	roleID = strings.TrimSpace(roleID)
 	if roleID == "" {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "ID role tidak boleh kosong", nil)
 	}
 
 	scopes, err := uc.roleScopeRepo.FindByRoleID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari scope role", err)
 	}
 
 	items := make([]dto.ScopeItem, 0, len(scopes))

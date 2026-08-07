@@ -83,7 +83,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	email, err := uservo.NewEmail(req.Email)
@@ -92,7 +92,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	var phone *uservo.PhoneNumber
@@ -103,29 +103,29 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 			if errors.As(err, &ke) {
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
-			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 		}
 		phone = &pn
 	}
 
 	generatedPassword, err := generateRandomPassword()
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	plainPw, err := uservo.NewPlainPassword(generatedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	hashedPw, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	userID := uuid.NewString()
@@ -135,7 +135,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	credentialID := uuid.NewString()
@@ -143,20 +143,20 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 
 	emailLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindEmail, email.String(), true, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	cred.AddLoginIdentity(emailLI)
 
 	usernameLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindUsername, username.String(), true, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	cred.AddLoginIdentity(usernameLI)
 
 	if phone != nil {
 		phoneLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindPhone, phone.String(), false, nil)
 		if err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		cred.AddLoginIdentity(phoneLI)
 	}
@@ -171,7 +171,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	phoneStr := (*string)(nil)
@@ -220,32 +220,32 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	generatedPassword, err := generateRandomPassword()
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	plainPw, err := uservo.NewPlainPassword(generatedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	newHashed, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	local := user.FindCredential(userconstant.CredentialTypeLocal)
 	if local == nil || local.DeletedAt != nil {
-		return nil, kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "Kredensial lokal tidak ditemukan atau telah dihapus", nil)
 	}
 
 	now := time.Now()
@@ -263,7 +263,7 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return &dto.ResetUserPasswordResponse{GeneratedPassword: plainPw.String()}, nil
@@ -287,7 +287,7 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := user.Deactivate(); err != nil {
@@ -296,13 +296,22 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 			switch ke.Code {
 			case userconstant.ErrCodeUserAlreadyBanned:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case userconstant.ErrCodeUserAlreadyDeleted:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menonaktifkan pengguna", err)
 	}
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui data pengguna", err)
 	}
 
 	return userToManagementResponse(user), nil
@@ -326,7 +335,7 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := user.Reactivate(); err != nil {
@@ -335,13 +344,22 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 			switch ke.Code {
 			case userconstant.ErrCodeUserNotActive:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case userconstant.ErrCodeUserAlreadyActive:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengaktifkan kembali pengguna", err)
 	}
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui data pengguna", err)
 	}
 
 	return userToManagementResponse(user), nil

@@ -46,9 +46,9 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequ
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	if err := uc.roleRepo.Save(ctx, role); err != nil {
@@ -56,10 +56,10 @@ func (uc *CreateRoleUseCase) Execute(ctx context.Context, req dto.CreateRoleRequ
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case roleconstant.ErrCodeRoleNotFound:
-				return nil, kernel.New(application.ErrCodeConflict)
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
@@ -83,19 +83,19 @@ func NewUpdateRoleUseCase(
 func (uc *UpdateRoleUseCase) Execute(ctx context.Context, roleID string, req dto.UpdateRoleRequest) (*dto.RoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(roleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := role.UpdateDetails(req.DisplayName, req.Description, req.Assignable); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.roleRepo.Update(ctx, role); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
@@ -125,11 +125,15 @@ func NewAssignUserRoleUseCase(
 func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string, req dto.AssignUserRoleRequest) (*dto.UserRoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(req.RoleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := role.EnsureAssignable(); err != nil {
-		return nil, kernel.New(application.ErrCodeForbidden)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "tidak memiliki akses", err)
 	}
 
 	scopeType := roleconstant.ScopeType(strings.TrimSpace(req.ScopeType))
@@ -138,13 +142,13 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	if err := uc.userRoleRepo.Save(ctx, userRole); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
@@ -174,13 +178,13 @@ func NewUpdateUserRoleUseCase(
 func (uc *UpdateUserRoleUseCase) Execute(ctx context.Context, userRoleID string, req dto.UpdateUserRoleRequest) (*dto.UserRoleItem, error) {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	userRole.UpdateExpiration(req.ExpiredAt)
 
 	if err := uc.userRoleRepo.Update(ctx, userRole); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
@@ -210,22 +214,19 @@ func NewDeactivateUserRoleUseCase(
 func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) (*dto.UserRoleItem, error) {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := userRole.Deactivate(); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			switch ke.Code {
-			case roleconstant.ErrCodeUserRoleNotActive:
-				return nil, kernel.New(application.ErrCodeBadRequest)
-			}
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 		}
-		return nil, kernel.New(application.ErrCodeBadRequest)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "permintaan tidak valid", err)
 	}
 
 	if err := uc.userRoleRepo.Update(ctx, userRole); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
@@ -255,7 +256,7 @@ func NewReactivateUserRoleUseCase(
 func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID string) (*dto.UserRoleItem, error) {
 	userRole, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := userRole.Reactivate(); err != nil {
@@ -263,16 +264,16 @@ func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case roleconstant.ErrCodeUserRoleNotActive:
-				return nil, kernel.New(application.ErrCodeBadRequest)
+				return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 			case roleconstant.ErrCodeUserRoleExpired:
-				return nil, kernel.New(application.ErrCodeGone)
+				return nil, kernel.WrapMsg(application.ErrCodeGone, ke.Message, ke)
 			}
 		}
-		return nil, kernel.New(application.ErrCodeBadRequest)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "permintaan tidak valid", err)
 	}
 
 	if err := uc.userRoleRepo.Update(ctx, userRole); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
@@ -288,7 +289,7 @@ func NewDeleteUserRoleUseCase(userRoleRepo rolerepo.UserRoleRepository) *DeleteU
 
 func (uc *DeleteUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
 	if err := uc.userRoleRepo.Delete(ctx, strings.TrimSpace(userRoleID)); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	return nil
 }

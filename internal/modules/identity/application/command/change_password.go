@@ -33,11 +33,11 @@ func NewChangePasswordLocalUseCase(
 func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	if req.CurrentPassword == req.NewPassword {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Kata sandi baru tidak boleh sama dengan kata sandi saat ini", nil)
 	}
 
 	newPlain, err := uservo.NewPlainPassword(req.NewPassword)
@@ -49,7 +49,7 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -61,26 +61,26 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	localCred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if !user.HasLocalPassword() {
-		return nil, kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "Pengguna tidak memiliki kata sandi lokal", nil)
 	}
 
 	if err := uc.hasher.Verify(localCred.SecretHash.String(), req.CurrentPassword); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Kata sandi saat ini salah", err)
 	}
 
 	hashedStr, err := uc.hasher.Hash(newPlain.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengenkripsi kata sandi", err)
 	}
 
 	newHashed, err := uservo.NewHashedPassword(hashedStr)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi hash kata sandi", err)
 	}
 
 	now := time.Now()
@@ -90,7 +90,14 @@ func (uc *ChangePasswordLocalUseCase) Execute(ctx context.Context, userID string
 	user.UpdatedAt = now
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui kata sandi", err)
 	}
 
 	return &dto.ChangePasswordResponse{Message: "password berhasil diubah"}, nil

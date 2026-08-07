@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
@@ -30,7 +29,7 @@ func (r *PostgresRoleRepository) Save(ctx context.Context, role *roleentity.Role
 		role.CreatedAt, role.UpdatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("save role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menyimpan role", err)
 	}
 	return nil
 }
@@ -44,7 +43,7 @@ func (r *PostgresRoleRepository) Update(ctx context.Context, role *roleentity.Ro
 		role.UpdatedAt, role.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("update role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal memperbarui role", err)
 	}
 	return nil
 }
@@ -52,7 +51,7 @@ func (r *PostgresRoleRepository) Update(ctx context.Context, role *roleentity.Ro
 func (r *PostgresRoleRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM roles WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("delete role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menghapus role", err)
 	}
 	return nil
 }
@@ -63,9 +62,9 @@ func (r *PostgresRoleRepository) FindByID(ctx context.Context, id string) (*role
 	var m RoleModel
 	if err := row.Scan(&m.ID, &m.Name, &m.DisplayName, &m.Description, &m.RoleType, &m.ScopeType, &m.Assignable, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(roleconstant.ErrCodeRoleNotFound)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleNotFound, "Role tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find role by id: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari role berdasarkan ID", err)
 	}
 
 	return roleFromModel(m), nil
@@ -77,9 +76,9 @@ func (r *PostgresRoleRepository) FindByName(ctx context.Context, name roleconsta
 	var m RoleModel
 	if err := row.Scan(&m.ID, &m.Name, &m.DisplayName, &m.Description, &m.RoleType, &m.ScopeType, &m.Assignable, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(roleconstant.ErrCodeRoleNotFound)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleNotFound, "Role tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find role by name: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari role berdasarkan nama", err)
 	}
 
 	return roleFromModel(m), nil
@@ -88,7 +87,7 @@ func (r *PostgresRoleRepository) FindByName(ctx context.Context, name roleconsta
 func (r *PostgresRoleRepository) ListByType(ctx context.Context, roleType roleconstant.RoleType) ([]*roleentity.Role, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, name, display_name, description, role_type, scope_type, assignable, created_at, updated_at FROM roles WHERE role_type = $1 ORDER BY name`, string(roleType))
 	if err != nil {
-		return nil, fmt.Errorf("list roles by type: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mendaftar role berdasarkan tipe", err)
 	}
 	defer rows.Close()
 
@@ -119,7 +118,7 @@ func scanRoles(rows *sql.Rows) ([]*roleentity.Role, error) {
 	for rows.Next() {
 		var m RoleModel
 		if err := rows.Scan(&m.ID, &m.Name, &m.DisplayName, &m.Description, &m.RoleType, &m.ScopeType, &m.Assignable, &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("scan role: %w", err)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal membaca data role", err)
 		}
 		roles = append(roles, roleFromModel(m))
 	}
@@ -146,7 +145,7 @@ func (r *PostgresUserRoleRepository) Save(ctx context.Context, userRole *roleent
 		strPtr(userRole.Notes), timePtrNull(userRole.DeactivatedAt),
 	)
 	if err != nil {
-		return fmt.Errorf("save user role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menyimpan user role", err)
 	}
 	return nil
 }
@@ -161,7 +160,7 @@ func (r *PostgresUserRoleRepository) Update(ctx context.Context, userRole *rolee
 		userRole.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("update user role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal memperbarui user role", err)
 	}
 	return nil
 }
@@ -169,7 +168,7 @@ func (r *PostgresUserRoleRepository) Update(ctx context.Context, userRole *rolee
 func (r *PostgresUserRoleRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM user_roles WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("delete user role: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menghapus user role", err)
 	}
 	return nil
 }
@@ -180,9 +179,9 @@ func (r *PostgresUserRoleRepository) FindByID(ctx context.Context, id string) (*
 	var m UserRoleModel
 	if err := row.Scan(&m.ID, &m.UserID, &m.RoleID, &m.ScopeType, &m.ScopeID, &m.AssignedAt, &m.AssignedBy, &m.ExpiredAt, &m.IsActive, &m.Notes, &m.DeactivatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(roleconstant.ErrCodeUserRoleNotActive)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeUserRoleNotActive, "User role tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find user role by id: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari user role berdasarkan ID", err)
 	}
 
 	return userRoleFromModel(m), nil
@@ -191,7 +190,7 @@ func (r *PostgresUserRoleRepository) FindByID(ctx context.Context, id string) (*
 func (r *PostgresUserRoleRepository) FindActiveByUserID(ctx context.Context, userID string) ([]*roleentity.UserRole, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, user_id, role_id, scope_type, scope_id, assigned_at, assigned_by, expired_at, is_active, notes, deactivated_at FROM user_roles WHERE user_id = $1 AND is_active = true`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("find active user roles: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari user role aktif berdasarkan ID pengguna", err)
 	}
 	defer rows.Close()
 
@@ -201,7 +200,7 @@ func (r *PostgresUserRoleRepository) FindActiveByUserID(ctx context.Context, use
 func (r *PostgresUserRoleRepository) ListActiveUserIDsByRoleName(ctx context.Context, roleName roleconstant.RoleName) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT ur.user_id FROM user_roles ur INNER JOIN roles r ON r.id = ur.role_id WHERE r.name = $1 AND ur.is_active = true`, string(roleName))
 	if err != nil {
-		return nil, fmt.Errorf("list active user ids by role name: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mendaftar ID pengguna aktif berdasarkan nama role", err)
 	}
 	defer rows.Close()
 
@@ -209,7 +208,7 @@ func (r *PostgresUserRoleRepository) ListActiveUserIDsByRoleName(ctx context.Con
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan user id: %w", err)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal membaca ID pengguna", err)
 		}
 		ids = append(ids, id)
 	}
@@ -247,7 +246,7 @@ func scanUserRoles(rows *sql.Rows) ([]*roleentity.UserRole, error) {
 	for rows.Next() {
 		var m UserRoleModel
 		if err := rows.Scan(&m.ID, &m.UserID, &m.RoleID, &m.ScopeType, &m.ScopeID, &m.AssignedAt, &m.AssignedBy, &m.ExpiredAt, &m.IsActive, &m.Notes, &m.DeactivatedAt); err != nil {
-			return nil, fmt.Errorf("scan user role: %w", err)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal membaca data user role", err)
 		}
 		roles = append(roles, userRoleFromModel(m))
 	}
@@ -271,7 +270,7 @@ func (r *PostgresRolePermissionRepository) Save(ctx context.Context, rp *roleent
 		rp.AssignedAt, rp.AssignedBy, strPtr(rp.Notes),
 	)
 	if err != nil {
-		return fmt.Errorf("save role permission: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menyimpan permission role", err)
 	}
 	return nil
 }
@@ -279,7 +278,7 @@ func (r *PostgresRolePermissionRepository) Save(ctx context.Context, rp *roleent
 func (r *PostgresRolePermissionRepository) Delete(ctx context.Context, roleID string, permissionKey roleconstant.PermissionKey) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM role_permissions WHERE role_id = $1 AND permission_key = $2`, roleID, string(permissionKey))
 	if err != nil {
-		return fmt.Errorf("delete role permission: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menghapus permission role", err)
 	}
 	return nil
 }
@@ -287,7 +286,7 @@ func (r *PostgresRolePermissionRepository) Delete(ctx context.Context, roleID st
 func (r *PostgresRolePermissionRepository) ListByRoleID(ctx context.Context, roleID string) ([]*roleentity.RolePermission, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, role_id, permission_key, assigned_at, assigned_by, notes FROM role_permissions WHERE role_id = $1`, roleID)
 	if err != nil {
-		return nil, fmt.Errorf("list role permissions: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mendaftar permission role", err)
 	}
 	defer rows.Close()
 
@@ -295,7 +294,7 @@ func (r *PostgresRolePermissionRepository) ListByRoleID(ctx context.Context, rol
 	for rows.Next() {
 		var m RolePermissionModel
 		if err := rows.Scan(&m.ID, &m.RoleID, &m.PermissionKey, &m.AssignedAt, &m.AssignedBy, &m.Notes); err != nil {
-			return nil, fmt.Errorf("scan role permission: %w", err)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal membaca data permission role", err)
 		}
 		var notes *string
 		if m.Notes.Valid {
@@ -330,7 +329,7 @@ func (r *PostgresRoleScopeRepository) Save(ctx context.Context, scope *roleentit
 		scope.CreatedAt, scope.UpdatedAt,
 	)
 	if err != nil {
-		return fmt.Errorf("save role scope: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menyimpan role scope", err)
 	}
 	return nil
 }
@@ -338,7 +337,7 @@ func (r *PostgresRoleScopeRepository) Save(ctx context.Context, scope *roleentit
 func (r *PostgresRoleScopeRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM role_scopes WHERE id = $1`, id)
 	if err != nil {
-		return fmt.Errorf("delete role scope: %w", err)
+		return kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal menghapus role scope", err)
 	}
 	return nil
 }
@@ -349,9 +348,9 @@ func (r *PostgresRoleScopeRepository) FindByID(ctx context.Context, id string) (
 	var m RoleScopeModel
 	if err := row.Scan(&m.ID, &m.RoleID, &m.ScopeType, &m.ScopeValue, &m.CreatedAt, &m.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(rolevo.ErrCodeInvalidScopeType)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleNotFound, "Role scope tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find role scope by id: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari role scope berdasarkan ID", err)
 	}
 
 	return &roleentity.RoleScope{
@@ -367,7 +366,7 @@ func (r *PostgresRoleScopeRepository) FindByID(ctx context.Context, id string) (
 func (r *PostgresRoleScopeRepository) FindByRoleID(ctx context.Context, roleID string) ([]*roleentity.RoleScope, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, role_id, scope_type, scope_value, created_at, updated_at FROM role_scopes WHERE role_id = $1`, roleID)
 	if err != nil {
-		return nil, fmt.Errorf("find role scopes: %w", err)
+		return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal mencari role scope berdasarkan ID role", err)
 	}
 	defer rows.Close()
 
@@ -375,7 +374,7 @@ func (r *PostgresRoleScopeRepository) FindByRoleID(ctx context.Context, roleID s
 	for rows.Next() {
 		var m RoleScopeModel
 		if err := rows.Scan(&m.ID, &m.RoleID, &m.ScopeType, &m.ScopeValue, &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, fmt.Errorf("scan role scope: %w", err)
+			return nil, kernel.WrapMsg(roleconstant.ErrCodeRoleInternal, "gagal membaca data role scope", err)
 		}
 		scopes = append(scopes, &roleentity.RoleScope{
 			ID:         m.ID,

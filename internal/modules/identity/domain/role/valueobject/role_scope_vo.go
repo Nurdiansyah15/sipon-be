@@ -35,10 +35,10 @@ func NewRoleScopeValue(scopeType RoleScopeType, rawValue string) (string, error)
 	switch scopeType {
 	case RoleScopeTypeGender:
 		if v != RoleScopeValueMale && v != RoleScopeValueFemale {
-			return "", kernel.New(ErrCodeInvalidScopeValue)
+			return "", kernel.WrapMsg(ErrCodeInvalidScopeValue, "Nilai scope tidak valid untuk gender", nil)
 		}
 		return v, nil
 	default:
-		return "", kernel.New(ErrCodeInvalidScopeType)
+		return "", kernel.WrapMsg(ErrCodeInvalidScopeType, "Jenis scope tidak dikenali", nil)
 	}
 }

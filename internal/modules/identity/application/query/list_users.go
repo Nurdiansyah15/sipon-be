@@ -39,7 +39,7 @@ func (uc *ListUsersUseCase) Execute(ctx context.Context, req dto.ListUsersReques
 
 	users, total, err := uc.userListRepo.List(ctx, req.Status, req.RoleID, req.Search, req.SortBy, req.SortType, req.Page, req.Limit)
 	if err != nil {
-		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, dto.Meta{}, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari daftar pengguna", err)
 	}
 
 	userIDs := make([]string, 0, len(users))

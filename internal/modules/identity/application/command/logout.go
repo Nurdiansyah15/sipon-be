@@ -20,7 +20,7 @@ func NewLogoutUseCase(revocationStore ports.SessionRevocationStore, accessTokenT
 
 func (uc *LogoutUseCase) Execute(ctx context.Context, sessionID string) error {
 	if err := uc.revocationStore.RevokeSession(ctx, sessionID, uc.accessTokenTTL); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal mencabut sesi", err)
 	}
 	return nil
 }

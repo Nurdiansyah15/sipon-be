@@ -52,7 +52,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	email, err := uservo.NewEmail(in.Email)
@@ -61,27 +61,27 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	generatedPassword, err := generateRandomPassword()
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat kata sandi acak", err)
 	}
 
 	plainPw, err := uservo.NewPlainPassword(generatedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi kata sandi yang dibuat", err)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengenkripsi kata sandi", err)
 	}
 
 	hashedPw, err := uservo.NewHashedPassword(hashedPassword)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi hash kata sandi", err)
 	}
 
 	userID := uuid.NewString()
@@ -91,7 +91,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	credentialID := uuid.NewString()
@@ -99,19 +99,31 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 
 	nisLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindNIS, in.NISValue, true, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat identitas login NIS", err)
 	}
 	cred.AddLoginIdentity(nisLI)
 
 	emailLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindEmail, email.String(), false, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat identitas login email", err)
 	}
 	cred.AddLoginIdentity(emailLI)
 
 	usernameLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindUsername, username.String(), false, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat identitas login username", err)
 	}
 	cred.AddLoginIdentity(usernameLI)
 
@@ -125,7 +137,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan data pengguna", err)
 	}
 
 	return &CreateAccountWithNISResult{

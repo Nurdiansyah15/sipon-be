@@ -25,7 +25,7 @@ func NewVerificationCode(id, userID, rawCode string, purpose constant.CodePurpos
 		purpose != constant.PurposeResetPassword &&
 		purpose != constant.PurposeChangeEmail &&
 		purpose != constant.PurposeChangePhone {
-		return nil, kernel.New(constant.ErrCodeVerificationInvalidPurpose)
+		return nil, kernel.WrapMsg(constant.ErrCodeVerificationInvalidPurpose, "Tujuan kode verifikasi tidak valid", nil)
 	}
 
 	code, err := valueobject.NewOTPCode(rawCode)
@@ -45,13 +45,13 @@ func NewVerificationCode(id, userID, rawCode string, purpose constant.CodePurpos
 
 func (vc *VerificationCode) Verify(inputCode string) error {
 	if vc.UsedAt != nil {
-		return kernel.New(constant.ErrCodeVerificationCodeUsed)
+		return kernel.WrapMsg(constant.ErrCodeVerificationCodeUsed, "Kode verifikasi sudah digunakan", nil)
 	}
 	if vc.IsExpired() {
-		return kernel.New(constant.ErrCodeVerificationCodeExpired)
+		return kernel.WrapMsg(constant.ErrCodeVerificationCodeExpired, "Kode verifikasi telah kedaluwarsa", nil)
 	}
 	if !vc.Code.Match(inputCode) {
-		return kernel.New(constant.ErrCodeVerificationCodeMismatch)
+		return kernel.WrapMsg(constant.ErrCodeVerificationCodeMismatch, "Kode verifikasi tidak cocok", nil)
 	}
 	now := time.Now()
 	vc.UsedAt = &now
@@ -64,7 +64,7 @@ func (vc *VerificationCode) IsExpired() bool {
 
 func (vc *VerificationCode) SetNewIdentityValue(value string) error {
 	if value == "" {
-		return kernel.New(constant.ErrCodeVerificationNewIdentityEmpty)
+		return kernel.WrapMsg(constant.ErrCodeVerificationNewIdentityEmpty, "Nilai identitas baru tidak boleh kosong", nil)
 	}
 	vc.NewIdentityValue = &value
 	return nil

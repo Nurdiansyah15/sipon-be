@@ -31,7 +31,7 @@ func (uc *GetRoleUseCase) Execute(ctx context.Context, roleID string) (*dto.Role
 	roleID = strings.TrimSpace(roleID)
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	permissions, err := resolveRolePermissions(ctx, uc.rolePermRepo, role)
@@ -76,7 +76,7 @@ func BuildRoleResponse(ctx context.Context, roleRepo rolerepo.RoleRepository, ro
 	roleID = strings.TrimSpace(roleID)
 	role, err := roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 	permissions, err := resolveRolePermissions(ctx, rolePermRepo, role)
 	if err != nil {

@@ -31,12 +31,12 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	cred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if cred == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Kredensial lokal tidak ditemukan", nil)
 	}
 
 	if req.Fullname != nil {
@@ -46,7 +46,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 	if req.Email != nil {
 		currentEmailIdentity := cred.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 		if currentEmailIdentity != nil && currentEmailIdentity.IsVerified() {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Email telah terverifikasi, tidak dapat diubah", nil)
 		}
 
 		newEmail, err := uservo.NewEmail(*req.Email)
@@ -55,12 +55,18 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 			if errors.As(err, &ke) {
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
-			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 		}
 
 		existingUser, findErr := uc.userRepo.FindByIdentity(ctx, userconstant.LoginIdentifierKindEmail, newEmail.String())
 		if findErr == nil && existingUser.ID != userID {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Email sudah digunakan oleh pengguna lain", nil)
+		}
+		if findErr != nil {
+			var ke *kernel.AppError
+			if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotFound {
+				return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan email", findErr)
+			}
 		}
 
 		user.Email = newEmail
@@ -73,7 +79,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 		if user.PhoneNumber != nil {
 			currentPhoneIdentity := cred.FindLoginIdentity(userconstant.LoginIdentifierKindPhone, user.PhoneNumber.String())
 			if currentPhoneIdentity != nil && currentPhoneIdentity.IsVerified() {
-				return nil, kernel.New(application.ErrCodeConflict)
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, "Nomor telepon telah terverifikasi, tidak dapat diubah", nil)
 			}
 		}
 
@@ -83,12 +89,18 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 			if errors.As(err, &ke) {
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
-			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 		}
 
 		existingUser, findErr := uc.userRepo.FindByIdentity(ctx, userconstant.LoginIdentifierKindPhone, newPhone.String())
 		if findErr == nil && existingUser.ID != userID {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Nomor telepon sudah digunakan oleh pengguna lain", nil)
+		}
+		if findErr != nil {
+			var ke *kernel.AppError
+			if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotFound {
+				return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan nomor telepon", findErr)
+			}
 		}
 
 		user.PhoneNumber = &newPhone
@@ -100,7 +112,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 
 	user.UpdatedAt = time.Now()
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui profil", err)
 	}
 
 	return &dto.UpdateProfileResponse{Message: "profil berhasil diperbarui"}, nil

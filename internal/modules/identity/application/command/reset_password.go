@@ -44,7 +44,7 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, verificationconstant.PurposeResetPassword)
@@ -53,10 +53,10 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case verificationconstant.ErrCodeVerificationCodeNotFound:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := verifCode.Verify(req.Token); err != nil {
@@ -67,7 +67,7 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	plainPw, err := uservo.NewPlainPassword(req.Password)
@@ -79,22 +79,22 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	localCred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if localCred == nil {
-		return nil, kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "Kredensial lokal tidak ditemukan", nil)
 	}
 
 	hashedStr, err := uc.hasher.Hash(plainPw.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengenkripsi kata sandi", err)
 	}
 
 	hashedPw, err := uservo.NewHashedPassword(hashedStr)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi hash kata sandi", err)
 	}
 
 	now := time.Now()
@@ -105,11 +105,18 @@ func (uc *ResetPasswordUseCase) Execute(ctx context.Context, req dto.ResetPasswo
 	user.ResetFailedAttempts()
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui kata sandi", err)
 	}
 
 	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui kode verifikasi", err)
 	}
 
 	return &dto.ResetPasswordResponse{Message: "password berhasil direset"}, nil

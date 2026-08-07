@@ -43,6 +43,7 @@ const (
 	ErrCodeUserRoleScopeIDEmpty    kernel.Code = "USER_ROLE_SCOPE_ID_EMPTY"
 	ErrCodeRoleScopeIDRequired     kernel.Code = "ROLE_SCOPE_ID_REQUIRED"
 	ErrCodeRoleScopeRoleIDRequired kernel.Code = "ROLE_SCOPE_ROLE_ID_REQUIRED"
+	ErrCodeRoleInternal            kernel.Code = "ROLE_INTERNAL_ERROR"
 )
 
 type DefaultRoleDef struct {

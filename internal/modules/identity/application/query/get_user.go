@@ -42,7 +42,7 @@ func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.User
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return buildUserManagementResponse(ctx, uc.userRoleRepo, uc.roleRepo, user)

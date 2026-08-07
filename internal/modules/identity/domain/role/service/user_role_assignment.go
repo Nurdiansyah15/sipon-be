@@ -44,6 +44,10 @@ type AssignRoleByIDInput struct {
 func (s *UserRoleAssignmentService) AssignByRoleID(ctx context.Context, input AssignRoleByIDInput) (*entity.Role, error) {
 	role, err := s.roleRepo.FindByID(ctx, input.RoleID)
 	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(kernel.Code("ERR_NOT_FOUND"), ke.Message, ke)
+		}
 		return nil, kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
 	}
 
@@ -58,23 +62,17 @@ func (s *UserRoleAssignmentService) checkAssignable(ctx context.Context, role *e
 	if err := role.EnsureAssignable(); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			switch ke.Code {
-			case constant.ErrCodeRoleNotAssignable:
-				return kernel.New(kernel.Code("ERR_FORBIDDEN"))
-			}
+			return kernel.WrapMsg(kernel.Code("ERR_FORBIDDEN"), ke.Message, ke)
 		}
-		return kernel.New(kernel.Code("ERR_FORBIDDEN"))
+		return kernel.Wrap(kernel.Code("ERR_FORBIDDEN"), err)
 	}
 
 	if err := role.EnsureAssignmentScopeMatch(scopeType); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			switch ke.Code {
-			case constant.ErrCodeRoleScopeMismatch:
-				return kernel.New(kernel.Code("ERR_BAD_REQUEST"))
-			}
+			return kernel.WrapMsg(kernel.Code("ERR_BAD_REQUEST"), ke.Message, ke)
 		}
-		return kernel.New(kernel.Code("ERR_BAD_REQUEST"))
+		return kernel.Wrap(kernel.Code("ERR_BAD_REQUEST"), err)
 	}
 
 	existingRoles, err := s.userRoleRepo.FindActiveByUserID(ctx, userID)
@@ -84,7 +82,7 @@ func (s *UserRoleAssignmentService) checkAssignable(ctx context.Context, role *e
 
 	for _, ur := range existingRoles {
 		if ur.RoleID == role.ID && ur.IsUsable() {
-			return kernel.New(kernel.Code("ERR_CONFLICT"))
+			return kernel.WrapMsg(kernel.Code("ERR_CONFLICT"), "User role sudah ditugaskan", nil)
 		}
 	}
 
@@ -94,6 +92,10 @@ func (s *UserRoleAssignmentService) checkAssignable(ctx context.Context, role *e
 func (s *UserRoleAssignmentService) AssignByRoleName(ctx context.Context, input AssignRoleInput) error {
 	role, err := s.roleRepo.FindByName(ctx, input.RoleName)
 	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(kernel.Code("ERR_NOT_FOUND"), ke.Message, ke)
+		}
 		return kernel.Wrap(kernel.Code("ERR_NOT_FOUND"), err)
 	}
 

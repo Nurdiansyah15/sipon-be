@@ -54,7 +54,7 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 			if errors.As(err, &ke) {
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
-			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 		}
 		normalizedValue = email.String()
 	case userconstant.LoginIdentifierKindPhone:
@@ -64,26 +64,26 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 			if errors.As(err, &ke) {
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
-			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 		}
 		normalizedValue = phone.String()
 	default:
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis identitas tidak dikenali", nil)
 	}
 
 	existingUser, findErr := uc.userRepo.FindByIdentity(ctx, kind, normalizedValue)
 	if findErr == nil {
 		if existingUser.ID != userID {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Identitas ini sudah digunakan oleh pengguna lain", nil)
 		}
 		identity := existingUser.FindLoginIdentityByKind(kind)
 		if identity != nil && identity.IsVerified() {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Identitas ini sudah terverifikasi", nil)
 		}
 	} else {
 		var ke *kernel.AppError
 		if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotFound {
-			return nil, kernel.Wrap(application.ErrCodeInternal, findErr)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan identitas", findErr)
 		}
 	}
 
@@ -93,12 +93,12 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserNotFound {
 			return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menghasilkan kode OTP", err)
 	}
 
 	var purpose verificationconstant.CodePurpose
@@ -108,29 +108,33 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	case userconstant.LoginIdentifierKindPhone:
 		purpose = verificationconstant.PurposeChangePhone
 	default:
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis identitas tidak dikenali", nil)
 	}
 
 	verifCode, err := verificationentity.NewVerificationCode(uuid.NewString(), user.ID, otpCode, purpose, 5*time.Minute)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat kode verifikasi", err)
 	}
 	verifCode.SetNewIdentityValue(normalizedValue)
 
 	if err := uc.verifRepo.Save(ctx, verifCode); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan kode verifikasi", err)
 	}
 
 	label := "email"
 	switch kind {
 	case userconstant.LoginIdentifierKindEmail:
 		if err := uc.emailSender.SendOTP(normalizedValue, user.Username.String(), otpCode); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengirim OTP ke email", err)
 		}
 	case userconstant.LoginIdentifierKindPhone:
 		label = "phone"
 		if err := uc.smsSender.SendOTP(normalizedValue, otpCode); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengirim OTP ke nomor telepon", err)
 		}
 	}
 
@@ -162,7 +166,7 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserNotFound {
 			return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	var purpose verificationconstant.CodePurpose
@@ -172,7 +176,7 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	case userconstant.LoginIdentifierKindPhone:
 		purpose = verificationconstant.PurposeChangePhone
 	default:
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis identitas tidak dikenali", nil)
 	}
 
 	code, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, purpose)
@@ -181,10 +185,10 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case verificationconstant.ErrCodeVerificationCodeNotFound:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := code.Verify(otp); err != nil {
@@ -195,11 +199,11 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if code.NewIdentityValue == nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, nil)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "Nilai identitas baru tidak tersedia pada kode verifikasi", nil)
 	}
 	newValue := *code.NewIdentityValue
 
@@ -210,14 +214,18 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	} else {
 		cred := user.FindCredential(userconstant.CredentialTypeLocal)
 		if cred == nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, nil)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "Kredensial lokal tidak ditemukan", nil)
 		}
 		now := time.Now()
 		newIdentity, err := userentity.NewLoginIdentity(
 			uuid.NewString(), user.ID, cred.ID, kind, newValue, true, &now,
 		)
 		if err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat identitas login baru", err)
 		}
 		cred.AddLoginIdentity(newIdentity)
 	}
@@ -226,13 +234,21 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	case userconstant.LoginIdentifierKindEmail:
 		email, err := uservo.NewEmail(newValue)
 		if err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi email baru", err)
 		}
 		user.Email = email
 	case userconstant.LoginIdentifierKindPhone:
 		phone, err := uservo.NewPhoneNumber(newValue)
 		if err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi nomor telepon baru", err)
 		}
 		user.PhoneNumber = &phone
 	}
@@ -249,7 +265,7 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		}
 		return uc.verifRepo.Update(txCtx, code)
 	}); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan perubahan identitas", err)
 	}
 
 	return &dto.ChangeIdentityResponse{Message: label + " berhasil diperbarui"}, nil

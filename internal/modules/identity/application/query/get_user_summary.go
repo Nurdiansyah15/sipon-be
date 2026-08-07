@@ -33,7 +33,7 @@ func (uc *GetUserSummaryUseCase) Execute(ctx context.Context, userID string) (*d
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	var phone *string

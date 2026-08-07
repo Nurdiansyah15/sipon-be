@@ -21,10 +21,10 @@ type Role struct {
 
 func NewRole(id string, name constant.RoleName, displayName string, description *string, roleType constant.RoleType, scopeType constant.ScopeType, assignable bool) (*Role, error) {
 	if roleType != constant.RoleTypeSystem && roleType != constant.RoleTypeCustom {
-		return nil, kernel.New(constant.ErrCodeInvalidRoleType)
+		return nil, kernel.WrapMsg(constant.ErrCodeInvalidRoleType, "Jenis role tidak valid", nil)
 	}
 	if scopeType != constant.ScopeTypeGlobal && scopeType != constant.ScopeTypeRegion && scopeType != constant.ScopeTypeCommunity {
-		return nil, kernel.New(constant.ErrCodeInvalidScopeType)
+		return nil, kernel.WrapMsg(constant.ErrCodeInvalidScopeType, "Jenis scope tidak valid", nil)
 	}
 
 	now := time.Now()
@@ -47,28 +47,28 @@ func (r *Role) IsSystem() bool {
 
 func (r *Role) EnsureCanDelete() error {
 	if r.IsSystem() {
-		return kernel.New(constant.ErrCodeRoleCannotDeleteSystem)
+		return kernel.WrapMsg(constant.ErrCodeRoleCannotDeleteSystem, "Role sistem tidak dapat dihapus", nil)
 	}
 	return nil
 }
 
 func (r *Role) EnsureAssignable() error {
 	if !r.Assignable {
-		return kernel.New(constant.ErrCodeRoleNotAssignable)
+		return kernel.WrapMsg(constant.ErrCodeRoleNotAssignable, "Role tidak dapat ditugaskan", nil)
 	}
 	return nil
 }
 
 func (r *Role) EnsureCustom() error {
 	if r.IsSystem() {
-		return kernel.New(constant.ErrCodeInvalidRoleType)
+		return kernel.WrapMsg(constant.ErrCodeInvalidRoleType, "Role harus bertipe custom", nil)
 	}
 	return nil
 }
 
 func (r *Role) EnsureAssignmentScopeMatch(scopeType constant.ScopeType) error {
 	if r.ScopeType != scopeType {
-		return kernel.New(constant.ErrCodeRoleScopeMismatch)
+		return kernel.WrapMsg(constant.ErrCodeRoleScopeMismatch, "Scope role tidak sesuai", nil)
 	}
 	return nil
 }
@@ -83,7 +83,7 @@ func (r *Role) Touch() {
 
 func (r *Role) UpdateDetails(displayName string, description string, assignable *bool) error {
 	if r.IsSystem() {
-		return kernel.New(constant.ErrCodeInvalidRoleType)
+		return kernel.WrapMsg(constant.ErrCodeInvalidRoleType, "Role sistem tidak dapat diubah", nil)
 	}
 	if displayName != "" {
 		r.DisplayName = displayName

@@ -32,7 +32,7 @@ func NewVerifyIdentityOTPUseCase(
 func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyOTPRequest) (*dto.VerifyOTPResponse, error) {
 	identifier, err := uservo.NewLoginIdentifier(req.Identifier)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
@@ -44,12 +44,12 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	identity := user.FindLoginIdentity(identifier.Kind, identifier.Value)
 	if identity == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Identitas login tidak ditemukan", nil)
 	}
 
 	if identity.IsVerified() {
@@ -63,7 +63,7 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 	case userconstant.LoginIdentifierKindPhone:
 		purpose = verificationconstant.PurposePhoneVerification
 	default:
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis identitas tidak dikenali", nil)
 	}
 
 	verifCode, err := uc.verifRepo.FindLatestByUserAndPurpose(ctx, user.ID, purpose)
@@ -72,10 +72,10 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case verificationconstant.ErrCodeVerificationCodeNotFound:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := verifCode.Verify(req.OTP); err != nil {
@@ -83,19 +83,19 @@ func (uc *VerifyIdentityOTPUseCase) Execute(ctx context.Context, req dto.VerifyO
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case verificationconstant.ErrCodeVerificationCodeExpired, verificationconstant.ErrCodeVerificationCodeUsed, verificationconstant.ErrCodeVerificationCodeMismatch:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	identity.MarkVerified()
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.verifRepo.Update(ctx, verifCode); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return &dto.VerifyOTPResponse{Message: "identity berhasil diverifikasi"}, nil

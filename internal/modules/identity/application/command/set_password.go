@@ -32,7 +32,7 @@ func NewSetPasswordLocalUseCase(
 func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, req dto.SetPasswordRequest) (*dto.SetPasswordResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	newPlain, err := uservo.NewPlainPassword(req.NewPassword)
@@ -44,7 +44,7 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -56,17 +56,17 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	hashedStr, err := uc.hasher.Hash(newPlain.String())
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengenkripsi kata sandi", err)
 	}
 
 	newHashed, err := uservo.NewHashedPassword(hashedStr)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi hash kata sandi", err)
 	}
 
 	if err := user.SetLocalPassword(newHashed); err != nil {
@@ -74,14 +74,21 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeCredentialNotLocal:
-				return nil, kernel.WrapMsg(application.ErrCodeInternal, ke.Message, ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengatur kata sandi", err)
 	}
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui data pengguna", err)
 	}
 
 	return &dto.SetPasswordResponse{Message: "password berhasil ditambahkan"}, nil

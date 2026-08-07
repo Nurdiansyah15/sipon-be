@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	uservo "sipon-be/internal/modules/identity/domain/user/valueobject"
@@ -30,7 +29,7 @@ func (r *PostgresVerificationRepository) Save(ctx context.Context, code *verific
 		strPtr(code.NewIdentityValue),
 	)
 	if err != nil {
-		return fmt.Errorf("save verification code: %w", err)
+		return kernel.WrapMsg(verificationconstant.ErrCodeVerificationInternal, "gagal menyimpan kode verifikasi", err)
 	}
 	return nil
 }
@@ -41,14 +40,14 @@ func (r *PostgresVerificationRepository) FindLatestByUserAndPurpose(ctx context.
 	var m VerificationCodeModel
 	if err := row.Scan(&m.ID, &m.UserID, &m.Code, &m.Purpose, &m.ExpiresAt, &m.UsedAt, &m.CreatedAt, &m.NewIdentityValue); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(verificationconstant.ErrCodeVerificationCodeNotFound)
+			return nil, kernel.WrapMsg(verificationconstant.ErrCodeVerificationCodeNotFound, "Kode verifikasi tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find latest verification code: %w", err)
+		return nil, kernel.WrapMsg(verificationconstant.ErrCodeVerificationInternal, "gagal mencari kode verifikasi", err)
 	}
 
 	otp, err := uservo.NewOTPCode(m.Code)
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(verificationconstant.ErrCodeVerificationInternal, "gagal membaca data kode OTP", err)
 	}
 
 	var newIdentityValue *string
@@ -82,7 +81,7 @@ func (r *PostgresVerificationRepository) Update(ctx context.Context, code *verif
 		strPtr(code.NewIdentityValue), code.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("update verification code: %w", err)
+		return kernel.WrapMsg(verificationconstant.ErrCodeVerificationInternal, "gagal memperbarui kode verifikasi", err)
 	}
 	return nil
 }

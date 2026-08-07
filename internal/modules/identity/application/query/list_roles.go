@@ -33,7 +33,7 @@ func (uc *ListRolesUseCase) Execute(ctx context.Context, req dto.ListRolesReques
 
 	roles, total, err := uc.roleListRepo.List(ctx, req.RoleType, req.ScopeType, req.Assignable, req.SortBy, req.SortType, req.Page, req.Limit)
 	if err != nil {
-		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, dto.Meta{}, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.RoleItem, 0, len(roles))

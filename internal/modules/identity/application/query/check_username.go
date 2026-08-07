@@ -24,7 +24,7 @@ func NewCheckUsernameUseCase(userRepo userrepo.UserRepository) *CheckUsernameUse
 func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username string) (*dto.CheckUsernameResponse, error) {
 	username = strings.TrimSpace(username)
 	if username == "" {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Username tidak boleh kosong", nil)
 	}
 
 	_, err := uservo.NewUsername(username)
@@ -33,7 +33,7 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	existingUser, err := uc.userRepo.FindByUsername(ctx, username)
@@ -45,7 +45,7 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 			return &dto.CheckUsernameResponse{Available: true}, nil
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if existingUser.ID == userID {

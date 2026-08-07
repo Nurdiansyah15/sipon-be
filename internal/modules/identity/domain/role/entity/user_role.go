@@ -23,22 +23,22 @@ type UserRole struct {
 
 func NewUserRole(id, userID, roleID string, scopeType constant.ScopeType, scopeID *string, assignedBy string, expiredAt *time.Time, notes *string) (*UserRole, error) {
 	if id == "" {
-		return nil, kernel.New(constant.ErrCodeUserRoleIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserRoleIDRequired, "ID user role wajib diisi", nil)
 	}
 	if userID == "" {
-		return nil, kernel.New(constant.ErrCodeUserRoleUserIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserRoleUserIDRequired, "ID pengguna wajib diisi", nil)
 	}
 	if roleID == "" {
-		return nil, kernel.New(constant.ErrCodeUserRoleRoleIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserRoleRoleIDRequired, "ID role wajib diisi", nil)
 	}
 	if scopeType != constant.ScopeTypeGlobal && scopeType != constant.ScopeTypeRegion && scopeType != constant.ScopeTypeCommunity {
-		return nil, kernel.New(constant.ErrCodeInvalidScopeType)
+		return nil, kernel.WrapMsg(constant.ErrCodeInvalidScopeType, "Jenis scope tidak valid", nil)
 	}
 	if scopeType == constant.ScopeTypeGlobal && scopeID != nil {
-		return nil, kernel.New(constant.ErrCodeUserRoleScopeIDEmpty)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserRoleScopeIDEmpty, "Scope ID tidak boleh diisi untuk scope global", nil)
 	}
 	if (scopeType == constant.ScopeTypeRegion || scopeType == constant.ScopeTypeCommunity) && (scopeID == nil || *scopeID == "") {
-		return nil, kernel.New(constant.ErrCodeUserRoleScopeIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserRoleScopeIDRequired, "Scope ID wajib diisi untuk scope regional atau komunitas", nil)
 	}
 
 	now := time.Now()
@@ -69,7 +69,7 @@ func (ur *UserRole) IsUsable() bool {
 
 func (ur *UserRole) Deactivate() error {
 	if !ur.IsActive {
-		return kernel.New(constant.ErrCodeUserRoleNotActive)
+		return kernel.WrapMsg(constant.ErrCodeUserRoleNotActive, "User role tidak aktif", nil)
 	}
 	now := time.Now()
 	ur.IsActive = false
@@ -79,10 +79,10 @@ func (ur *UserRole) Deactivate() error {
 
 func (ur *UserRole) Reactivate() error {
 	if ur.IsActive {
-		return kernel.New(constant.ErrCodeUserRoleNotActive)
+		return kernel.WrapMsg(constant.ErrCodeUserRoleNotActive, "User role sudah aktif", nil)
 	}
 	if ur.IsExpired() {
-		return kernel.New(constant.ErrCodeUserRoleExpired)
+		return kernel.WrapMsg(constant.ErrCodeUserRoleExpired, "User role telah kedaluwarsa", nil)
 	}
 	ur.IsActive = true
 	ur.DeactivatedAt = nil

@@ -19,10 +19,10 @@ type RoleScope struct {
 
 func NewRoleScope(id, roleID string, scopeType valueobject.RoleScopeType, scopeValue string) (*RoleScope, error) {
 	if id == "" {
-		return nil, kernel.New(constant.ErrCodeRoleScopeIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeRoleScopeIDRequired, "ID role scope wajib diisi", nil)
 	}
 	if roleID == "" {
-		return nil, kernel.New(constant.ErrCodeRoleScopeRoleIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeRoleScopeRoleIDRequired, "ID role wajib diisi", nil)
 	}
 
 	normalizedValue, err := valueobject.NewRoleScopeValue(scopeType, scopeValue)

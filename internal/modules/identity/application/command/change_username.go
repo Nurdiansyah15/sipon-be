@@ -24,7 +24,7 @@ func NewChangeUsernameUseCase(userRepo userrepo.UserRepository) *ChangeUsernameU
 func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req dto.ChangeUsernameRequest) (*dto.ChangeUsernameResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	newUsernameStr := strings.TrimSpace(req.Username)
@@ -34,7 +34,7 @@ func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req
 		if errors.As(err, &ke) {
 			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -46,27 +46,27 @@ func (uc *ChangeUsernameUseCase) Execute(ctx context.Context, userID string, req
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if user.Username.String() == newUsername.String() {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Username baru sama dengan username lama", nil)
 	}
 
 	existingUser, findErr := uc.userRepo.FindByUsername(ctx, newUsername.String())
 	if findErr == nil && existingUser.ID != userID {
-		return nil, kernel.New(application.ErrCodeConflict)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Username sudah digunakan", nil)
 	}
 	if findErr != nil {
 		var ke *kernel.AppError
 		if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotFound {
-			return nil, kernel.Wrap(application.ErrCodeInternal, findErr)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan username", findErr)
 		}
 	}
 
 	user.ChangeUsername(newUsername)
 	if err := uc.userRepo.UpdateUsername(ctx, user.ID, newUsername.String()); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui username", err)
 	}
 
 	return &dto.ChangeUsernameResponse{

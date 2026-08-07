@@ -115,7 +115,7 @@ func (uc *ListUserRolesUseCase) Execute(ctx context.Context, req dto.ListUserRol
 		req.Limit,
 	)
 	if err != nil {
-		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, dto.Meta{}, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.UserRoleItem, 0, len(userRoles))
@@ -161,7 +161,7 @@ func NewGetUserRoleUseCase(
 func (uc *GetUserRoleUseCase) Execute(ctx context.Context, userRoleID string) (*dto.UserRoleItem, error) {
 	ur, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	return BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, ur)

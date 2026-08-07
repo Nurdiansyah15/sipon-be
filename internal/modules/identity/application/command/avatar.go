@@ -45,7 +45,7 @@ func NewAvatarPresignUseCase(fileUploader ports.FileUploader) *AvatarPresignUseC
 func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresignRequest) (*dto.AvatarPresignResponse, error) {
 	ct := strings.TrimSpace(strings.ToLower(req.ContentType))
 	if !avatarAllowedContentTypes[ct] {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis konten tidak didukung untuk avatar", nil)
 	}
 
 	ext := avatarExtByContentType[ct]
@@ -53,7 +53,7 @@ func (uc *AvatarPresignUseCase) Execute(ctx context.Context, req dto.AvatarPresi
 
 	presignURL, key, _, err := uc.fileUploader.RequestUpload(ctx, objectName, ct, avatarPresignTTL, ports.PrivacyPublic)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat URL presign untuk avatar", err)
 	}
 
 	return &dto.AvatarPresignResponse{
@@ -84,12 +84,12 @@ func NewAvatarConfirmUseCase(
 func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string) (*dto.AvatarConfirmResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	normalizedKey := uc.fileUploader.KeyFromURL(key)
 	if normalizedKey == "" || !strings.HasPrefix(normalizedKey, "pending/") {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Kunci file avatar tidak valid", nil)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -101,25 +101,25 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.fileUploader.ConfirmUpload(ctx, normalizedKey); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengonfirmasi unggahan avatar", err)
 	}
 
 	oldKey := user.AvatarKey
 	finalKey := strings.TrimPrefix(normalizedKey, "pending/")
 
 	if err := uc.fileUploader.PromoteUpload(ctx, normalizedKey, finalKey, ports.PrivacyPublic); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mempromosikan unggahan avatar", err)
 	}
 
 	user.AvatarKey = &finalKey
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.userRepo.Update(txCtx, user)
 	}); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan data avatar", err)
 	}
 
 	if oldKey != nil && *oldKey != finalKey {
@@ -151,7 +151,7 @@ func NewAvatarDeleteUseCase(
 func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) (*dto.ChangeIdentityResponse, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -163,20 +163,20 @@ func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) (*dto
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	oldKey := user.AvatarKey
 
 	if oldKey != nil && *oldKey != "" {
 		if err := uc.fileUploader.MarkDeleted(ctx, *oldKey); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menghapus avatar lama", err)
 		}
 	}
 
 	user.AvatarKey = nil
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui data avatar", err)
 	}
 
 	return &dto.ChangeIdentityResponse{Message: "avatar berhasil dihapus"}, nil

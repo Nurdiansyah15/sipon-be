@@ -46,7 +46,11 @@ func NewRequestIdentityOTPUseCase(
 func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.RequestOTPRequest) (*dto.RequestOTPResponse, error) {
 	identifier, err := uservo.NewLoginIdentifier(req.Identifier)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Identitas login tidak valid", err)
 	}
 
 	user, err := uc.userRepo.FindByLoginIdentifier(ctx, identifier)
@@ -58,21 +62,21 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	identity := user.FindLoginIdentity(identifier.Kind, identifier.Value)
 	if identity == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Identitas login tidak ditemukan", nil)
 	}
 
 	if identity.IsVerified() {
-		return nil, kernel.New(application.ErrCodeConflict)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Identitas sudah terverifikasi", nil)
 	}
 
 	otpCode, err := uc.otpGen.Generate()
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menghasilkan kode OTP", err)
 	}
 
 	var purpose verificationconstant.CodePurpose
@@ -82,26 +86,30 @@ func (uc *RequestIdentityOTPUseCase) Execute(ctx context.Context, req dto.Reques
 	case userconstant.LoginIdentifierKindPhone:
 		purpose = verificationconstant.PurposePhoneVerification
 	default:
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Jenis identitas tidak dikenali", nil)
 	}
 
 	verifCode, err := verificationentity.NewVerificationCode(uuid.NewString(), user.ID, otpCode, purpose, 5*time.Minute)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat kode verifikasi", err)
 	}
 
 	if err := uc.verifRepo.Save(ctx, verifCode); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan kode verifikasi", err)
 	}
 
 	switch identifier.Kind {
 	case userconstant.LoginIdentifierKindEmail:
 		if err := uc.emailSender.SendOTP(identity.Value, user.Username.String(), otpCode); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengirim OTP ke email", err)
 		}
 	case userconstant.LoginIdentifierKindPhone:
 		if err := uc.smsSender.SendOTP(identity.Value, otpCode); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengirim OTP ke nomor telepon", err)
 		}
 	}
 

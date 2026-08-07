@@ -26,7 +26,7 @@ func NewUpdateFullnameUseCase(userRepo userrepo.UserRepository) *UpdateFullnameU
 func (uc *UpdateFullnameUseCase) Execute(ctx context.Context, userID, fullname string) error {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return kernel.New(application.ErrCodeBadRequest)
+		return kernel.WrapMsg(application.ErrCodeBadRequest, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -38,7 +38,7 @@ func (uc *UpdateFullnameUseCase) Execute(ctx context.Context, userID, fullname s
 				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	name := fullname
@@ -46,7 +46,7 @@ func (uc *UpdateFullnameUseCase) Execute(ctx context.Context, userID, fullname s
 	user.UpdatedAt = time.Now()
 
 	if err := uc.userRepo.Update(ctx, user); err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui nama lengkap", err)
 	}
 
 	return nil

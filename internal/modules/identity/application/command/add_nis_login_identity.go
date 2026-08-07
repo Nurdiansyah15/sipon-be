@@ -28,7 +28,7 @@ func NewAddNISLoginIdentityUseCase(userRepo userrepo.UserRepository) *AddNISLogi
 func (uc *AddNISLoginIdentityUseCase) Execute(ctx context.Context, userID, nisValue string) error {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return kernel.New(application.ErrCodeBadRequest)
+		return kernel.WrapMsg(application.ErrCodeBadRequest, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -40,17 +40,21 @@ func (uc *AddNISLoginIdentityUseCase) Execute(ctx context.Context, userID, nisVa
 				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	cred := user.FindCredential(userconstant.CredentialTypeLocal)
 	if cred == nil {
-		return kernel.New(application.ErrCodeConflict)
+		return kernel.WrapMsg(application.ErrCodeConflict, "Kredensial lokal tidak ditemukan", nil)
 	}
 
 	nisLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, cred.ID, userconstant.LoginIdentifierKindNIS, nisValue, false, nil)
 	if err != nil {
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat identitas login NIS", err)
 	}
 	cred.AddLoginIdentity(nisLI)
 
@@ -59,10 +63,10 @@ func (uc *AddNISLoginIdentityUseCase) Execute(ctx context.Context, userID, nisVa
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserNotFound:
-				return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return kernel.Wrap(application.ErrCodeInternal, err)
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan identitas login NIS", err)
 	}
 
 	return nil

@@ -45,17 +45,24 @@ func NewGetProfileUseCase(
 func (uc *GetProfileUseCase) Execute(ctx context.Context, userID string) (*dto.ProfileResponse, error) {
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari data pengguna", err)
 	}
 
 	credential := user.FindCredential(userconstant.CredentialTypeLocal)
 	if credential == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Kredensial lokal tidak ditemukan", nil)
 	}
 
 	emailIdentity := credential.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 	if emailIdentity == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Identitas email tidak ditemukan", nil)
 	}
 
 	isEmailVerified := emailIdentity.IsVerified()
@@ -183,7 +190,7 @@ func NewMeUseCase(
 func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, kernel.New(application.ErrCodeUnauthorized)
+		return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, "ID pengguna tidak boleh kosong", nil)
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, userID)
@@ -195,17 +202,17 @@ func (uc *MeUseCase) Execute(ctx context.Context, userID string) (*dto.UserMe, e
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	credential := user.FindCredential(userconstant.CredentialTypeLocal)
 	if credential == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Kredensial lokal tidak ditemukan", nil)
 	}
 
 	emailIdentity := credential.FindLoginIdentity(userconstant.LoginIdentifierKindEmail, user.Email.String())
 	if emailIdentity == nil {
-		return nil, kernel.New(application.ErrCodeNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Identitas email tidak ditemukan", nil)
 	}
 
 	isEmailVerified := emailIdentity.IsVerified()

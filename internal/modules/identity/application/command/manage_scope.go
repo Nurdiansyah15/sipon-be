@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
 	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	rolevo "sipon-be/internal/modules/identity/domain/role/valueobject"
@@ -33,16 +34,23 @@ func NewAssignRoleScopeUseCase(
 func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, req dto.AssignScopeRequest) (*dto.ScopeItem, error) {
 	roleID = strings.TrimSpace(roleID)
 	if roleID == "" {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "ID role tidak boleh kosong", nil)
 	}
 
 	role, err := uc.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case roleconstant.ErrCodeRoleNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari role", err)
 	}
 
 	if role.IsSystem() {
-		return nil, kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "Tidak dapat menambah scope pada role sistem", nil)
 	}
 
 	scopeType := rolevo.RoleScopeType(strings.TrimSpace(strings.ToLower(req.ScopeType)))
@@ -52,7 +60,7 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 	if err == nil {
 		for _, es := range existingScopes {
 			if es.ScopeType == scopeType && es.ScopeValue == scopeValue {
-				return nil, kernel.New(application.ErrCodeConflict)
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, "Scope role sudah ada", nil)
 			}
 		}
 	}
@@ -61,13 +69,13 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	if err := uc.roleScopeRepo.Save(ctx, scope); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan scope role", err)
 	}
 
 	return &dto.ScopeItem{
@@ -88,12 +96,22 @@ func NewDeleteRoleScopeUseCase(roleScopeRepo rolerepo.RoleScopeRepository) *Dele
 func (uc *DeleteRoleScopeUseCase) Execute(ctx context.Context, scopeID string) error {
 	scopeID = strings.TrimSpace(scopeID)
 	if scopeID == "" {
-		return kernel.New(application.ErrCodeUnprocessableEntity)
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "ID scope tidak boleh kosong", nil)
 	}
 
 	if _, err := uc.roleScopeRepo.FindByID(ctx, scopeID); err != nil {
-		return kernel.Wrap(application.ErrCodeNotFound, err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case roleconstant.ErrCodeRoleNotFound:
+				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari scope role", err)
 	}
 
-	return uc.roleScopeRepo.Delete(ctx, scopeID)
+	if err := uc.roleScopeRepo.Delete(ctx, scopeID); err != nil {
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal menghapus scope role", err)
+	}
+	return nil
 }

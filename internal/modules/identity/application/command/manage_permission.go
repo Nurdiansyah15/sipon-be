@@ -34,18 +34,15 @@ func NewAssignRolePermissionUseCase(
 func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assignedBy string, req dto.AssignRolePermissionRequest) (*dto.RoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(roleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			switch ke.Code {
-			case roleconstant.ErrCodeInvalidRoleType:
-				return nil, kernel.New(application.ErrCodeBadRequest)
-			}
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 		}
-		return nil, kernel.New(application.ErrCodeForbidden)
+		return nil, kernel.WrapMsg(application.ErrCodeForbidden, "tidak memiliki akses", err)
 	}
 
 	permissionKey := roleconstant.PermissionKey(strings.TrimSpace(req.PermissionKey))
@@ -58,13 +55,13 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
-		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "data tidak dapat diproses", err)
 	}
 
 	if err := uc.rolePermRepo.Save(ctx, rp); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
@@ -82,15 +79,19 @@ func NewDeleteRolePermissionUseCase(roleRepo rolerepo.RoleRepository, rolePermRe
 func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, permissionKey string) (*dto.RoleItem, error) {
 	role, err := uc.roleRepo.FindByID(ctx, strings.TrimSpace(roleID))
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	if err := role.EnsureCustom(); err != nil {
-		return nil, kernel.New(application.ErrCodeConflict)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "data sudah ada", err)
 	}
 
 	if err := uc.rolePermRepo.Delete(ctx, role.ID, roleconstant.PermissionKey(strings.TrimSpace(permissionKey))); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)

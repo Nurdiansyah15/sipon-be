@@ -20,4 +20,5 @@ const (
 	ErrCodeVerificationInvalidPurpose   kernel.Code = "VERIFICATION_INVALID_PURPOSE"
 	ErrCodeTooManyVerificationCode      kernel.Code = "TOO_MANY_VERIFICATION_CODE"
 	ErrCodeVerificationNewIdentityEmpty kernel.Code = "VERIFICATION_NEW_IDENTITY_EMPTY"
+	ErrCodeVerificationInternal         kernel.Code = "VERIFICATION_INTERNAL_ERROR"
 )

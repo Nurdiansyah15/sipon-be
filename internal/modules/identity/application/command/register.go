@@ -74,7 +74,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	username, err := uservo.NewUsername(req.Username)
@@ -86,7 +86,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	var phone *uservo.PhoneNumber
@@ -100,7 +100,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 				}
 			}
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		phone = &pn
 	}
@@ -114,38 +114,38 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	emailExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindEmail, email.String())
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan email", err)
 	}
 	if emailExists {
-		return nil, kernel.New(application.ErrCodeConflict)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Email sudah terdaftar", nil)
 	}
 
 	if phone != nil {
 		phoneExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindPhone, phone.String())
 		if err != nil {
-			return nil, err
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan nomor telepon", err)
 		}
 		if phoneExists {
-			return nil, kernel.New(application.ErrCodeConflict)
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Nomor telepon sudah terdaftar", nil)
 		}
 	}
 
 	usernameExists, err := uc.userRepo.ExistsByLoginIdentity(ctx, userconstant.LoginIdentifierKindUsername, username.String())
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memeriksa ketersediaan username", err)
 	}
 	if usernameExists {
-		return nil, kernel.New(application.ErrCodeConflict)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Username sudah digunakan", nil)
 	}
 
 	hashedPassword, err := uc.hasher.Hash(plainPw.String())
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mengenkripsi kata sandi", err)
 	}
 
 	hashedPw, err := uservo.NewHashedPassword(hashedPassword)
@@ -157,7 +157,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi hash kata sandi", err)
 	}
 
 	userID := uuid.NewString()
@@ -172,28 +172,28 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	credential := userentity.NewLocalCredential(credentialID, userID, hashedPw, true)
 
 	emailLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindEmail, email.String(), true, nil)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	credential.AddLoginIdentity(emailLI)
 
 	now := time.Now()
 	usernameLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindUsername, username.String(), true, &now)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	credential.AddLoginIdentity(usernameLI)
 
 	if phone != nil {
 		phoneLI, err := userentity.NewLoginIdentity(uuid.NewString(), userID, credentialID, userconstant.LoginIdentifierKindPhone, phone.String(), true, nil)
 		if err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		credential.AddLoginIdentity(phoneLI)
 	}
@@ -202,7 +202,14 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 
 	memberRole, err := uc.roleRepo.FindByName(ctx, roleconstant.MemberRoleName)
 	if err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case roleconstant.ErrCodeRoleNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeInternal, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari role default", err)
 	}
 
 	userRole, err := roleentity.NewUserRole(uuid.NewString(), userID, memberRole.ID, roleconstant.ScopeTypeGlobal, nil, userID, nil, nil)
@@ -214,7 +221,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
@@ -223,7 +230,14 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		}
 		return uc.userRoleRepo.Save(txCtx, userRole)
 	}); err != nil {
-		return nil, err
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan data pengguna", err)
 	}
 
 	if err := user.EnsureCanLogin(); err != nil {
@@ -234,7 +248,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			}
 		}
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	sessionID := uuid.NewString()
@@ -245,12 +259,12 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 
 	accessToken, err := uc.tokenGen.GenerateAccessToken(userID, sessionID, deviceID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat access token", err)
 	}
 
 	refreshToken, err := uc.tokenGen.GenerateRefreshToken(userID, deviceID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membuat refresh token", err)
 	}
 
 	isEmailVerified := false
