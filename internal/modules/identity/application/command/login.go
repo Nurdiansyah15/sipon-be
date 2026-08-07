@@ -47,7 +47,7 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 	if err := user.EnsureNotLockedOut(); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserLockedOut {
-			return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeTooManyRequests, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -77,9 +77,9 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserBanned:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			case userconstant.ErrCodeUserNotActive:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

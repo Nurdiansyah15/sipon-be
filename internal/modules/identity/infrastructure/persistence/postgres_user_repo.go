@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
@@ -23,7 +22,7 @@ func NewPostgresUserRepository(db *sql.DB) *PostgresUserRepository {
 func (r *PostgresUserRepository) Save(ctx context.Context, user *userentity.User) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memulai transaksi database", err)
 	}
 	defer tx.Rollback()
 
@@ -42,13 +41,16 @@ func (r *PostgresUserRepository) Save(ctx context.Context, user *userentity.User
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan transaksi", err)
+	}
+	return nil
 }
 
 func (r *PostgresUserRepository) Update(ctx context.Context, user *userentity.User) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memulai transaksi database", err)
 	}
 	defer tx.Rollback()
 
@@ -72,7 +74,7 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userentity.Us
 		user.ID,
 	)
 	if err != nil {
-		return fmt.Errorf("update user: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memperbarui pengguna", err)
 	}
 
 	for _, credential := range user.Credentials {
@@ -110,7 +112,7 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userentity.Us
 			nullTime(credential.DeletedAt),
 		)
 		if err != nil {
-			return fmt.Errorf("upsert credential: %w", err)
+			return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan kredensial", err)
 		}
 
 		for _, identity := range credential.LoginIdentities {
@@ -143,12 +145,15 @@ func (r *PostgresUserRepository) Update(ctx context.Context, user *userentity.Us
 				nullTime(identity.DeletedAt),
 			)
 			if err != nil {
-				return fmt.Errorf("upsert login identity: %w", err)
+				return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan identitas login", err)
 			}
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan transaksi", err)
+	}
+	return nil
 }
 
 func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*userentity.User, error) {
@@ -157,9 +162,9 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*user
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
+			return nil, kernel.WrapMsg(userconstant.ErrCodeUserNotFound, "Pengguna tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find user by id: %w", err)
+		return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal mencari pengguna berdasarkan ID", err)
 	}
 
 	user, err := userFromModel(m)
@@ -201,9 +206,9 @@ func (r *PostgresUserRepository) FindByLoginIdentifier(ctx context.Context, iden
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
+			return nil, kernel.WrapMsg(userconstant.ErrCodeUserNotFound, "Pengguna tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find by login identifier: %w", err)
+		return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal mencari pengguna berdasarkan identitas login", err)
 	}
 
 	user, err := userFromModel(m)
@@ -243,9 +248,9 @@ func (r *PostgresUserRepository) FindByUsername(ctx context.Context, username st
 	var m UserModel
 	if err := scanUser(row, &m); err != nil {
 		if err == sql.ErrNoRows {
-			return nil, kernel.New(userconstant.ErrCodeUserNotActive)
+			return nil, kernel.WrapMsg(userconstant.ErrCodeUserNotFound, "Pengguna tidak ditemukan", nil)
 		}
-		return nil, fmt.Errorf("find by username: %w", err)
+		return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal mencari pengguna berdasarkan username", err)
 	}
 
 	user, err := userFromModel(m)
@@ -279,7 +284,7 @@ func (r *PostgresUserRepository) ExistsByUsername(ctx context.Context, username 
 	var exists bool
 	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM users WHERE username = $1 AND deleted_at IS NULL)`, username).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("exists by username: %w", err)
+		return false, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memeriksa ketersediaan username", err)
 	}
 	return exists, nil
 }
@@ -288,7 +293,7 @@ func (r *PostgresUserRepository) ExistsByLoginIdentity(ctx context.Context, kind
 	var exists bool
 	err := r.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_identities WHERE kind = $1 AND value = $2 AND deleted_at IS NULL)`, string(kind), value).Scan(&exists)
 	if err != nil {
-		return false, fmt.Errorf("exists by login identity: %w", err)
+		return false, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memeriksa ketersediaan identitas login", err)
 	}
 	return exists, nil
 }
@@ -296,7 +301,7 @@ func (r *PostgresUserRepository) ExistsByLoginIdentity(ctx context.Context, kind
 func (r *PostgresUserRepository) UpdateUsername(ctx context.Context, userID, newUsername string) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE users SET username = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL`, newUsername, userID)
 	if err != nil {
-		return fmt.Errorf("update username: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memperbarui username", err)
 	}
 	return nil
 }
@@ -321,7 +326,7 @@ func (r *PostgresUserRepository) saveUser(ctx context.Context, tx *sql.Tx, user 
 		nullTime(user.LockedUntil),
 	)
 	if err != nil {
-		return fmt.Errorf("insert user: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan pengguna", err)
 	}
 	return nil
 }
@@ -349,7 +354,7 @@ func (r *PostgresUserRepository) saveCredential(ctx context.Context, tx *sql.Tx,
 		nullTime(credential.DeletedAt),
 	)
 	if err != nil {
-		return fmt.Errorf("insert credential: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan kredensial", err)
 	}
 	return nil
 }
@@ -372,7 +377,7 @@ func (r *PostgresUserRepository) saveLoginIdentity(ctx context.Context, tx *sql.
 		nullTime(identity.DeletedAt),
 	)
 	if err != nil {
-		return fmt.Errorf("insert login identity: %w", err)
+		return kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal menyimpan identitas login", err)
 	}
 	return nil
 }
@@ -380,7 +385,7 @@ func (r *PostgresUserRepository) saveLoginIdentity(ctx context.Context, tx *sql.
 func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID string) ([]*userentity.Credential, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, user_id, type, secret_hash, last_changed_at, is_primary, created_at, updated_at, last_login_at, deleted_at FROM credentials WHERE user_id = $1 AND deleted_at IS NULL`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("load credentials: %w", err)
+		return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memuat kredensial", err)
 	}
 	defer rows.Close()
 
@@ -388,7 +393,7 @@ func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID str
 	for rows.Next() {
 		var m CredentialModel
 		if err := rows.Scan(&m.ID, &m.UserID, &m.Type, &m.SecretHash, &m.LastChangedAt, &m.IsPrimary, &m.CreatedAt, &m.UpdatedAt, &m.LastLoginAt, &m.DeletedAt); err != nil {
-			return nil, fmt.Errorf("scan credential: %w", err)
+			return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal membaca data kredensial", err)
 		}
 
 		var secretHash *uservo.HashedPassword
@@ -419,7 +424,7 @@ func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID str
 func (r *PostgresUserRepository) loadLoginIdentities(ctx context.Context, userID string) ([]*userentity.LoginIdentity, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT id, user_id, credential_id, kind, value, status, is_primary, verified_at, created_at, updated_at, deleted_at FROM user_identities WHERE user_id = $1 AND deleted_at IS NULL`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("load login identities: %w", err)
+		return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal memuat identitas login", err)
 	}
 	defer rows.Close()
 
@@ -427,7 +432,7 @@ func (r *PostgresUserRepository) loadLoginIdentities(ctx context.Context, userID
 	for rows.Next() {
 		var m LoginIdentityModel
 		if err := rows.Scan(&m.ID, &m.UserID, &m.CredentialID, &m.Kind, &m.Value, &m.Status, &m.IsPrimary, &m.VerifiedAt, &m.CreatedAt, &m.UpdatedAt, &m.DeletedAt); err != nil {
-			return nil, fmt.Errorf("scan login identity: %w", err)
+			return nil, kernel.WrapMsg(userconstant.ErrCodeInternal, "gagal membaca data identitas login", err)
 		}
 
 		li := &userentity.LoginIdentity{

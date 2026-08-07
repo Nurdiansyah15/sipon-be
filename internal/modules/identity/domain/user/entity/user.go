@@ -27,13 +27,13 @@ type User struct {
 
 func NewUser(id string, username valueobject.Username, fullname *string, email valueobject.Email, phoneNumber *valueobject.PhoneNumber) (*User, error) {
 	if id == "" {
-		return nil, kernel.New(constant.ErrCodeUserIDRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserIDRequired, "ID pengguna wajib diisi", nil)
 	}
 	if email == (valueobject.Email{}) {
-		return nil, kernel.New(constant.ErrCodeUserEmailRequired)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserEmailRequired, "Email pengguna wajib diisi", nil)
 	}
 	if phoneNumber != nil && *phoneNumber == (valueobject.PhoneNumber{}) {
-		return nil, kernel.New(constant.ErrCodeUserPhoneNumberInvalid)
+		return nil, kernel.WrapMsg(constant.ErrCodeUserPhoneNumberInvalid, "Nomor telepon pengguna tidak valid", nil)
 	}
 
 	now := time.Now()
@@ -83,17 +83,17 @@ func (u *User) FindCredential(typ constant.CredentialType) *Credential {
 
 func (u *User) EnsureCanLogin() error {
 	if u.Status == constant.UserStatusBanned {
-		return kernel.New(constant.ErrCodeUserBanned)
+		return kernel.WrapMsg(constant.ErrCodeUserBanned, "Pengguna telah diblokir", nil)
 	}
 	if u.DeletedAt != nil {
-		return kernel.New(constant.ErrCodeUserNotActive)
+		return kernel.WrapMsg(constant.ErrCodeUserNotActive, "Pengguna tidak aktif", nil)
 	}
 	return u.EnsureNotLockedOut()
 }
 
 func (u *User) Activate() error {
 	if u.Status == constant.UserStatusActive {
-		return kernel.New(constant.ErrCodeUserAlreadyActive)
+		return kernel.WrapMsg(constant.ErrCodeUserAlreadyActive, "Pengguna sudah aktif", nil)
 	}
 	u.Status = constant.UserStatusActive
 	u.UpdatedAt = time.Now()
@@ -102,7 +102,7 @@ func (u *User) Activate() error {
 
 func (u *User) Deactivate() error {
 	if u.Status == constant.UserStatusBanned {
-		return kernel.New(constant.ErrCodeUserAlreadyBanned)
+		return kernel.WrapMsg(constant.ErrCodeUserAlreadyBanned, "Pengguna sudah diblokir", nil)
 	}
 	u.Status = constant.UserStatusBanned
 	u.UpdatedAt = time.Now()
@@ -111,7 +111,7 @@ func (u *User) Deactivate() error {
 
 func (u *User) Reactivate() error {
 	if u.Status != constant.UserStatusBanned {
-		return kernel.New(constant.ErrCodeUserNotActive)
+		return kernel.WrapMsg(constant.ErrCodeUserNotActive, "Pengguna tidak aktif", nil)
 	}
 	u.Status = constant.UserStatusActive
 	u.FailedLoginAttempts = 0
@@ -135,7 +135,7 @@ func (u *User) IsLockedOut() bool {
 
 func (u *User) EnsureNotLockedOut() error {
 	if u.IsLockedOut() {
-		return kernel.New(constant.ErrCodeUserLockedOut)
+		return kernel.WrapMsg(constant.ErrCodeUserLockedOut, "Pengguna terkunci sementara", nil)
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func (u *User) ResetFailedAttempts() {
 
 func (u *User) SoftDelete() error {
 	if u.DeletedAt != nil {
-		return kernel.New(constant.ErrCodeUserAlreadyDeleted)
+		return kernel.WrapMsg(constant.ErrCodeUserAlreadyDeleted, "Pengguna sudah dihapus", nil)
 	}
 	now := time.Now()
 	u.DeletedAt = &now
@@ -176,7 +176,7 @@ func (u *User) HasLocalPassword() bool {
 func (u *User) SetLocalPassword(hashed valueobject.HashedPassword) error {
 	cred := u.FindCredential(constant.CredentialTypeLocal)
 	if cred == nil {
-		return kernel.New(constant.ErrCodeCredentialNotLocal)
+		return kernel.WrapMsg(constant.ErrCodeCredentialNotLocal, "Kredensial bukan tipe lokal", nil)
 	}
 	cred.SecretHash = &hashed
 	now := time.Now()

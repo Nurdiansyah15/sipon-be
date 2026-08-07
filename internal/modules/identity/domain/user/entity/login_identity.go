@@ -56,7 +56,7 @@ func (li *LoginIdentity) IsVerified() bool {
 
 func (li *LoginIdentity) EnsureVerified() error {
 	if !li.IsVerified() {
-		return kernel.New(constant.ErrCodeIdentityNotVerified)
+		return kernel.WrapMsg(constant.ErrCodeIdentityNotVerified, "Identitas belum diverifikasi", nil)
 	}
 	return nil
 }

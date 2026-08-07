@@ -41,7 +41,7 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodePlainPasswordEmpty, userconstant.ErrCodePlainPasswordTooShort, userconstant.ErrCodePlainPasswordNoUppercase, userconstant.ErrCodePlainPasswordNoDigit:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -52,8 +52,8 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -74,7 +74,7 @@ func (uc *SetPasswordLocalUseCase) Execute(ctx context.Context, userID string, r
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeCredentialNotLocal:
-				return nil, kernel.Wrap(application.ErrCodeInternal, err)
+				return nil, kernel.WrapMsg(application.ErrCodeInternal, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

@@ -27,8 +27,8 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -53,7 +53,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
@@ -81,7 +81,7 @@ func (uc *UpdateProfileUseCase) Execute(ctx context.Context, userID string, req 
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}

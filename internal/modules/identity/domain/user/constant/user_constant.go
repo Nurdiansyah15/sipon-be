@@ -73,4 +73,6 @@ const (
 	ErrCodeUserIDRequired             kernel.Code = "USER_ID_REQUIRED"
 	ErrCodeUserEmailRequired          kernel.Code = "USER_EMAIL_REQUIRED"
 	ErrCodeUserPhoneNumberInvalid     kernel.Code = "USER_PHONE_NUMBER_INVALID"
+	ErrCodeUserNotFound               kernel.Code = "USER_NOT_FOUND"
+	ErrCodeInternal                   kernel.Code = "USER_INTERNAL_ERROR"
 )

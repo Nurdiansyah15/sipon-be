@@ -37,10 +37,10 @@ func NewEmail(raw string) (Email, error) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.ToLower(raw)
 	if raw == "" {
-		return Email{}, kernel.New(constant.ErrCodeEmailEmpty)
+		return Email{}, kernel.WrapMsg(constant.ErrCodeEmailEmpty, "Email tidak boleh kosong", nil)
 	}
 	if !emailRegex.MatchString(raw) {
-		return Email{}, kernel.New(constant.ErrCodeEmailInvalidFormat)
+		return Email{}, kernel.WrapMsg(constant.ErrCodeEmailInvalidFormat, "Format email tidak valid", nil)
 	}
 	return Email{value: raw}, nil
 }
@@ -60,11 +60,11 @@ type PhoneNumber struct {
 func NewPhoneNumber(raw string) (PhoneNumber, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return PhoneNumber{}, kernel.New(constant.ErrCodePhoneNumberEmpty)
+		return PhoneNumber{}, kernel.WrapMsg(constant.ErrCodePhoneNumberEmpty, "Nomor telepon tidak boleh kosong", nil)
 	}
 	normalized := NormalizePhoneNumber(raw)
 	if !phoneRegex.MatchString(normalized) {
-		return PhoneNumber{}, kernel.New(constant.ErrCodePhoneNumberInvalidFormat)
+		return PhoneNumber{}, kernel.WrapMsg(constant.ErrCodePhoneNumberInvalidFormat, "Format nomor telepon tidak valid", nil)
 	}
 	return PhoneNumber{value: normalized}, nil
 }
@@ -98,7 +98,7 @@ type HashedPassword struct {
 func NewHashedPassword(hash string) (HashedPassword, error) {
 	hash = strings.TrimSpace(hash)
 	if len(hash) < 10 {
-		return HashedPassword{}, kernel.New(constant.ErrCodeHashedPasswordTooShort)
+		return HashedPassword{}, kernel.WrapMsg(constant.ErrCodeHashedPasswordTooShort, "Hashed password terlalu pendek", nil)
 	}
 	return HashedPassword{hash: hash}, nil
 }
@@ -114,16 +114,16 @@ type PlainPassword struct {
 func NewPlainPassword(raw string) (PlainPassword, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return PlainPassword{}, kernel.New(constant.ErrCodePlainPasswordEmpty)
+		return PlainPassword{}, kernel.WrapMsg(constant.ErrCodePlainPasswordEmpty, "Kata sandi tidak boleh kosong", nil)
 	}
 	if len(raw) < 8 {
-		return PlainPassword{}, kernel.New(constant.ErrCodePlainPasswordTooShort)
+		return PlainPassword{}, kernel.WrapMsg(constant.ErrCodePlainPasswordTooShort, "Kata sandi terlalu pendek (minimal 8 karakter)", nil)
 	}
 	if !uppercaseRegex.MatchString(raw) {
-		return PlainPassword{}, kernel.New(constant.ErrCodePlainPasswordNoUppercase)
+		return PlainPassword{}, kernel.WrapMsg(constant.ErrCodePlainPasswordNoUppercase, "Kata sandi harus mengandung huruf kapital", nil)
 	}
 	if !digitRegexCompiled.MatchString(raw) {
-		return PlainPassword{}, kernel.New(constant.ErrCodePlainPasswordNoDigit)
+		return PlainPassword{}, kernel.WrapMsg(constant.ErrCodePlainPasswordNoDigit, "Kata sandi harus mengandung angka", nil)
 	}
 	return PlainPassword{plain: raw}, nil
 }
@@ -139,13 +139,13 @@ type OTPCode struct {
 func NewOTPCode(code string) (OTPCode, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
-		return OTPCode{}, kernel.New(constant.ErrCodeOTPCodeEmpty)
+		return OTPCode{}, kernel.WrapMsg(constant.ErrCodeOTPCodeEmpty, "Kode OTP tidak boleh kosong", nil)
 	}
 	if len(code) != 6 {
-		return OTPCode{}, kernel.New(constant.ErrCodeOTPCodeInvalidLength)
+		return OTPCode{}, kernel.WrapMsg(constant.ErrCodeOTPCodeInvalidLength, "Panjang kode OTP harus 6 digit", nil)
 	}
 	if !digitRegex.MatchString(code) {
-		return OTPCode{}, kernel.New(constant.ErrCodeOTPCodeNotDigit)
+		return OTPCode{}, kernel.WrapMsg(constant.ErrCodeOTPCodeNotDigit, "Kode OTP harus berupa angka", nil)
 	}
 	return OTPCode{code: code}, nil
 }
@@ -165,16 +165,16 @@ type Username struct {
 func NewUsername(raw string) (Username, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return Username{}, kernel.New(constant.ErrCodeUsernameEmpty)
+		return Username{}, kernel.WrapMsg(constant.ErrCodeUsernameEmpty, "Username tidak boleh kosong", nil)
 	}
 	if len(raw) < 3 {
-		return Username{}, kernel.New(constant.ErrCodeUsernameTooShort)
+		return Username{}, kernel.WrapMsg(constant.ErrCodeUsernameTooShort, "Username terlalu pendek (minimal 3 karakter)", nil)
 	}
 	if len(raw) > 30 {
-		return Username{}, kernel.New(constant.ErrCodeUsernameTooLong)
+		return Username{}, kernel.WrapMsg(constant.ErrCodeUsernameTooLong, "Username terlalu panjang (maksimal 30 karakter)", nil)
 	}
 	if !usernameRegex.MatchString(raw) {
-		return Username{}, kernel.New(constant.ErrCodeUsernameInvalidChar)
+		return Username{}, kernel.WrapMsg(constant.ErrCodeUsernameInvalidChar, "Username hanya boleh mengandung huruf, angka, dan underscore", nil)
 	}
 	return Username{value: raw}, nil
 }
@@ -192,7 +192,7 @@ func NewLoginIdentifier(raw string) (LoginIdentifier, error) {
 	raw = strings.TrimSpace(raw)
 	raw = strings.ToLower(raw)
 	if raw == "" {
-		return LoginIdentifier{}, kernel.New(constant.ErrCodeLoginIdentifierEmpty)
+		return LoginIdentifier{}, kernel.WrapMsg(constant.ErrCodeLoginIdentifierEmpty, "Identitas login tidak boleh kosong", nil)
 	}
 
 	if emailRegex.MatchString(raw) {
@@ -212,7 +212,7 @@ func NewLoginIdentifier(raw string) (LoginIdentifier, error) {
 		return LoginIdentifier{Kind: constant.LoginIdentifierKindUsername, Value: raw}, nil
 	}
 
-	return LoginIdentifier{}, kernel.New(constant.ErrCodeLoginIdentifierUnknownKind)
+	return LoginIdentifier{}, kernel.WrapMsg(constant.ErrCodeLoginIdentifierUnknownKind, "Jenis identitas login tidak dikenali", nil)
 }
 
 // NormalizeLoginIdentityValue menormalisasi & memvalidasi nilai suatu login
@@ -220,33 +220,33 @@ func NewLoginIdentifier(raw string) (LoginIdentifier, error) {
 func NormalizeLoginIdentityValue(kind constant.LoginIdentifierKind, rawValue string) (string, error) {
 	rawValue = strings.TrimSpace(rawValue)
 	if rawValue == "" {
-		return "", kernel.New(constant.ErrCodeInvalidLoginIdentityValue)
+		return "", kernel.WrapMsg(constant.ErrCodeInvalidLoginIdentityValue, "Nilai identitas login tidak valid", nil)
 	}
 
 	switch kind {
 	case constant.LoginIdentifierKindEmail:
 		rawValue = strings.ToLower(rawValue)
 		if !emailRegex.MatchString(rawValue) {
-			return "", kernel.New(constant.ErrCodeEmailInvalidFormat)
+			return "", kernel.WrapMsg(constant.ErrCodeEmailInvalidFormat, "Format email tidak valid", nil)
 		}
 		return rawValue, nil
 
 	case constant.LoginIdentifierKindPhone:
 		normalized := NormalizePhoneNumber(rawValue)
 		if !phoneRegex.MatchString(normalized) {
-			return "", kernel.New(constant.ErrCodePhoneNumberInvalidFormat)
+			return "", kernel.WrapMsg(constant.ErrCodePhoneNumberInvalidFormat, "Format nomor telepon tidak valid", nil)
 		}
 		return normalized, nil
 
 	case constant.LoginIdentifierKindUsername:
 		if !usernameRegex.MatchString(rawValue) {
-			return "", kernel.New(constant.ErrCodeUsernameInvalidChar)
+			return "", kernel.WrapMsg(constant.ErrCodeUsernameInvalidChar, "Username hanya boleh mengandung huruf, angka, dan underscore", nil)
 		}
 		if len(rawValue) < 3 {
-			return "", kernel.New(constant.ErrCodeUsernameTooShort)
+			return "", kernel.WrapMsg(constant.ErrCodeUsernameTooShort, "Username terlalu pendek (minimal 3 karakter)", nil)
 		}
 		if len(rawValue) > 30 {
-			return "", kernel.New(constant.ErrCodeUsernameTooLong)
+			return "", kernel.WrapMsg(constant.ErrCodeUsernameTooLong, "Username terlalu panjang (maksimal 30 karakter)", nil)
 		}
 		return rawValue, nil
 
@@ -258,6 +258,6 @@ func NormalizeLoginIdentityValue(kind constant.LoginIdentifierKind, rawValue str
 		return rawValue, nil
 
 	default:
-		return "", kernel.New(constant.ErrCodeLoginIdentifierUnknownKind)
+		return "", kernel.WrapMsg(constant.ErrCodeLoginIdentifierUnknownKind, "Jenis identitas login tidak dikenali", nil)
 	}
 }

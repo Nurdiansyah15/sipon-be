@@ -52,7 +52,7 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
@@ -62,7 +62,7 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
@@ -82,7 +82,7 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		}
 	} else {
 		var ke *kernel.AppError
-		if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeInvalidLoginIdentityValue {
+		if !errors.As(findErr, &ke) || ke.Code != userconstant.ErrCodeUserNotFound {
 			return nil, kernel.Wrap(application.ErrCodeInternal, findErr)
 		}
 	}
@@ -90,8 +90,8 @@ func (uc *RequestChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeInvalidLoginIdentityValue {
-			return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserNotFound {
+			return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -159,8 +159,8 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 	user, err := uc.userRepo.FindByID(ctx, userID)
 	if err != nil {
 		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeInvalidLoginIdentityValue {
-			return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		if errors.As(err, &ke) && ke.Code == userconstant.ErrCodeUserNotFound {
+			return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -192,7 +192,7 @@ func (uc *ConfirmChangeIdentityUseCase) Execute(ctx context.Context, userID stri
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case verificationconstant.ErrCodeVerificationCodeExpired, verificationconstant.ErrCodeVerificationCodeUsed, verificationconstant.ErrCodeVerificationCodeMismatch:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

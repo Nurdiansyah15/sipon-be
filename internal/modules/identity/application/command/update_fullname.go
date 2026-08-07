@@ -34,8 +34,8 @@ func (uc *UpdateFullnameUseCase) Execute(ctx context.Context, userID, fullname s
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return kernel.Wrap(application.ErrCodeInternal, err)

@@ -36,8 +36,8 @@ func (uc *AddNISLoginIdentityUseCase) Execute(ctx context.Context, userID, nisVa
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return kernel.Wrap(application.ErrCodeInternal, err)
@@ -58,8 +58,8 @@ func (uc *AddNISLoginIdentityUseCase) Execute(ctx context.Context, userID, nisVa
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return kernel.New(application.ErrCodeConflict)
+			case userconstant.ErrCodeUserNotFound:
+				return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
 		return kernel.Wrap(application.ErrCodeInternal, err)

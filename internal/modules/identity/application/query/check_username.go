@@ -31,7 +31,7 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -41,8 +41,8 @@ func (uc *CheckUsernameUseCase) Execute(ctx context.Context, userID, username st
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeUserNotActive:
-				return &dto.CheckUsernameResponse{Available: true}, nil
+		case userconstant.ErrCodeUserNotFound:
+			return &dto.CheckUsernameResponse{Available: true}, nil
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

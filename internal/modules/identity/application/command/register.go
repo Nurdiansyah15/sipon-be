@@ -71,7 +71,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeEmailEmpty, userconstant.ErrCodeEmailInvalidFormat:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -83,7 +83,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUsernameEmpty, userconstant.ErrCodeUsernameTooLong, userconstant.ErrCodeUsernameTooShort, userconstant.ErrCodeUsernameInvalidChar:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -97,7 +97,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 			if errors.As(err, &ke) {
 				switch ke.Code {
 				case userconstant.ErrCodePhoneNumberEmpty, userconstant.ErrCodePhoneNumberInvalidFormat:
-					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 				}
 			}
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -111,7 +111,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodePlainPasswordEmpty, userconstant.ErrCodePlainPasswordTooShort, userconstant.ErrCodePlainPasswordNoUppercase, userconstant.ErrCodePlainPasswordNoDigit:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -154,7 +154,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeHashedPasswordTooShort:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -169,7 +169,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserIDRequired, userconstant.ErrCodeUserEmailRequired, userconstant.ErrCodeUserPhoneNumberInvalid:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -211,7 +211,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case roleconstant.ErrCodeUserRoleIDRequired, roleconstant.ErrCodeUserRoleUserIDRequired, roleconstant.ErrCodeUserRoleRoleIDRequired, roleconstant.ErrCodeInvalidScopeType, roleconstant.ErrCodeUserRoleScopeIDEmpty, roleconstant.ErrCodeUserRoleScopeIDRequired:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -231,7 +231,7 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserBanned, userconstant.ErrCodeUserNotActive, userconstant.ErrCodeUserLockedOut:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

@@ -38,8 +38,8 @@ func (uc *GetUserUseCase) Execute(ctx context.Context, userID string) (*dto.User
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

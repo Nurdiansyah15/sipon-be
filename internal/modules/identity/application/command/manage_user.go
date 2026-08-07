@@ -81,7 +81,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -90,7 +90,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -101,7 +101,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		if err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 		}
@@ -133,7 +133,7 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -167,8 +167,8 @@ func (uc *CreateUserUseCase) Execute(ctx context.Context, req dto.CreateUserRequ
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.New(application.ErrCodeConflict)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -216,8 +216,8 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -259,8 +259,8 @@ func (uc *ResetUserPasswordUseCase) Execute(ctx context.Context, userID string) 
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -283,8 +283,8 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -295,7 +295,7 @@ func (uc *DeactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserAlreadyBanned:
-				return nil, kernel.New(application.ErrCodeConflict)
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -322,8 +322,8 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -334,7 +334,7 @@ func (uc *ReactivateUserUseCase) Execute(ctx context.Context, userID string) (*d
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserNotActive:
-				return nil, kernel.New(application.ErrCodeConflict)
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

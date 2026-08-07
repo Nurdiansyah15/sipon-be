@@ -69,8 +69,8 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.Wrap(application.ErrCodeUnauthorized, err)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnauthorized, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -81,9 +81,9 @@ func (uc *RefreshTokenUseCase) Execute(ctx context.Context, req dto.RefreshToken
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case userconstant.ErrCodeUserBanned:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			case userconstant.ErrCodeUserNotActive:
-				return nil, kernel.WrapMsg(application.ErrCodeForbidden, string(ke.Code), ke)
+				return nil, kernel.WrapMsg(application.ErrCodeForbidden, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

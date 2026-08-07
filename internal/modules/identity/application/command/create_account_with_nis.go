@@ -50,7 +50,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -59,7 +59,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
@@ -89,7 +89,7 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
-			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, string(ke.Code), ke)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -121,8 +121,8 @@ func (uc *CreateAccountWithNISUseCase) Execute(ctx context.Context, in CreateAcc
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
-			case userconstant.ErrCodeInvalidLoginIdentityValue:
-				return nil, kernel.New(application.ErrCodeConflict)
+			case userconstant.ErrCodeUserNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			}
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
