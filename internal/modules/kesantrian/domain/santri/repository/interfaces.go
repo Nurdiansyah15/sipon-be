@@ -36,4 +36,6 @@ type SantriRepository interface {
 	List(ctx context.Context, query SantriListQuery) (*SantriListResult, error)
 	ListActiveIDs(ctx context.Context) ([]string, error)
 	FindBasicByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
+	FindBasicByID(ctx context.Context, santriID string) (*SantriBasicInfo, error)
+	ListActiveWithUserID(ctx context.Context) ([]SantriBasicInfo, error)
 }

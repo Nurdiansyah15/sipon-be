@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/keuangan/application/dto"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 )
 
 // buildInvoiceResponse maps an invoice entity to its response DTO, best-effort
-// enriching it with the fee component brief when feeComponentRepo is provided.
-func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeComponentRepo feeRepo.FeeComponentRepository) dto.InvoiceResponse {
+// enriching it with the fee component and billing period briefs when their
+// repositories are provided.
+func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeComponentRepo feeRepo.FeeComponentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository) dto.InvoiceResponse {
 	resp := dto.InvoiceResponse{
 		ID:              inv.ID,
 		InvoiceNumber:   inv.InvoiceNumber,
@@ -18,8 +20,7 @@ func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeCompon
 		UserID:          inv.UserID,
 		BillingSchemeID: inv.BillingSchemeID,
 		FeeComponentID:  inv.FeeComponentID,
-		Periode:         inv.Periode,
-		TahunAjaran:     inv.TahunAjaran,
+		BillingPeriodID: inv.BillingPeriodID,
 		Amount:          inv.Amount,
 		DiscountAmount:  inv.DiscountAmount,
 		PaidAmount:      inv.PaidAmount,
@@ -41,6 +42,15 @@ func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeCompon
 				Name:   fc.Name,
 				Type:   string(fc.Type),
 				Amount: fc.Amount,
+			}
+		}
+	}
+	if billingPeriodRepo != nil {
+		if bp, err := billingPeriodRepo.FindByID(ctx, inv.BillingPeriodID); err == nil {
+			resp.BillingPeriod = &dto.BillingPeriodBriefResponse{
+				ID:     bp.ID,
+				Name:   bp.Name,
+				Status: string(bp.Status),
 			}
 		}
 	}

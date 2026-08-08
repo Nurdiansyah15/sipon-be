@@ -66,6 +66,15 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.POST("/periods/:id/reopen", middleware.RequirePermission("close_period"), h.ReopenPeriod)
 		admin.POST("/periods/:id/lock", middleware.RequirePermission("close_period"), h.LockPeriod)
 
+		admin.GET("/billing-periods", middleware.RequirePermission("manage_keuangan"), h.ListBillingPeriods)
+		admin.GET("/billing-periods/:id", middleware.RequirePermission("manage_keuangan"), h.GetBillingPeriod)
+		admin.POST("/billing-periods", middleware.RequirePermission("manage_keuangan"), h.CreateBillingPeriod)
+		admin.POST("/billing-periods/:id/open", middleware.RequirePermission("manage_keuangan"), h.OpenBillingPeriod)
+		admin.POST("/billing-periods/:id/close", middleware.RequirePermission("manage_keuangan"), h.CloseBillingPeriod)
+
+		admin.GET("/billing-batches", middleware.RequirePermission("manage_keuangan"), h.ListBillingBatches)
+		admin.GET("/billing-batches/:id", middleware.RequirePermission("manage_keuangan"), h.GetBillingBatch)
+
 		admin.GET("/reports/summary", middleware.RequirePermission("view_keuangan_reports"), h.ReportSummary)
 		admin.GET("/reports/outstanding", middleware.RequirePermission("view_keuangan_reports"), h.ReportOutstanding)
 		admin.GET("/reports/ledger", middleware.RequirePermission("view_keuangan_reports"), h.ReportLedger)

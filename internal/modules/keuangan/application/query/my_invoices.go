@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
@@ -11,22 +12,22 @@ import (
 )
 
 type MyInvoicesUseCase struct {
-	invoiceRepo      invRepo.InvoiceRepository
-	feeComponentRepo feeRepo.FeeComponentRepository
+	invoiceRepo       invRepo.InvoiceRepository
+	feeComponentRepo  feeRepo.FeeComponentRepository
+	billingPeriodRepo bpRepo.BillingPeriodRepository
 }
 
-func NewMyInvoicesUseCase(invoiceRepo invRepo.InvoiceRepository, feeComponentRepo feeRepo.FeeComponentRepository) *MyInvoicesUseCase {
-	return &MyInvoicesUseCase{invoiceRepo: invoiceRepo, feeComponentRepo: feeComponentRepo}
+func NewMyInvoicesUseCase(invoiceRepo invRepo.InvoiceRepository, feeComponentRepo feeRepo.FeeComponentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository) *MyInvoicesUseCase {
+	return &MyInvoicesUseCase{invoiceRepo: invoiceRepo, feeComponentRepo: feeComponentRepo, billingPeriodRepo: billingPeriodRepo}
 }
 
 func (uc *MyInvoicesUseCase) Execute(ctx context.Context, userID string, query dto.InvoiceListQuery) ([]dto.InvoiceResponse, *dto.Meta, error) {
 	repoQuery := invRepo.InvoiceListQuery{
-		UserID:      &userID,
-		Status:      query.Status,
-		Periode:     query.Periode,
-		TahunAjaran: query.TahunAjaran,
-		Page:        query.Page,
-		Limit:       query.Limit,
+		UserID:          &userID,
+		Status:          query.Status,
+		BillingPeriodID: query.BillingPeriodID,
+		Page:            query.Page,
+		Limit:           query.Limit,
 	}
 	if repoQuery.Page == 0 {
 		repoQuery.Page = 1
@@ -42,7 +43,7 @@ func (uc *MyInvoicesUseCase) Execute(ctx context.Context, userID string, query d
 
 	items := make([]dto.InvoiceResponse, len(result.Items))
 	for i, inv := range result.Items {
-		items[i] = buildInvoiceResponse(ctx, inv, uc.feeComponentRepo)
+		items[i] = buildInvoiceResponse(ctx, inv, uc.feeComponentRepo, uc.billingPeriodRepo)
 	}
 
 	totalPages := (result.Total + int64(repoQuery.Limit) - 1) / int64(repoQuery.Limit)

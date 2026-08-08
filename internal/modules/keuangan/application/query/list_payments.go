@@ -44,7 +44,7 @@ func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentLis
 	for i, p := range result.Items {
 		resp := buildPaymentResponse(p)
 		if inv, err := uc.invoiceRepo.FindByID(ctx, p.InvoiceID); err == nil {
-			invResp := buildInvoiceResponse(ctx, inv, nil)
+			invResp := buildInvoiceResponse(ctx, inv, nil, nil)
 			resp.Invoice = &invResp
 		}
 		if p.DebitAccountID != nil {

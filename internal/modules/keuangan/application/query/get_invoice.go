@@ -4,6 +4,7 @@ import (
 	"context"
 
 	adjRepo "sipon-be/internal/modules/keuangan/domain/adjustment/repository"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
@@ -13,23 +14,26 @@ import (
 )
 
 type GetInvoiceUseCase struct {
-	invoiceRepo      invRepo.InvoiceRepository
-	feeComponentRepo feeRepo.FeeComponentRepository
-	paymentRepo      payRepo.PaymentRepository
-	adjustmentRepo   adjRepo.AdjustmentRepository
+	invoiceRepo       invRepo.InvoiceRepository
+	feeComponentRepo  feeRepo.FeeComponentRepository
+	billingPeriodRepo bpRepo.BillingPeriodRepository
+	paymentRepo       payRepo.PaymentRepository
+	adjustmentRepo    adjRepo.AdjustmentRepository
 }
 
 func NewGetInvoiceUseCase(
 	invoiceRepo invRepo.InvoiceRepository,
 	feeComponentRepo feeRepo.FeeComponentRepository,
+	billingPeriodRepo bpRepo.BillingPeriodRepository,
 	paymentRepo payRepo.PaymentRepository,
 	adjustmentRepo adjRepo.AdjustmentRepository,
 ) *GetInvoiceUseCase {
 	return &GetInvoiceUseCase{
-		invoiceRepo:      invoiceRepo,
-		feeComponentRepo: feeComponentRepo,
-		paymentRepo:      paymentRepo,
-		adjustmentRepo:   adjustmentRepo,
+		invoiceRepo:       invoiceRepo,
+		feeComponentRepo:  feeComponentRepo,
+		billingPeriodRepo: billingPeriodRepo,
+		paymentRepo:       paymentRepo,
+		adjustmentRepo:    adjustmentRepo,
 	}
 }
 
@@ -39,7 +43,7 @@ func (uc *GetInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.Invoi
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	resp := buildInvoiceResponse(ctx, inv, uc.feeComponentRepo)
+	resp := buildInvoiceResponse(ctx, inv, uc.feeComponentRepo, uc.billingPeriodRepo)
 
 	if payments, err := uc.paymentRepo.FindByInvoiceID(ctx, inv.ID); err == nil {
 		resp.Payments = make([]dto.PaymentResponse, len(payments))

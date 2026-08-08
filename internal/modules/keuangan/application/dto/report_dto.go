@@ -1,19 +1,18 @@
 package dto
 
 type InvoiceSummaryResponse struct {
-	TahunAjaran    string  `json:"tahun_ajaran"`
-	Periode        string  `json:"periode"`
-	TotalTagihan   float64 `json:"total_tagihan"`
-	TotalTerbayar  float64 `json:"total_terbayar"`
-	TotalTunggakan float64 `json:"total_tunggakan"`
-	JumlahInvoice  int64   `json:"jumlah_invoice"`
-	JumlahLunas    int64   `json:"jumlah_lunas"`
-	JumlahBelum    int64   `json:"jumlah_belum"`
+	BillingPeriodID   string  `json:"billing_period_id"`
+	BillingPeriodName string  `json:"billing_period_name"`
+	TotalTagihan      float64 `json:"total_tagihan"`
+	TotalTerbayar     float64 `json:"total_terbayar"`
+	TotalTunggakan    float64 `json:"total_tunggakan"`
+	JumlahInvoice     int64   `json:"jumlah_invoice"`
+	JumlahLunas       int64   `json:"jumlah_lunas"`
+	JumlahBelum       int64   `json:"jumlah_belum"`
 }
 
 type InvoiceSummaryQuery struct {
-	TahunAjaran *string `form:"tahun_ajaran"`
-	Periode     *string `form:"periode"`
+	BillingPeriodID *string `form:"billing_period_id"`
 }
 
 type OutstandingSantriResponse struct {
@@ -23,9 +22,9 @@ type OutstandingSantriResponse struct {
 }
 
 type OutstandingListQuery struct {
-	TahunAjaran *string `form:"tahun_ajaran"`
-	Page        int     `form:"page"`
-	Limit       int     `form:"limit"`
+	BillingPeriodID *string `form:"billing_period_id"`
+	Page            int     `form:"page"`
+	Limit           int     `form:"limit"`
 }
 
 type LedgerLineResponse struct {

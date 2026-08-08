@@ -93,6 +93,8 @@ type Contract interface {
 	CreateSantriFromPendaftaran(ctx context.Context, in CreateSantriFromPendaftaranInput) (*CreateSantriFromPendaftaranResult, error)
 	ListActiveSantriIDs(ctx context.Context) ([]string, error)
 	GetSantriByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
+	GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error)
+	ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicInfo, error)
 }
 
 var _ Contract = (*Module)(nil)

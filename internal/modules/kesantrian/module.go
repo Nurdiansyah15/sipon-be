@@ -27,6 +27,8 @@ type Module struct {
 	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
 	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
 	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
+	getSantriByIDUC                    *query.GetSantriByIDUseCase
+	listActiveSantriWithUserIDUC       *query.ListActiveSantriWithUserIDUseCase
 	fileUploader                       ports.FileUploader
 	jwtAuth                            gin.HandlerFunc
 	principalLoad                      gin.HandlerFunc
@@ -87,6 +89,8 @@ func NewModule(
 	changeSantriStatusUC := command.NewChangeSantriStatusUseCase(santriRepo)
 	listActiveSantriIDsUC := query.NewListActiveSantriIDsUseCase(santriRepo)
 	getSantriByUserIDUC := query.NewGetSantriByUserIDUseCase(santriRepo)
+	getSantriByIDUC := query.NewGetSantriByIDUseCase(santriRepo)
+	listActiveSantriWithUserIDUC := query.NewListActiveSantriWithUserIDUseCase(santriRepo)
 
 	handler := kesantrianHTTP.NewSantriHandler(
 		getSantriUC,
@@ -110,7 +114,7 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -220,4 +224,34 @@ func (m *Module) GetSantriByUserID(ctx context.Context, userID string) (*SantriB
 		NIS:      result.NIS,
 		Status:   result.Status,
 	}, nil
+}
+
+func (m *Module) GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error) {
+	result, err := m.getSantriByIDUC.Execute(ctx, santriID)
+	if err != nil {
+		return nil, err
+	}
+	return &SantriBasicInfo{
+		SantriID: result.SantriID,
+		UserID:   result.UserID,
+		NIS:      result.NIS,
+		Status:   result.Status,
+	}, nil
+}
+
+func (m *Module) ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicInfo, error) {
+	results, err := m.listActiveSantriWithUserIDUC.Execute(ctx)
+	if err != nil {
+		return nil, err
+	}
+	infos := make([]SantriBasicInfo, len(results))
+	for i, r := range results {
+		infos[i] = SantriBasicInfo{
+			SantriID: r.SantriID,
+			UserID:   r.UserID,
+			NIS:      r.NIS,
+			Status:   r.Status,
+		}
+	}
+	return infos, nil
 }

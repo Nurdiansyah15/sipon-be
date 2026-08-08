@@ -14,8 +14,7 @@ type Invoice struct {
 	UserID          string
 	BillingSchemeID *string
 	FeeComponentID  string
-	Periode         string
-	TahunAjaran     string
+	BillingPeriodID string
 	Amount          float64
 	DiscountAmount  float64
 	PaidAmount      float64
@@ -29,25 +28,24 @@ type Invoice struct {
 	DeletedAt       *time.Time
 }
 
-func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, periode, tahunAjaran string, amount float64, dueDate time.Time, createdBy string) (*Invoice, error) {
-	if id == "" || invoiceNumber == "" || santriID == "" || userID == "" || feeComponentID == "" || createdBy == "" {
+func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, billingPeriodID string, amount float64, dueDate time.Time, createdBy string) (*Invoice, error) {
+	if id == "" || invoiceNumber == "" || santriID == "" || userID == "" || feeComponentID == "" || billingPeriodID == "" || createdBy == "" {
 		return nil, kernel.New(constant.CodeInvoiceNotFound)
 	}
 	now := time.Now()
 	return &Invoice{
-		ID:             id,
-		InvoiceNumber:  invoiceNumber,
-		SantriID:       santriID,
-		UserID:         userID,
-		FeeComponentID: feeComponentID,
-		Periode:        periode,
-		TahunAjaran:    tahunAjaran,
-		Amount:         amount,
-		Status:         constant.StatusDraft,
-		DueDate:        dueDate,
-		CreatedBy:      createdBy,
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:              id,
+		InvoiceNumber:   invoiceNumber,
+		SantriID:        santriID,
+		UserID:          userID,
+		FeeComponentID:  feeComponentID,
+		BillingPeriodID: billingPeriodID,
+		Amount:          amount,
+		Status:          constant.StatusDraft,
+		DueDate:         dueDate,
+		CreatedBy:       createdBy,
+		CreatedAt:       now,
+		UpdatedAt:       now,
 	}, nil
 }
 

@@ -10,12 +10,13 @@ import (
 	"sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	"sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	"sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	invVO "sipon-be/internal/modules/keuangan/domain/invoice/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
 const invoiceColumns = `
 	id, invoice_number, santri_id, user_id, billing_scheme_id, fee_component_id,
-	periode, tahun_ajaran, amount, discount_amount, paid_amount, status,
+	billing_period_id, amount, discount_amount, paid_amount, status,
 	due_date, issued_at, notes, created_by, created_at, updated_at, deleted_at
 `
 
@@ -27,19 +28,38 @@ func NewPostgresInvoiceRepository(db *sql.DB) *PostgresInvoiceRepository {
 	return &PostgresInvoiceRepository{db: db}
 }
 
+func (r *PostgresInvoiceRepository) NextInvoiceNumber(ctx context.Context) (string, error) {
+	execer := execerFromContext(ctx, r.db)
+	now := time.Now()
+	year := now.Year()
+
+	var seq int
+	err := execer.QueryRowContext(ctx,
+		`INSERT INTO invoice_number_counters (year, seq) VALUES ($1, 1)
+		 ON CONFLICT (year) DO UPDATE SET seq = invoice_number_counters.seq + 1
+		 RETURNING seq`,
+		year,
+	).Scan(&seq)
+	if err != nil {
+		return "", kernel.Wrap(constant.CodeInvoicePersistenceFailed, fmt.Errorf("next invoice number: %w", err))
+	}
+
+	return invVO.NewInvoiceNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq).String(), nil
+}
+
 func (r *PostgresInvoiceRepository) Save(ctx context.Context, inv *entity.Invoice) error {
 	execer := execerFromContext(ctx, r.db)
 
 	query := `INSERT INTO invoices (` + invoiceColumns + `) VALUES (
 		$1,$2,$3,$4,$5,$6,
-		$7,$8,$9,$10,$11,$12,
-		$13,$14,$15,$16,$17,$18,$19
+		$7,$8,$9,$10,$11,
+		$12,$13,$14,$15,$16,$17,$18
 	)`
 
 	_, err := execer.ExecContext(ctx, query,
 		inv.ID, inv.InvoiceNumber, inv.SantriID, inv.UserID,
 		nullStr(inv.BillingSchemeID), inv.FeeComponentID,
-		inv.Periode, inv.TahunAjaran, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
+		inv.BillingPeriodID, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
 		string(inv.Status), inv.DueDate, nullTimeVal(inv.IssuedAt), nullStr(inv.Notes),
 		inv.CreatedBy, inv.CreatedAt, inv.UpdatedAt, nullTimeVal(inv.DeletedAt),
 	)
@@ -57,14 +77,14 @@ func (r *PostgresInvoiceRepository) Update(ctx context.Context, inv *entity.Invo
 
 	query := `UPDATE invoices SET
 		santri_id=$1, user_id=$2, billing_scheme_id=$3, fee_component_id=$4,
-		periode=$5, tahun_ajaran=$6, amount=$7, discount_amount=$8, paid_amount=$9,
-		status=$10, due_date=$11, issued_at=$12, notes=$13,
-		updated_at=$14, deleted_at=$15
-		WHERE id=$16 AND deleted_at IS NULL`
+		billing_period_id=$5, amount=$6, discount_amount=$7, paid_amount=$8,
+		status=$9, due_date=$10, issued_at=$11, notes=$12,
+		updated_at=$13, deleted_at=$14
+		WHERE id=$15 AND deleted_at IS NULL`
 
 	res, err := execer.ExecContext(ctx, query,
 		inv.SantriID, inv.UserID, nullStr(inv.BillingSchemeID), inv.FeeComponentID,
-		inv.Periode, inv.TahunAjaran, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
+		inv.BillingPeriodID, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
 		string(inv.Status), inv.DueDate, nullTimeVal(inv.IssuedAt), nullStr(inv.Notes),
 		inv.UpdatedAt, nullTimeVal(inv.DeletedAt),
 		inv.ID,
@@ -115,14 +135,9 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 		args = append(args, *q.Status)
 		argIdx++
 	}
-	if q.Periode != nil && *q.Periode != "" {
-		where += fmt.Sprintf(` AND periode=$%d`, argIdx)
-		args = append(args, *q.Periode)
-		argIdx++
-	}
-	if q.TahunAjaran != nil && *q.TahunAjaran != "" {
-		where += fmt.Sprintf(` AND tahun_ajaran=$%d`, argIdx)
-		args = append(args, *q.TahunAjaran)
+	if q.BillingPeriodID != nil && *q.BillingPeriodID != "" {
+		where += fmt.Sprintf(` AND billing_period_id=$%d`, argIdx)
+		args = append(args, *q.BillingPeriodID)
 		argIdx++
 	}
 
@@ -160,11 +175,11 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 	return &repository.InvoiceListResult{Items: items, Total: total}, nil
 }
 
-func (r *PostgresInvoiceRepository) FindBySantriComponentPeriode(ctx context.Context, santriID, feeComponentID, periode string) (*entity.Invoice, error) {
+func (r *PostgresInvoiceRepository) FindBySantriComponentPeriod(ctx context.Context, santriID, feeComponentID, billingPeriodID string) (*entity.Invoice, error) {
 	execer := execerFromContext(ctx, r.db)
 	row := execer.QueryRowContext(ctx,
-		`SELECT `+invoiceColumns+` FROM invoices WHERE santri_id=$1 AND fee_component_id=$2 AND periode=$3 AND deleted_at IS NULL`,
-		santriID, feeComponentID, periode,
+		`SELECT `+invoiceColumns+` FROM invoices WHERE santri_id=$1 AND fee_component_id=$2 AND billing_period_id=$3 AND deleted_at IS NULL`,
+		santriID, feeComponentID, billingPeriodID,
 	)
 	return r.scan(row)
 }
@@ -195,13 +210,13 @@ func (r *PostgresInvoiceRepository) FindOutstandingBySantriID(ctx context.Contex
 	return items, nil
 }
 
-func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santriID, componentCode, periode string) (bool, error) {
+func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error) {
 	execer := execerFromContext(ctx, r.db)
 
 	var exists bool
 	err := execer.QueryRowContext(ctx,
-		`SELECT EXISTS(SELECT 1 FROM invoices i JOIN fee_components fc ON fc.id=i.fee_component_id WHERE i.santri_id=$1 AND fc.code=$2 AND i.periode=$3 AND i.status IN ('paid','partial') AND i.deleted_at IS NULL)`,
-		santriID, componentCode, periode,
+		`SELECT EXISTS(SELECT 1 FROM invoices i JOIN fee_components fc ON fc.id=i.fee_component_id WHERE i.santri_id=$1 AND fc.code=$2 AND i.billing_period_id=$3 AND i.status IN ('paid','partial') AND i.deleted_at IS NULL)`,
+		santriID, componentCode, billingPeriodID,
 	).Scan(&exists)
 	if err != nil {
 		return false, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("has paid component: %w", err))
@@ -211,20 +226,20 @@ func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santri
 
 func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 	var (
-		id, invoiceNumber, santriID, userID, feeComponentID, periode, tahunAjaran string
-		billingSchemeID, notes                                                     sql.NullString
-		amount, discountAmount, paidAmount                                         float64
-		status                                                                     string
-		dueDate                                                                    time.Time
-		issuedAt                                                                   sql.NullTime
-		createdBy                                                                  string
-		createdAt, updatedAt                                                       time.Time
-		deletedAt                                                                  sql.NullTime
+		id, invoiceNumber, santriID, userID, feeComponentID, billingPeriodID string
+		billingSchemeID, notes                                              sql.NullString
+		amount, discountAmount, paidAmount                                  float64
+		status                                                              string
+		dueDate                                                             time.Time
+		issuedAt                                                            sql.NullTime
+		createdBy                                                           string
+		createdAt, updatedAt                                                time.Time
+		deletedAt                                                           sql.NullTime
 	)
 
 	err := sc.Scan(
 		&id, &invoiceNumber, &santriID, &userID, &billingSchemeID, &feeComponentID,
-		&periode, &tahunAjaran, &amount, &discountAmount, &paidAmount, &status,
+		&billingPeriodID, &amount, &discountAmount, &paidAmount, &status,
 		&dueDate, &issuedAt, &notes, &createdBy, &createdAt, &updatedAt, &deletedAt,
 	)
 	if err != nil {
@@ -241,8 +256,7 @@ func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 		UserID:          userID,
 		BillingSchemeID: strFromNull(billingSchemeID),
 		FeeComponentID:  feeComponentID,
-		Periode:         periode,
-		TahunAjaran:     tahunAjaran,
+		BillingPeriodID: billingPeriodID,
 		Amount:          amount,
 		DiscountAmount:  discountAmount,
 		PaidAmount:      paidAmount,

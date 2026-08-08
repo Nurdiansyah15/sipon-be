@@ -34,6 +34,9 @@ func NewModule(
 	kesantrianReader := kesantriangateway.New(kesantrianContract)
 	feeComponentRepo := persistence.NewPostgresFeeComponentRepository(db)
 	billingSchemeRepo := persistence.NewPostgresBillingSchemeRepository(db)
+	billingPeriodRepo := persistence.NewPostgresBillingPeriodRepository(db)
+	billingBatchRepo := persistence.NewPostgresBillingBatchRepository(db)
+	billingBatchTargetRepo := persistence.NewPostgresBillingBatchTargetRepository(db)
 	assignmentRepo := persistence.NewPostgresSantriBillingAssignmentRepository(db)
 	invoiceRepo := persistence.NewPostgresInvoiceRepository(db)
 	paymentRepo := persistence.NewPostgresPaymentRepository(db)
@@ -50,8 +53,8 @@ func NewModule(
 	createBillingSchemeUC := command.NewCreateBillingSchemeUseCase(billingSchemeRepo)
 	updateBillingSchemeUC := command.NewUpdateBillingSchemeUseCase(billingSchemeRepo)
 	assignSchemeToSantriUC := command.NewAssignSchemeToSantriUseCase(assignmentRepo, billingSchemeRepo)
-	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, transactor)
-	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, kesantrianReader, transactor)
+	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, billingPeriodRepo, kesantrianReader, transactor)
+	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor)
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo)
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo)
@@ -65,13 +68,20 @@ func NewModule(
 	closePeriodUC := command.NewClosePeriodUseCase(periodRepo)
 	reopenPeriodUC := command.NewReopenPeriodUseCase(periodRepo)
 	lockPeriodUC := command.NewLockPeriodUseCase(periodRepo)
+	createBillingPeriodUC := command.NewCreateBillingPeriodUseCase(billingPeriodRepo)
+	openBillingPeriodUC := command.NewOpenBillingPeriodUseCase(billingPeriodRepo)
+	closeBillingPeriodUC := command.NewCloseBillingPeriodUseCase(billingPeriodRepo)
 
 	listFeeComponentsUC := query.NewListFeeComponentsUseCase(feeComponentRepo)
 	listBillingSchemesUC := query.NewListBillingSchemesUseCase(billingSchemeRepo)
 	getBillingSchemeUC := query.NewGetBillingSchemeUseCase(billingSchemeRepo, feeComponentRepo)
-	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo, feeComponentRepo)
-	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo, feeComponentRepo, paymentRepo, adjustmentRepo)
-	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo, feeComponentRepo)
+	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
+	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo, paymentRepo, adjustmentRepo)
+	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
+	listBillingPeriodsUC := query.NewListBillingPeriodsUseCase(billingPeriodRepo)
+	getBillingPeriodUC := query.NewGetBillingPeriodUseCase(billingPeriodRepo)
+	listBillingBatchesUC := query.NewListBillingBatchesUseCase(billingBatchRepo)
+	getBillingBatchUC := query.NewGetBillingBatchUseCase(billingBatchRepo, billingBatchTargetRepo)
 	listPaymentsUC := query.NewListPaymentsUseCase(paymentRepo, invoiceRepo, accountRepo)
 	getPaymentUC := query.NewGetPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
 	myPaymentsUC := query.NewMyPaymentsUseCase(paymentRepo, invoiceRepo, accountRepo)
@@ -112,6 +122,9 @@ func NewModule(
 		closePeriodUC,
 		reopenPeriodUC,
 		lockPeriodUC,
+		createBillingPeriodUC,
+		openBillingPeriodUC,
+		closeBillingPeriodUC,
 		listFeeComponentsUC,
 		listBillingSchemesUC,
 		getBillingSchemeUC,
@@ -128,6 +141,10 @@ func NewModule(
 		listPeriodsUC,
 		getActivePeriodUC,
 		listAssignmentsUC,
+		listBillingPeriodsUC,
+		getBillingPeriodUC,
+		listBillingBatchesUC,
+		getBillingBatchUC,
 		reportSummaryUC,
 		reportOutstandingUC,
 		reportLedgerUC,
@@ -136,6 +153,7 @@ func NewModule(
 		reportIncomeStatementUC,
 		feeComponentRepo,
 		billingSchemeRepo,
+		billingPeriodRepo,
 		accountRepo,
 		invoiceRepo,
 	)
@@ -176,6 +194,6 @@ func (m *Module) GetOutstandingInvoices(ctx context.Context, santriID string) (*
 	}, nil
 }
 
-func (m *Module) HasPaidComponent(ctx context.Context, santriID, componentCode, periode string) (bool, error) {
-	return m.invoiceRepo.HasPaidComponent(ctx, santriID, componentCode, periode)
+func (m *Module) HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error) {
+	return m.invoiceRepo.HasPaidComponent(ctx, santriID, componentCode, billingPeriodID)
 }

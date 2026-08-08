@@ -409,3 +409,52 @@ func (r *PostgresSantriRepository) FindBasicByUserID(ctx context.Context, userID
 	}
 	return &info, nil
 }
+
+func (r *PostgresSantriRepository) FindBasicByID(ctx context.Context, santriID string) (*repository.SantriBasicInfo, error) {
+	execer := execerFromContext(ctx, r.db)
+	var info repository.SantriBasicInfo
+	var nis sql.NullString
+
+	row := execer.QueryRowContext(ctx,
+		`SELECT id, user_id, nis, status FROM santri WHERE id=$1 AND deleted_at IS NULL`,
+		santriID,
+	)
+	if err := row.Scan(&info.SantriID, &info.UserID, &nis, &info.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, kernel.New(constant.CodeSantriNotFound)
+		}
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("find basic by id: %w", err))
+	}
+	if nis.Valid {
+		info.NIS = &nis.String
+	}
+	return &info, nil
+}
+
+func (r *PostgresSantriRepository) ListActiveWithUserID(ctx context.Context) ([]repository.SantriBasicInfo, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT id, user_id, nis, status FROM santri WHERE deleted_at IS NULL AND status = 'SANTRI'`,
+	)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("list active santri with user id: %w", err))
+	}
+	defer rows.Close()
+
+	items := make([]repository.SantriBasicInfo, 0)
+	for rows.Next() {
+		var info repository.SantriBasicInfo
+		var nis sql.NullString
+		if err := rows.Scan(&info.SantriID, &info.UserID, &nis, &info.Status); err != nil {
+			return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("scan santri basic info: %w", err))
+		}
+		if nis.Valid {
+			info.NIS = &nis.String
+		}
+		items = append(items, info)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("iterate santri basic info: %w", err))
+	}
+	return items, nil
+}

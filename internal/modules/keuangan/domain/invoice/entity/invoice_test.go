@@ -11,7 +11,7 @@ import (
 func createTestInvoice() *entity.Invoice {
 	inv, _ := entity.NewInvoice(
 		"inv-1", "INV/2026/08/000001", "santri-1", "user-1",
-		"fc-1", "2026-08", "2025/2026",
+		"fc-1", "bp-1",
 		500000, time.Now().AddDate(0, 1, 0), "user-1",
 	)
 	return inv

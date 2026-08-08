@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,44 +10,48 @@ import (
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
+	bpConst "sipon-be/internal/modules/keuangan/domain/billingperiod/constant"
+	bpEntity "sipon-be/internal/modules/keuangan/domain/billingperiod/entity"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	billRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
-	invVO "sipon-be/internal/modules/keuangan/domain/invoice/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
 type CreateInvoiceUseCase struct {
-	invoiceRepo    invRepo.InvoiceRepository
-	feeRepo        feeRepo.FeeComponentRepository
-	assignmentRepo billRepo.SantriBillingAssignmentRepository
-	transactor     ports.Transactor
+	invoiceRepo       invRepo.InvoiceRepository
+	feeRepo           feeRepo.FeeComponentRepository
+	assignmentRepo    billRepo.SantriBillingAssignmentRepository
+	billingPeriodRepo bpRepo.BillingPeriodRepository
+	kesantrianReader  ports.KesantrianReader
+	transactor        ports.Transactor
 }
 
-func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, assignmentRepo billRepo.SantriBillingAssignmentRepository, transactor ports.Transactor) *CreateInvoiceUseCase {
+func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, assignmentRepo billRepo.SantriBillingAssignmentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository, kesantrianReader ports.KesantrianReader, transactor ports.Transactor) *CreateInvoiceUseCase {
 	return &CreateInvoiceUseCase{
-		invoiceRepo:    invoiceRepo,
-		feeRepo:        feeRepo,
-		assignmentRepo: assignmentRepo,
-		transactor:     transactor,
+		invoiceRepo:       invoiceRepo,
+		feeRepo:           feeRepo,
+		assignmentRepo:    assignmentRepo,
+		billingPeriodRepo: billingPeriodRepo,
+		kesantrianReader:  kesantrianReader,
+		transactor:        transactor,
 	}
 }
 
 type CreateInvoiceCmd struct {
-	SantriID       string
-	UserID         string
-	FeeComponentID string
+	SantriID        string
+	FeeComponentID  string
 	BillingSchemeID *string
-	Periode        string
-	TahunAjaran    string
-	Amount         float64
-	DueDate        string
-	Notes          *string
-	CreatedBy      string
-	Issue          bool
+	BillingPeriodID string
+	Amount          float64
+	DueDate         string
+	Notes           *string
+	CreatedBy       string
+	Issue           bool
 }
 
 func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCmd) (*dto.InvoiceResponse, error) {
@@ -58,9 +63,22 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, kernel.New(feeConst.CodeFeeComponentNotFound)
 	}
 
-	existing, _ := uc.invoiceRepo.FindBySantriComponentPeriode(ctx, cmd.SantriID, cmd.FeeComponentID, cmd.Periode)
+	period, err := uc.billingPeriodRepo.FindByID(ctx, cmd.BillingPeriodID)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+	}
+	if !period.IsOpen() {
+		return nil, kernel.New(bpConst.CodeBillingPeriodInvalidStatus)
+	}
+
+	santri, err := uc.kesantrianReader.GetSantriByID(ctx, cmd.SantriID)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeNotFound, fmt.Errorf("santri not found: %w", err))
+	}
+
+	existing, _ := uc.invoiceRepo.FindBySantriComponentPeriod(ctx, cmd.SantriID, cmd.FeeComponentID, cmd.BillingPeriodID)
 	if existing != nil {
-		return nil, kernel.New(invConst.CodeInvoiceDuplicate)
+		return nil, application.WrapConflictErr(kernel.New(invConst.CodeInvoiceDuplicate), invConst.CodeInvoiceDuplicate)
 	}
 
 	dueDate, err := time.Parse("2006-01-02", cmd.DueDate)
@@ -68,10 +86,13 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	invNum := invVO.NewInvoiceNumberNow(1)
+	invNum, err := uc.invoiceRepo.NextInvoiceNumber(ctx)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, invConst.CodeInvoicePersistenceFailed)
+	}
 	inv, err := invEntity.NewInvoice(
-		uuid.New().String(), invNum.String(), cmd.SantriID, cmd.UserID,
-		cmd.FeeComponentID, cmd.Periode, cmd.TahunAjaran,
+		uuid.New().String(), invNum, cmd.SantriID, santri.UserID,
+		cmd.FeeComponentID, cmd.BillingPeriodID,
 		cmd.Amount, dueDate, cmd.CreatedBy,
 	)
 	if err != nil {
@@ -87,34 +108,40 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 	}
 
 	if err := uc.invoiceRepo.Save(ctx, inv); err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		return nil, application.WrapConflictErr(err, invConst.CodeInvoiceDuplicate)
 	}
 
-	return toInvoiceResponse(inv), nil
+	return toInvoiceResponse(inv, period), nil
 }
 
-func toInvoiceResponse(inv *invEntity.Invoice) *dto.InvoiceResponse {
+func toInvoiceResponse(inv *invEntity.Invoice, period *bpEntity.BillingPeriod) *dto.InvoiceResponse {
 	resp := &dto.InvoiceResponse{
-		ID:             inv.ID,
-		InvoiceNumber:  inv.InvoiceNumber,
-		SantriID:       inv.SantriID,
-		UserID:         inv.UserID,
+		ID:              inv.ID,
+		InvoiceNumber:   inv.InvoiceNumber,
+		SantriID:        inv.SantriID,
+		UserID:          inv.UserID,
 		BillingSchemeID: inv.BillingSchemeID,
-		FeeComponentID: inv.FeeComponentID,
-		Periode:        inv.Periode,
-		TahunAjaran:    inv.TahunAjaran,
-		Amount:         inv.Amount,
-		DiscountAmount: inv.DiscountAmount,
-		PaidAmount:     inv.PaidAmount,
-		Status:         string(inv.Status),
-		DueDate:        inv.DueDate.Format("2006-01-02"),
-		Notes:          inv.Notes,
-		CreatedAt:      inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:      inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		FeeComponentID:  inv.FeeComponentID,
+		BillingPeriodID: inv.BillingPeriodID,
+		Amount:          inv.Amount,
+		DiscountAmount:  inv.DiscountAmount,
+		PaidAmount:      inv.PaidAmount,
+		Status:          string(inv.Status),
+		DueDate:         inv.DueDate.Format("2006-01-02"),
+		Notes:           inv.Notes,
+		CreatedAt:       inv.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       inv.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if inv.IssuedAt != nil {
 		s := inv.IssuedAt.Format("2006-01-02")
 		resp.IssuedAt = &s
+	}
+	if period != nil {
+		resp.BillingPeriod = &dto.BillingPeriodBriefResponse{
+			ID:     period.ID,
+			Name:   period.Name,
+			Status: string(period.Status),
+		}
 	}
 	return resp
 }

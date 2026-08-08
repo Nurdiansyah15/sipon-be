@@ -63,7 +63,7 @@ func (uc *MyPaymentsUseCase) Execute(ctx context.Context, userID string, query d
 		if err != nil {
 			return nil, nil, application.WrapRepoErr(err, payConst.CodePaymentQueryFailed)
 		}
-		invResp := buildInvoiceResponse(ctx, inv, nil)
+		invResp := buildInvoiceResponse(ctx, inv, nil, nil)
 		for _, p := range payResult.Items {
 			resp := buildPaymentResponse(p)
 			resp.Invoice = &invResp

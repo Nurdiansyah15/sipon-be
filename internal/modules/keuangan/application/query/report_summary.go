@@ -23,28 +23,23 @@ func (uc *ReportSummaryUseCase) Execute(ctx context.Context, query dto.InvoiceSu
 	args := []interface{}{}
 	argIdx := 1
 
-	if query.TahunAjaran != nil && *query.TahunAjaran != "" {
-		where += fmt.Sprintf(" AND i.tahun_ajaran = $%d", argIdx)
-		args = append(args, *query.TahunAjaran)
-		argIdx++
-	}
-	if query.Periode != nil && *query.Periode != "" {
-		where += fmt.Sprintf(" AND i.periode = $%d", argIdx)
-		args = append(args, *query.Periode)
+	if query.BillingPeriodID != nil && *query.BillingPeriodID != "" {
+		where += fmt.Sprintf(" AND i.billing_period_id = $%d", argIdx)
+		args = append(args, *query.BillingPeriodID)
 		argIdx++
 	}
 
-	sqlQuery := `SELECT 
-		i.tahun_ajaran, i.periode,
+	sqlQuery := `SELECT
+		bp.id, bp.name,
 		COALESCE(SUM(i.amount), 0) as total_tagihan,
 		COALESCE(SUM(i.paid_amount), 0) as total_terbayar,
 		COALESCE(SUM(i.amount - i.discount_amount - i.paid_amount), 0) as total_tunggakan,
 		COUNT(*) as jumlah_invoice,
 		COUNT(CASE WHEN i.status = 'paid' THEN 1 END) as jumlah_lunas,
 		COUNT(CASE WHEN i.status != 'paid' AND i.status != 'cancelled' THEN 1 END) as jumlah_belum
-	FROM invoices i ` + where + `
-	GROUP BY i.tahun_ajaran, i.periode
-	ORDER BY i.tahun_ajaran DESC, i.periode DESC`
+	FROM invoices i JOIN billing_periods bp ON bp.id = i.billing_period_id ` + where + `
+	GROUP BY bp.id, bp.name
+	ORDER BY bp.start_date DESC`
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
@@ -55,7 +50,7 @@ func (uc *ReportSummaryUseCase) Execute(ctx context.Context, query dto.InvoiceSu
 	results := make([]dto.InvoiceSummaryResponse, 0)
 	for rows.Next() {
 		var r dto.InvoiceSummaryResponse
-		if err := rows.Scan(&r.TahunAjaran, &r.Periode, &r.TotalTagihan, &r.TotalTerbayar, &r.TotalTunggakan, &r.JumlahInvoice, &r.JumlahLunas, &r.JumlahBelum); err != nil {
+		if err := rows.Scan(&r.BillingPeriodID, &r.BillingPeriodName, &r.TotalTagihan, &r.TotalTerbayar, &r.TotalTunggakan, &r.JumlahInvoice, &r.JumlahLunas, &r.JumlahBelum); err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
 		results = append(results, r)

@@ -11,6 +11,7 @@ import (
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/query"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsEntity "sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
@@ -46,6 +47,10 @@ type KeuanganHandler struct {
 	reopenPeriodUC        *command.ReopenPeriodUseCase
 	lockPeriodUC          *command.LockPeriodUseCase
 
+	createBillingPeriodUC *command.CreateBillingPeriodUseCase
+	openBillingPeriodUC   *command.OpenBillingPeriodUseCase
+	closeBillingPeriodUC  *command.CloseBillingPeriodUseCase
+
 	listFeeComponentsUC  *query.ListFeeComponentsUseCase
 	listBillingSchemesUC *query.ListBillingSchemesUseCase
 	getBillingSchemeUC   *query.GetBillingSchemeUseCase
@@ -62,6 +67,10 @@ type KeuanganHandler struct {
 	listPeriodsUC        *query.ListPeriodsUseCase
 	getActivePeriodUC    *query.GetActivePeriodUseCase
 	listAssignmentsUC    *query.ListAssignmentsUseCase
+	listBillingPeriodsUC *query.ListBillingPeriodsUseCase
+	getBillingPeriodUC   *query.GetBillingPeriodUseCase
+	listBillingBatchesUC *query.ListBillingBatchesUseCase
+	getBillingBatchUC    *query.GetBillingBatchUseCase
 
 	reportSummaryUC         *query.ReportSummaryUseCase
 	reportOutstandingUC     *query.ReportOutstandingUseCase
@@ -72,6 +81,7 @@ type KeuanganHandler struct {
 
 	feeComponentRepo  feeRepo.FeeComponentRepository
 	billingSchemeRepo bsRepo.BillingSchemeRepository
+	billingPeriodRepo bpRepo.BillingPeriodRepository
 	accountRepo       accRepo.AccountRepository
 	invoiceRepo       invRepo.InvoiceRepository
 }
@@ -97,6 +107,9 @@ func NewKeuanganHandler(
 	closePeriodUC *command.ClosePeriodUseCase,
 	reopenPeriodUC *command.ReopenPeriodUseCase,
 	lockPeriodUC *command.LockPeriodUseCase,
+	createBillingPeriodUC *command.CreateBillingPeriodUseCase,
+	openBillingPeriodUC *command.OpenBillingPeriodUseCase,
+	closeBillingPeriodUC *command.CloseBillingPeriodUseCase,
 	listFeeComponentsUC *query.ListFeeComponentsUseCase,
 	listBillingSchemesUC *query.ListBillingSchemesUseCase,
 	getBillingSchemeUC *query.GetBillingSchemeUseCase,
@@ -113,6 +126,10 @@ func NewKeuanganHandler(
 	listPeriodsUC *query.ListPeriodsUseCase,
 	getActivePeriodUC *query.GetActivePeriodUseCase,
 	listAssignmentsUC *query.ListAssignmentsUseCase,
+	listBillingPeriodsUC *query.ListBillingPeriodsUseCase,
+	getBillingPeriodUC *query.GetBillingPeriodUseCase,
+	listBillingBatchesUC *query.ListBillingBatchesUseCase,
+	getBillingBatchUC *query.GetBillingBatchUseCase,
 	reportSummaryUC *query.ReportSummaryUseCase,
 	reportOutstandingUC *query.ReportOutstandingUseCase,
 	reportLedgerUC *query.ReportLedgerUseCase,
@@ -121,6 +138,7 @@ func NewKeuanganHandler(
 	reportIncomeStatementUC *query.ReportIncomeStatementUseCase,
 	feeComponentRepo feeRepo.FeeComponentRepository,
 	billingSchemeRepo bsRepo.BillingSchemeRepository,
+	billingPeriodRepo bpRepo.BillingPeriodRepository,
 	accountRepo accRepo.AccountRepository,
 	invoiceRepo invRepo.InvoiceRepository,
 ) *KeuanganHandler {
@@ -145,6 +163,9 @@ func NewKeuanganHandler(
 		closePeriodUC:          closePeriodUC,
 		reopenPeriodUC:         reopenPeriodUC,
 		lockPeriodUC:           lockPeriodUC,
+		createBillingPeriodUC:  createBillingPeriodUC,
+		openBillingPeriodUC:    openBillingPeriodUC,
+		closeBillingPeriodUC:   closeBillingPeriodUC,
 		listFeeComponentsUC:    listFeeComponentsUC,
 		listBillingSchemesUC:   listBillingSchemesUC,
 		getBillingSchemeUC:     getBillingSchemeUC,
@@ -161,6 +182,10 @@ func NewKeuanganHandler(
 		listPeriodsUC:          listPeriodsUC,
 		getActivePeriodUC:      getActivePeriodUC,
 		listAssignmentsUC:      listAssignmentsUC,
+		listBillingPeriodsUC:   listBillingPeriodsUC,
+		getBillingPeriodUC:     getBillingPeriodUC,
+		listBillingBatchesUC:   listBillingBatchesUC,
+		getBillingBatchUC:      getBillingBatchUC,
 		reportSummaryUC:         reportSummaryUC,
 		reportOutstandingUC:     reportOutstandingUC,
 		reportLedgerUC:          reportLedgerUC,
@@ -169,6 +194,7 @@ func NewKeuanganHandler(
 		reportIncomeStatementUC: reportIncomeStatementUC,
 		feeComponentRepo:        feeComponentRepo,
 		billingSchemeRepo:      billingSchemeRepo,
+		billingPeriodRepo:      billingPeriodRepo,
 		accountRepo:            accountRepo,
 		invoiceRepo:            invoiceRepo,
 	}
@@ -397,16 +423,14 @@ func (h *KeuanganHandler) CreateInvoice(c *gin.Context) {
 		return
 	}
 	cmd := command.CreateInvoiceCmd{
-		SantriID:       req.SantriID,
-		UserID:         userID,
-		FeeComponentID: req.FeeComponentID,
-		Periode:        req.Periode,
-		TahunAjaran:    req.TahunAjaran,
-		Amount:         req.Amount,
-		DueDate:        req.DueDate,
-		Notes:          req.Notes,
-		CreatedBy:      userID,
-		Issue:          true,
+		SantriID:        req.SantriID,
+		FeeComponentID:  req.FeeComponentID,
+		BillingPeriodID: req.BillingPeriodID,
+		Amount:          req.Amount,
+		DueDate:         req.DueDate,
+		Notes:           req.Notes,
+		CreatedBy:       userID,
+		Issue:           true,
 	}
 	resp, err := h.createInvoiceUC.Execute(c.Request.Context(), cmd)
 	if err != nil {
@@ -425,8 +449,7 @@ func (h *KeuanganHandler) CreateInvoiceBatch(c *gin.Context) {
 	}
 	cmd := command.CreateInvoiceBatchCmd{
 		BillingSchemeID: req.BillingSchemeID,
-		Periode:         req.Periode,
-		TahunAjaran:     req.TahunAjaran,
+		BillingPeriodID: req.BillingPeriodID,
 		DueDate:         req.DueDate,
 		CreatedBy:       userID,
 	}
@@ -755,6 +778,89 @@ func (h *KeuanganHandler) LockPeriod(c *gin.Context) {
 	respond.OK(c, "periode berhasil dikunci permanen", resp)
 }
 
+func (h *KeuanganHandler) ListBillingPeriods(c *gin.Context) {
+	var req dto.BillingPeriodListQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, meta, err := h.listBillingPeriodsUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.SuccessWithMeta(c, 200, "daftar periode tagihan berhasil diambil", items, meta)
+}
+
+func (h *KeuanganHandler) GetBillingPeriod(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.getBillingPeriodUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail periode tagihan berhasil diambil", resp)
+}
+
+func (h *KeuanganHandler) CreateBillingPeriod(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req dto.CreateBillingPeriodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.createBillingPeriodUC.Execute(c.Request.Context(), req, userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "periode tagihan berhasil dibuat", resp)
+}
+
+func (h *KeuanganHandler) OpenBillingPeriod(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.openBillingPeriodUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "periode tagihan berhasil dibuka", resp)
+}
+
+func (h *KeuanganHandler) CloseBillingPeriod(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.closeBillingPeriodUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "periode tagihan berhasil ditutup", resp)
+}
+
+func (h *KeuanganHandler) ListBillingBatches(c *gin.Context) {
+	var req dto.BillingBatchListQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, meta, err := h.listBillingBatchesUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.SuccessWithMeta(c, 200, "daftar batch tagihan berhasil diambil", items, meta)
+}
+
+func (h *KeuanganHandler) GetBillingBatch(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.getBillingBatchUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail batch tagihan berhasil diambil", resp)
+}
+
 func (h *KeuanganHandler) DownloadReceipt(c *gin.Context) {
 	id := c.Param("id")
 
@@ -776,13 +882,18 @@ func (h *KeuanganHandler) DownloadReceipt(c *gin.Context) {
 		feeName = fc.Name
 	}
 
+	bp, err := h.billingPeriodRepo.FindByID(c.Request.Context(), inv.BillingPeriodID)
+	billingPeriodName := inv.BillingPeriodID
+	if err == nil {
+		billingPeriodName = bp.Name
+	}
+
 	pdfData := external.ReceiptData{
 		ReceiptNumber:   payment.PaymentNumber,
 		PaymentDate:     payment.PaymentDate,
 		InvoiceNumber:   inv.InvoiceNumber,
 		FeeComponent:    feeName,
-		Periode:         inv.Periode,
-		TahunAjaran:     inv.TahunAjaran,
+		BillingPeriod:   billingPeriodName,
 		Amount:          payment.Amount,
 		PaymentMethod:   payment.Method,
 		ReferenceNumber: func() string {

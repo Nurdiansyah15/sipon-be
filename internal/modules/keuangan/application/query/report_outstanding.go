@@ -33,9 +33,9 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 	args := []interface{}{}
 	argIdx := 1
 
-	if query.TahunAjaran != nil && *query.TahunAjaran != "" {
-		where += fmt.Sprintf(" AND i.tahun_ajaran = $%d", argIdx)
-		args = append(args, *query.TahunAjaran)
+	if query.BillingPeriodID != nil && *query.BillingPeriodID != "" {
+		where += fmt.Sprintf(" AND i.billing_period_id = $%d", argIdx)
+		args = append(args, *query.BillingPeriodID)
 		argIdx++
 	}
 

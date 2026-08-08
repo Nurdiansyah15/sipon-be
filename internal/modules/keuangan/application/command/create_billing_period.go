@@ -1,0 +1,58 @@
+package command
+
+import (
+	"context"
+	"time"
+
+	"github.com/google/uuid"
+
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
+	bpConst "sipon-be/internal/modules/keuangan/domain/billingperiod/constant"
+	bpEntity "sipon-be/internal/modules/keuangan/domain/billingperiod/entity"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
+	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
+)
+
+type CreateBillingPeriodUseCase struct {
+	billingPeriodRepo bpRepo.BillingPeriodRepository
+}
+
+func NewCreateBillingPeriodUseCase(billingPeriodRepo bpRepo.BillingPeriodRepository) *CreateBillingPeriodUseCase {
+	return &CreateBillingPeriodUseCase{billingPeriodRepo: billingPeriodRepo}
+}
+
+func (uc *CreateBillingPeriodUseCase) Execute(ctx context.Context, req dto.CreateBillingPeriodRequest, createdBy string) (*dto.BillingPeriodResponse, error) {
+	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+	}
+	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+	}
+
+	period, err := bpEntity.NewBillingPeriod(uuid.New().String(), req.Name, feeConst.PeriodType(req.PeriodType), startDate, endDate, createdBy)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+	}
+
+	if err := uc.billingPeriodRepo.Save(ctx, period); err != nil {
+		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+	}
+
+	return toBillingPeriodResponse(period), nil
+}
+
+func toBillingPeriodResponse(p *bpEntity.BillingPeriod) *dto.BillingPeriodResponse {
+	return &dto.BillingPeriodResponse{
+		ID:         p.ID,
+		Name:       p.Name,
+		PeriodType: string(p.PeriodType),
+		StartDate:  p.StartDate.Format("2006-01-02"),
+		EndDate:    p.EndDate.Format("2006-01-02"),
+		Status:     string(p.Status),
+		CreatedAt:  p.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:  p.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+}

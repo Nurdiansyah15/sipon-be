@@ -15,8 +15,7 @@ type ReceiptData struct {
 	NIS             string
 	InvoiceNumber   string
 	FeeComponent    string
-	Periode         string
-	TahunAjaran     string
+	BillingPeriod   string
 	Amount          float64
 	PaymentMethod   string
 	ReferenceNumber string
@@ -51,8 +50,7 @@ func GenerateReceiptPDF(data ReceiptData) ([]byte, error) {
 
 	addRow(pdf, "No. Invoice", data.InvoiceNumber)
 	addRow(pdf, "Komponen", data.FeeComponent)
-	addRow(pdf, "Periode", data.Periode)
-	addRow(pdf, "Tahun Ajaran", data.TahunAjaran)
+	addRow(pdf, "Periode", data.BillingPeriod)
 	pdf.Ln(2)
 
 	addRow(pdf, "Jumlah", formatRupiah(data.Amount))

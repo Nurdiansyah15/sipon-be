@@ -52,5 +52,5 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	return toInvoiceResponse(inv), nil
+	return toInvoiceResponse(inv, nil), nil
 }

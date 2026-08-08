@@ -31,5 +31,5 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.In
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
 	}
 
-	return toInvoiceResponse(inv), nil
+	return toInvoiceResponse(inv, nil), nil
 }
