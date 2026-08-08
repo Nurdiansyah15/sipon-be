@@ -82,11 +82,9 @@ migrate-create:
 		exit 1; \
 	fi; \
 	DIR=migrations; \
-	LAST=$$(ls $$DIR 2>/dev/null | grep -oE '^[0-9]+' | sort -n | tail -1); \
-	if [ -z "$$LAST" ]; then LAST=0; fi; \
-	NEXT=$$(printf "%03d" $$((10#$$LAST + 1))); \
-	UP=$$DIR/$${NEXT}_$(NAME).up.sql; \
-	DOWN=$$DIR/$${NEXT}_$(NAME).down.sql; \
+	TS=$$(date +%Y%m%d%H%M%S); \
+	UP=$$DIR/$${TS}_$(NAME).up.sql; \
+	DOWN=$$DIR/$${TS}_$(NAME).down.sql; \
 	touch $$UP $$DOWN; \
 	echo "Dibuat:"; \
 	echo "  $$UP"; \

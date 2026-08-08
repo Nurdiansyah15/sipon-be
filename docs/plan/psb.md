@@ -90,7 +90,7 @@ user_id         UUID NOT NULL              -- no FK, cross-module (ke identity)
 psb_setting_id  UUID NOT NULL REFERENCES psb_settings(id)
 gender          VARCHAR(2) NOT NULL CHECK (gender IN ('1','2'))   -- diisi di formulir, dipakai utk cek kuota & generate NIS nanti
 program         VARCHAR(50)                -- key kategori kuota, mis. "tahfidh_pa"
--- ...seluruh kolom profil sama seperti santri (lihat migrations/005_create_kesantrian_tables.up.sql)...
+-- ...seluruh kolom profil sama seperti santri (lihat migrations/20260802133334_create_kesantrian_tables.up.sql)...
 
 status          VARCHAR(30) NOT NULL DEFAULT 'draft'
                 CHECK (status IN ('draft','diajukan','perlu_revisi','ditolak','diterima',
@@ -119,12 +119,12 @@ created_at, updated_at, deleted_at
 ```
 Unique partial index: `(pendaftar_id, stage, kind) WHERE deleted_at IS NULL`.
 
-Migration file baru: `migrations/006_create_psb_tables.up.sql` / `.down.sql`, mengikuti gaya `005_create_kesantrian_tables.up.sql` (UUID PK `gen_random_uuid()`, no FK lintas-module, CHECK constraint untuk enum, index eksplisit).
+Migration file baru: `migrations/20260803185112_create_psb_tables.up.sql` / `.down.sql`, mengikuti gaya `005_create_kesantrian_tables.up.sql` (UUID PK `gen_random_uuid()`, no FK lintas-module, CHECK constraint untuk enum, index eksplisit).
 
 ## Tambahan kecil di `kesantrian`: status siklus-hidup santri
 
 `Santri` hari ini tidak punya kolom status sama sekali (dicek langsung ke kode/migration — tidak ada). Tambahkan:
-- Migration baru `migrations/007_add_status_to_santri.up.sql`: `ALTER TABLE santri ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'SANTRI' CHECK (status IN ('SANTRI','ALUMNI','DROP_OUT'))`, plus `status_changed_by UUID`, `status_changed_at TIMESTAMPTZ`, `status_notes TEXT`.
+- Migration baru `migrations/20260803185113_add_status_to_santri.up.sql`: `ALTER TABLE santri ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'SANTRI' CHECK (status IN ('SANTRI','ALUMNI','DROP_OUT'))`, plus `status_changed_by UUID`, `status_changed_at TIMESTAMPTZ`, `status_notes TEXT`.
 - `domain/santri/constant/santri_constant.go`: tambah `SantriStatus` type + `SantriStatusSantri/Alumni/DropOut`.
 - `domain/santri/entity/santri.go`: field `Status`, method `MarkAlumni(changedBy string)`, `MarkDropOut(changedBy string, notes *string)` (keduanya hanya valid dari status `SANTRI`, pola sama seperti `SantriDokumen.Verify/Reject`).
 - Use case baru `application/command/change_santri_status.go`, endpoint admin baru `POST /santri/admin/:id/status` (gated `manage_santri`, permission sudah ada — tidak perlu key baru untuk ini).
@@ -242,7 +242,7 @@ Admin settings (`RequirePermission("manage_psb_settings")`):
 
 ## File yang dibuat/diubah (ringkas)
 
-**Baru (module `psb`, ~28 file):** seluruh struktur di atas (termasuk domain `review`) + `migrations/006_create_psb_tables.up.sql`/`.down.sql` (mencakup `psb_settings`, `pendaftar`, `pendaftar_dokumen`, `pendaftar_reviews`).
+**Baru (module `psb`, ~28 file):** seluruh struktur di atas (termasuk domain `review`) + `migrations/20260803185112_create_psb_tables.up.sql`/`.down.sql` (mencakup `psb_settings`, `pendaftar`, `pendaftar_dokumen`, `pendaftar_reviews`).
 
 **Diubah (`kesantrian`):**
 - `domain/santri/constant/santri_constant.go`, `domain/santri/entity/santri.go` — tambah status
@@ -251,7 +251,7 @@ Admin settings (`RequirePermission("manage_psb_settings")`):
 - **Baru:** `contract.go`, `application/command/create_santri_from_pendaftaran.go`, `application/command/change_santri_status.go`
 - `module.go` — wire use case baru, implement `Contract`
 - `interfaces/http/router.go`, `handler.go` — endpoint status baru
-- `migrations/007_add_status_to_santri.up.sql`/`.down.sql`
+- `migrations/20260803185113_add_status_to_santri.up.sql`/`.down.sql`
 
 **Diubah (identity):**
 - `domain/role/constant/permission_constant.go` — 2 key baru

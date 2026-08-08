@@ -36,10 +36,18 @@ func main() {
 		}
 		log.Println("migrasi up berhasil")
 	case "down":
-		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+		n := 1
+		if len(args) >= 2 {
+			var err error
+			n, err = strconv.Atoi(args[1])
+			if err != nil || n < 1 {
+				log.Fatalf("jumlah langkah down tidak valid: %s", args[1])
+			}
+		}
+		if err := m.Steps(-n); err != nil && err != migrate.ErrNoChange {
 			log.Fatalf("migrasi down gagal: %v", err)
 		}
-		log.Println("migrasi down berhasil")
+		log.Printf("migrasi down %d langkah berhasil\n", n)
 	case "fresh":
 		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
 			log.Fatalf("migrasi down gagal: %v", err)
