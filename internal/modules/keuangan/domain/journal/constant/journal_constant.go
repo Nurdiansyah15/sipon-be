@@ -11,6 +11,7 @@ const (
 	CodeJournalInvalidStatus   kernel.Code = "JOURNAL_INVALID_STATUS"
 	CodeJournalPersistenceFailed kernel.Code = "JOURNAL_PERSISTENCE_FAILED"
 	CodeJournalQueryFailed     kernel.Code = "JOURNAL_QUERY_FAILED"
+	CodeJournalAccountMappingNotFound kernel.Code = "JOURNAL_ACCOUNT_MAPPING_NOT_FOUND"
 )
 
 type JournalStatus string

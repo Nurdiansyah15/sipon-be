@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/keuangan/domain/payment/entity"
+	"sipon-be/internal/modules/keuangan/domain/payment/valueobject"
 )
 
 type PaymentListQuery struct {
@@ -26,5 +27,5 @@ type PaymentRepository interface {
 	List(ctx context.Context, query PaymentListQuery) (*PaymentListResult, error)
 	FindByInvoiceID(ctx context.Context, invoiceID string) ([]*entity.Payment, error)
 	FindVerifiedByInvoiceID(ctx context.Context, invoiceID string) ([]*entity.Payment, error)
-	NextPaymentNumber(ctx context.Context) (string, error)
+	NextPaymentNumber(ctx context.Context) (valueobject.PaymentNumber, error)
 }

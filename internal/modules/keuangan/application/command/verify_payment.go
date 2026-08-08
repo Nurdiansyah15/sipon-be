@@ -10,16 +10,19 @@ import (
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
+	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
+	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 )
 
 type VerifyPaymentUseCase struct {
 	paymentRepo payRepo.PaymentRepository
 	invoiceRepo invRepo.InvoiceRepository
 	transactor  ports.Transactor
+	autoPosting *journalService.AutoPostingService
 }
 
-func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, transactor ports.Transactor) *VerifyPaymentUseCase {
-	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, transactor: transactor}
+func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
+	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, transactor: transactor, autoPosting: autoPosting}
 }
 
 func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string) (*dto.PaymentResponse, error) {
@@ -48,6 +51,15 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 		if err := uc.invoiceRepo.Update(txCtx, inv); err != nil {
 			return err
 		}
+		if uc.autoPosting != nil {
+			if err := uc.autoPosting.PostPaymentVerified(
+				txCtx, payment.ID, payment.PaymentNumber, "",
+				payment.PaymentDate, payment.Amount,
+				accountID(payment.DebitAccountID), verifiedBy,
+			); err != nil {
+				return application.WrapConflictErr(err, journalConst.CodeJournalAccountMappingNotFound)
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -55,4 +67,11 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 	}
 
 	return toPaymentResponse(payment), nil
+}
+
+func accountID(id *string) string {
+	if id == nil {
+		return ""
+	}
+	return *id
 }

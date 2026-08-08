@@ -473,7 +473,8 @@ func (h *KeuanganHandler) GetInvoice(c *gin.Context) {
 
 func (h *KeuanganHandler) CancelInvoice(c *gin.Context) {
 	id := c.Param("id")
-	resp, err := h.cancelInvoiceUC.Execute(c.Request.Context(), id)
+	userID := middleware.GetUserID(c)
+	resp, err := h.cancelInvoiceUC.Execute(c.Request.Context(), id, userID)
 	if err != nil {
 		httperror.Handle(c, err)
 		return

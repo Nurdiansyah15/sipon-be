@@ -41,7 +41,7 @@ func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.Creat
 		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
 	}
 	payment, err := payEntity.NewPayment(
-		uuid.New().String(), payNum, req.InvoiceID,
+		uuid.New().String(), payNum.String(), req.InvoiceID,
 		req.Amount, method, paymentDate,
 		req.DebitAccountID, req.ReferenceNumber, req.Notes, req.ProofKey,
 		createdBy,

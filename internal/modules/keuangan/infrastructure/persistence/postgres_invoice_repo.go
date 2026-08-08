@@ -28,17 +28,17 @@ func NewPostgresInvoiceRepository(db *sql.DB) *PostgresInvoiceRepository {
 	return &PostgresInvoiceRepository{db: db}
 }
 
-func (r *PostgresInvoiceRepository) NextInvoiceNumber(ctx context.Context) (string, error) {
+func (r *PostgresInvoiceRepository) NextInvoiceNumber(ctx context.Context) (invVO.InvoiceNumber, error) {
 	execer := execerFromContext(ctx, r.db)
 	now := time.Now()
 	year := now.Year()
 
 	seq, err := nextNumberSeq(ctx, execer, "invoice", year)
 	if err != nil {
-		return "", kernel.Wrap(constant.CodeInvoicePersistenceFailed, err)
+		return invVO.InvoiceNumber{}, kernel.Wrap(constant.CodeInvoicePersistenceFailed, err)
 	}
 
-	return invVO.NewInvoiceNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq).String(), nil
+	return invVO.NewInvoiceNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
 }
 
 func (r *PostgresInvoiceRepository) Save(ctx context.Context, inv *entity.Invoice) error {

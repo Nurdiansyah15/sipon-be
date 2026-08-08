@@ -10,6 +10,7 @@ import (
 	"sipon-be/internal/modules/keuangan/domain/journal/constant"
 	"sipon-be/internal/modules/keuangan/domain/journal/entity"
 	"sipon-be/internal/modules/keuangan/domain/journal/repository"
+	journalVO "sipon-be/internal/modules/keuangan/domain/journal/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -86,6 +87,19 @@ func (r *PostgresJournalRepository) FindByID(ctx context.Context, id string) (*e
 	}
 	entry.Lines = lines
 	return entry, nil
+}
+
+func (r *PostgresJournalRepository) NextJournalNumber(ctx context.Context) (journalVO.JournalNumber, error) {
+	execer := execerFromContext(ctx, r.db)
+	now := time.Now()
+	year := now.Year()
+
+	seq, err := nextNumberSeq(ctx, execer, "journal", year)
+	if err != nil {
+		return journalVO.JournalNumber{}, kernel.Wrap(constant.CodeJournalPersistenceFailed, err)
+	}
+
+	return journalVO.NewJournalNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
 }
 
 func (r *PostgresJournalRepository) FindByNumber(ctx context.Context, number string) (*entity.JournalEntry, error) {

@@ -16,9 +16,11 @@ import (
 	billRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
-	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
+	invConst 	"sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
+	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -29,9 +31,10 @@ type CreateInvoiceUseCase struct {
 	billingPeriodRepo bpRepo.BillingPeriodRepository
 	kesantrianReader  ports.KesantrianReader
 	transactor        ports.Transactor
+	autoPosting       *journalService.AutoPostingService
 }
 
-func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, assignmentRepo billRepo.SantriBillingAssignmentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository, kesantrianReader ports.KesantrianReader, transactor ports.Transactor) *CreateInvoiceUseCase {
+func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, assignmentRepo billRepo.SantriBillingAssignmentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository, kesantrianReader ports.KesantrianReader, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *CreateInvoiceUseCase {
 	return &CreateInvoiceUseCase{
 		invoiceRepo:       invoiceRepo,
 		feeRepo:           feeRepo,
@@ -39,6 +42,7 @@ func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeR
 		billingPeriodRepo: billingPeriodRepo,
 		kesantrianReader:  kesantrianReader,
 		transactor:        transactor,
+		autoPosting:       autoPosting,
 	}
 }
 
@@ -91,7 +95,7 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, application.WrapRepoErr(err, invConst.CodeInvoicePersistenceFailed)
 	}
 	inv, err := invEntity.NewInvoice(
-		uuid.New().String(), invNum, cmd.SantriID, santri.UserID,
+		uuid.New().String(), invNum.String(), cmd.SantriID, santri.UserID,
 		cmd.FeeComponentID, cmd.BillingPeriodID,
 		cmd.Amount, dueDate, cmd.CreatedBy,
 	)
@@ -107,8 +111,22 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		}
 	}
 
-	if err := uc.invoiceRepo.Save(ctx, inv); err != nil {
-		return nil, application.WrapConflictErr(err, invConst.CodeInvoiceDuplicate)
+	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
+		if err := uc.invoiceRepo.Save(txCtx, inv); err != nil {
+			return application.WrapConflictErr(err, invConst.CodeInvoiceDuplicate)
+		}
+		if cmd.Issue && uc.autoPosting != nil && inv.IssuedAt != nil {
+			if err := uc.autoPosting.PostInvoiceIssued(
+				txCtx, inv.ID, inv.InvoiceNumber, "",
+				*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
+			); err != nil {
+				return application.WrapConflictErr(err, journalConst.CodeJournalAccountMappingNotFound)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	return toInvoiceResponse(inv, period), nil

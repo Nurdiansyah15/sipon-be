@@ -90,7 +90,7 @@ func (i *Invoice) Expire() error {
 }
 
 func (i *Invoice) Cancel() error {
-	if i.Status == constant.StatusPaid || i.Status == constant.StatusCancelled {
+	if i.PaidAmount > 0 || i.Status == constant.StatusCancelled {
 		return kernel.New(constant.CodeInvoiceInvalidStatus)
 	}
 	i.Status = constant.StatusCancelled

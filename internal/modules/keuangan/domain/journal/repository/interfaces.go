@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/keuangan/domain/journal/entity"
+	"sipon-be/internal/modules/keuangan/domain/journal/valueobject"
 )
 
 type JournalListQuery struct {
@@ -24,6 +25,7 @@ type JournalRepository interface {
 	Update(ctx context.Context, entry *entity.JournalEntry) error
 	FindByID(ctx context.Context, id string) (*entity.JournalEntry, error)
 	FindByNumber(ctx context.Context, number string) (*entity.JournalEntry, error)
+	NextJournalNumber(ctx context.Context) (valueobject.JournalNumber, error)
 	List(ctx context.Context, query JournalListQuery) (*JournalListResult, error)
 	FindBySource(ctx context.Context, sourceType string, sourceID string) (*entity.JournalEntry, error)
 	SaveLines(ctx context.Context, entryID string, lines []*entity.JournalEntryLine) error

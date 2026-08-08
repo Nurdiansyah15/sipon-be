@@ -53,12 +53,12 @@ func NewModule(
 	createBillingSchemeUC := command.NewCreateBillingSchemeUseCase(billingSchemeRepo)
 	updateBillingSchemeUC := command.NewUpdateBillingSchemeUseCase(billingSchemeRepo)
 	assignSchemeToSantriUC := command.NewAssignSchemeToSantriUseCase(assignmentRepo, billingSchemeRepo)
-	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, billingPeriodRepo, kesantrianReader, transactor)
-	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor)
-	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo)
+	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, billingPeriodRepo, kesantrianReader, transactor, autoPostingService)
+	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor, autoPostingService)
+	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo)
-	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor)
+	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
 	createAccountUC := command.NewCreateAccountUseCase(accountRepo)
 	updateAccountUC := command.NewUpdateAccountUseCase(accountRepo)
@@ -98,8 +98,6 @@ func NewModule(
 	reportTrialBalanceUC := query.NewReportTrialBalanceUseCase(db, accountRepo, periodRepo)
 	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(db, accountRepo)
 	reportIncomeStatementUC := query.NewReportIncomeStatementUseCase(db, accountRepo, periodRepo)
-
-	_ = autoPostingService
 
 	handler := keuanganHTTP.NewKeuanganHandler(
 		createFeeComponentUC,

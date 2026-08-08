@@ -22,6 +22,7 @@ import (
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -35,6 +36,7 @@ type CreateInvoiceBatchUseCase struct {
 	targetRepo        bbRepo.BillingBatchTargetRepository
 	kesantrianReader  ports.KesantrianReader
 	transactor        ports.Transactor
+	autoPosting       *journalService.AutoPostingService
 }
 
 func NewCreateInvoiceBatchUseCase(
@@ -47,6 +49,7 @@ func NewCreateInvoiceBatchUseCase(
 	targetRepo bbRepo.BillingBatchTargetRepository,
 	kesantrianReader ports.KesantrianReader,
 	transactor ports.Transactor,
+	autoPosting *journalService.AutoPostingService,
 ) *CreateInvoiceBatchUseCase {
 	return &CreateInvoiceBatchUseCase{
 		invoiceRepo:       invoiceRepo,
@@ -58,6 +61,7 @@ func NewCreateInvoiceBatchUseCase(
 		targetRepo:        targetRepo,
 		kesantrianReader:  kesantrianReader,
 		transactor:        transactor,
+		autoPosting:       autoPosting,
 	}
 }
 
@@ -209,7 +213,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 				continue
 			}
 			inv, err := invEntity.NewInvoice(
-				uuid.New().String(), invNum, et.santriID, et.userID,
+				uuid.New().String(), invNum.String(), et.santriID, et.userID,
 				item.FeeComponentID, cmd.BillingPeriodID,
 				amount, dueDate, cmd.CreatedBy,
 			)
@@ -225,6 +229,15 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 			if err := uc.invoiceRepo.Save(txCtx, inv); err != nil {
 				errMsgs = append(errMsgs, err.Error())
 				continue
+			}
+			if uc.autoPosting != nil && inv.IssuedAt != nil {
+				if err := uc.autoPosting.PostInvoiceIssued(
+					txCtx, inv.ID, inv.InvoiceNumber, "",
+					*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
+				); err != nil {
+					errMsgs = append(errMsgs, err.Error())
+					continue
+				}
 			}
 			createdCount++
 			lastInvoiceID = inv.ID

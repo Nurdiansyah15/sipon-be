@@ -28,17 +28,17 @@ func NewPostgresPaymentRepository(db *sql.DB) *PostgresPaymentRepository {
 	return &PostgresPaymentRepository{db: db}
 }
 
-func (r *PostgresPaymentRepository) NextPaymentNumber(ctx context.Context) (string, error) {
+func (r *PostgresPaymentRepository) NextPaymentNumber(ctx context.Context) (paymentVO.PaymentNumber, error) {
 	execer := execerFromContext(ctx, r.db)
 	now := time.Now()
 	year := now.Year()
 
 	seq, err := nextNumberSeq(ctx, execer, "payment", year)
 	if err != nil {
-		return "", kernel.Wrap(constant.CodePaymentPersistenceFailed, err)
+		return paymentVO.PaymentNumber{}, kernel.Wrap(constant.CodePaymentPersistenceFailed, err)
 	}
 
-	return paymentVO.NewPaymentNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq).String(), nil
+	return paymentVO.NewPaymentNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
 }
 
 func (r *PostgresPaymentRepository) Save(ctx context.Context, p *entity.Payment) error {

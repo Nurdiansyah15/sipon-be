@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -41,30 +42,34 @@ var feeTypeRevenueAccount = map[feeConst.FeeComponentType]string{
 	feeConst.FeeTypeInsidental:  "4400",
 }
 
-func generateJournalNumber(seq int, sourceType journalConst.SourceType) string {
-	now := time.Now()
-	prefix := "JRN"
-	switch sourceType {
-	case journalConst.SourceInvoiceIssued:
-		prefix = "INV"
-	case journalConst.SourcePaymentVerified:
-		prefix = "PAY"
-	case journalConst.SourceInvoiceCancelled:
-		prefix = "CNL"
-	case journalConst.SourceAdjustment:
-		prefix = "ADJ"
-	case journalConst.SourceClosing:
-		prefix = "CLS"
-	case journalConst.SourceManual:
-		prefix = "MAN"
+// alreadyPosted reports whether a journal entry already exists for the given
+// source. It returns (false, nil) only when the query confirms no prior
+// posting; any other outcome is surfaced so callers fail loudly instead of
+// silently double-posting.
+func (s *AutoPostingService) alreadyPosted(ctx context.Context, sourceType journalConst.SourceType, sourceID string) (bool, error) {
+	existing, err := s.journalRepo.FindBySource(ctx, string(sourceType), sourceID)
+	if err == nil {
+		return existing != nil, nil
 	}
-	return fmt.Sprintf("%s/%d/%02d/%06d", prefix, now.Year(), now.Month(), seq)
+	var ke *kernel.AppError
+	if errors.As(err, &ke) && ke.Code == journalConst.CodeJournalNotFound {
+		return false, nil
+	}
+	return false, err
 }
 
-func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, amount, discountAmount float64, feeType feeConst.FeeComponentType, postedBy string, seq int) error {
+func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, amount, discountAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+	posted, err := s.alreadyPosted(ctx, journalConst.SourceInvoiceIssued, invoiceID)
+	if err != nil {
+		return err
+	}
+	if posted {
+		return nil
+	}
+
 	revCode, ok := feeTypeRevenueAccount[feeType]
 	if !ok {
-		return kernel.New(journalConst.CodeJournalNotBalanced)
+		return kernel.New(journalConst.CodeJournalAccountMappingNotFound)
 	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
@@ -76,17 +81,20 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 		return fmt.Errorf("find revenue account %s: %w", revCode, err)
 	}
 
-	period, err := s.periodRepo.FindActive(ctx)
+	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
 		return fmt.Errorf("find active period: %w", err)
 	}
 
 	netAmount := amount - discountAmount
-	jvNum := generateJournalNumber(seq, journalConst.SourceInvoiceIssued)
+	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
+	if err != nil {
+		return err
+	}
 
 	entry, err := journalEntity.NewJournalEntry(
 		uuid.New().String(),
-		jvNum,
+		jvNum.String(),
 		entryDate,
 		fmt.Sprintf("Invoice issued %s: %s", invoiceNumber, description),
 		period.ID,
@@ -111,7 +119,15 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 	return s.journalRepo.Save(ctx, entry)
 }
 
-func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID, paymentNumber, description string, entryDate time.Time, amount float64, debitAccountID string, postedBy string, seq int) error {
+func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID, paymentNumber, description string, entryDate time.Time, amount float64, debitAccountID string, postedBy string) error {
+	posted, err := s.alreadyPosted(ctx, journalConst.SourcePaymentVerified, paymentID)
+	if err != nil {
+		return err
+	}
+	if posted {
+		return nil
+	}
+
 	debitAcc, err := s.accountRepo.FindByID(ctx, debitAccountID)
 	if err != nil {
 		return fmt.Errorf("find debit account: %w", err)
@@ -122,15 +138,18 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 		return fmt.Errorf("find piutang account: %w", err)
 	}
 
-	period, err := s.periodRepo.FindActive(ctx)
+	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
 		return fmt.Errorf("find active period: %w", err)
 	}
 
-	jvNum := generateJournalNumber(seq, journalConst.SourcePaymentVerified)
+	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
+	if err != nil {
+		return err
+	}
 	entry, err := journalEntity.NewJournalEntry(
 		uuid.New().String(),
-		jvNum,
+		jvNum.String(),
 		entryDate,
 		fmt.Sprintf("Payment verified %s: %s", paymentNumber, description),
 		period.ID,
@@ -155,10 +174,18 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 	return s.journalRepo.Save(ctx, entry)
 }
 
-func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, originalAmount float64, feeType feeConst.FeeComponentType, postedBy string, seq int) error {
+func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, originalAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+	posted, err := s.alreadyPosted(ctx, journalConst.SourceInvoiceCancelled, invoiceID)
+	if err != nil {
+		return err
+	}
+	if posted {
+		return nil
+	}
+
 	revCode, ok := feeTypeRevenueAccount[feeType]
 	if !ok {
-		return kernel.New(journalConst.CodeJournalNotBalanced)
+		return kernel.New(journalConst.CodeJournalAccountMappingNotFound)
 	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
@@ -170,15 +197,18 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 		return fmt.Errorf("find revenue account %s: %w", revCode, err)
 	}
 
-	period, err := s.periodRepo.FindActive(ctx)
+	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
 		return fmt.Errorf("find active period: %w", err)
 	}
 
-	jvNum := generateJournalNumber(seq, journalConst.SourceInvoiceCancelled)
+	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
+	if err != nil {
+		return err
+	}
 	entry, err := journalEntity.NewJournalEntry(
 		uuid.New().String(),
-		jvNum,
+		jvNum.String(),
 		entryDate,
 		fmt.Sprintf("Invoice cancelled %s: %s", invoiceNumber, description),
 		period.ID,

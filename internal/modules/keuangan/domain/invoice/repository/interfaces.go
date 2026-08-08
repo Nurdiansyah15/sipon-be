@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/keuangan/domain/invoice/entity"
+	"sipon-be/internal/modules/keuangan/domain/invoice/valueobject"
 )
 
 type InvoiceListQuery struct {
@@ -29,5 +30,5 @@ type InvoiceRepository interface {
 	FindBySantriComponentPeriod(ctx context.Context, santriID, feeComponentID, billingPeriodID string) (*entity.Invoice, error)
 	FindOutstandingBySantriID(ctx context.Context, santriID string) ([]*entity.Invoice, error)
 	HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error)
-	NextInvoiceNumber(ctx context.Context) (string, error)
+	NextInvoiceNumber(ctx context.Context) (valueobject.InvoiceNumber, error)
 }
