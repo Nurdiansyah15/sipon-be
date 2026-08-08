@@ -10,6 +10,7 @@ import (
 	"sipon-be/internal/modules/keuangan/domain/payment/constant"
 	"sipon-be/internal/modules/keuangan/domain/payment/entity"
 	"sipon-be/internal/modules/keuangan/domain/payment/repository"
+	paymentVO "sipon-be/internal/modules/keuangan/domain/payment/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -25,6 +26,19 @@ type PostgresPaymentRepository struct {
 
 func NewPostgresPaymentRepository(db *sql.DB) *PostgresPaymentRepository {
 	return &PostgresPaymentRepository{db: db}
+}
+
+func (r *PostgresPaymentRepository) NextPaymentNumber(ctx context.Context) (string, error) {
+	execer := execerFromContext(ctx, r.db)
+	now := time.Now()
+	year := now.Year()
+
+	seq, err := nextNumberSeq(ctx, execer, "payment", year)
+	if err != nil {
+		return "", kernel.Wrap(constant.CodePaymentPersistenceFailed, err)
+	}
+
+	return paymentVO.NewPaymentNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq).String(), nil
 }
 
 func (r *PostgresPaymentRepository) Save(ctx context.Context, p *entity.Payment) error {

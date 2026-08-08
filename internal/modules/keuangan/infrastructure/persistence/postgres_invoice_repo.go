@@ -33,15 +33,9 @@ func (r *PostgresInvoiceRepository) NextInvoiceNumber(ctx context.Context) (stri
 	now := time.Now()
 	year := now.Year()
 
-	var seq int
-	err := execer.QueryRowContext(ctx,
-		`INSERT INTO invoice_number_counters (year, seq) VALUES ($1, 1)
-		 ON CONFLICT (year) DO UPDATE SET seq = invoice_number_counters.seq + 1
-		 RETURNING seq`,
-		year,
-	).Scan(&seq)
+	seq, err := nextNumberSeq(ctx, execer, "invoice", year)
 	if err != nil {
-		return "", kernel.Wrap(constant.CodeInvoicePersistenceFailed, fmt.Errorf("next invoice number: %w", err))
+		return "", kernel.Wrap(constant.CodeInvoicePersistenceFailed, err)
 	}
 
 	return invVO.NewInvoiceNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq).String(), nil

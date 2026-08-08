@@ -13,7 +13,6 @@ import (
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payEntity "sipon-be/internal/modules/keuangan/domain/payment/entity"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
-	payVO "sipon-be/internal/modules/keuangan/domain/payment/valueobject"
 )
 
 type CreateManualPaymentUseCase struct {
@@ -37,9 +36,12 @@ func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.Creat
 	}
 
 	method := payConst.PaymentMethod(req.Method)
-	payNum := payVO.NewPaymentNumberNow(1)
+	payNum, err := uc.paymentRepo.NextPaymentNumber(ctx)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+	}
 	payment, err := payEntity.NewPayment(
-		uuid.New().String(), payNum.String(), req.InvoiceID,
+		uuid.New().String(), payNum, req.InvoiceID,
 		req.Amount, method, paymentDate,
 		req.DebitAccountID, req.ReferenceNumber, req.Notes, req.ProofKey,
 		createdBy,

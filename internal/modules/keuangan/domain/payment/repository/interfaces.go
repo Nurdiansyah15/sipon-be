@@ -26,4 +26,5 @@ type PaymentRepository interface {
 	List(ctx context.Context, query PaymentListQuery) (*PaymentListResult, error)
 	FindByInvoiceID(ctx context.Context, invoiceID string) ([]*entity.Payment, error)
 	FindVerifiedByInvoiceID(ctx context.Context, invoiceID string) ([]*entity.Payment, error)
+	NextPaymentNumber(ctx context.Context) (string, error)
 }
