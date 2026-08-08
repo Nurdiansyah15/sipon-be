@@ -22,8 +22,18 @@ Laporan laba rugi & neraca per periode tidak akurat setelah lebih dari satu peri
 
 ## Saran Perbaikan
 
-Lihat rancangan lengkap & simplifikasi di `docs/rules/akuntansi.md` §3.2 dan endpoint spec di `docs/specs/keuangan-akuntansi-api.md` §B.5. Ringkasnya:
+Algoritma lengkap & bukti keseimbangan debit/kredit ada di `docs/rules/akuntansi.md` §3.2 — di sini fokus ke perubahan kode konkret:
 
-1. Hapus status `closing` yang tidak pernah dipakai (domain method `StartClosing()` + CHECK constraint DB) — sederhanakan jadi `open → closed → locked`.
-2. `ClosePeriodUseCase` membuat satu jurnal `source_type='closing'` yang memindahkan saldo semua akun `revenue`/`expense` periode itu ke `3201 Laba Tahun Berjalan`, lalu ke `3200 Saldo Laba`, dalam transaksi yang sama dengan perubahan status periode.
-3. `ReopenPeriodUseCase` membatalkan (bukan menghapus) jurnal `closing` itu kalau ada, sebagai bagian dari reopen.
+1. **Hapus status `closing`**: hapus `AccountingPeriod.StartClosing()` (`period.go:78-85`), hapus nilai `closing` dari CHECK constraint `accounting_periods.status` (migrasi baru, lihat `docs/schemas/keuangan-akuntansi.md` §"accounting_periods"). Sisakan `open → closed → locked`.
+2. **Ubah constructor `ClosePeriodUseCase`** (`close_period.go:12-18`, saat ini `NewClosePeriodUseCase(periodRepo)`) jadi:
+   ```go
+   func NewClosePeriodUseCase(
+       periodRepo periodRepo.AccountingPeriodRepository,
+       accountRepo accRepo.AccountRepository,
+       journalRepo journalRepo.JournalRepository,
+       transactor ports.Transactor,
+   ) *ClosePeriodUseCase
+   ```
+   `Execute` dibungkus `transactor.WithTx`, melakukan langkah 1-4 di `docs/rules/akuntansi.md` §3.2 (validasi akun 3200/3201 ada → hitung saldo revenue/expense via query yang sama dengan `report_income_statement.go` → susun & `Save`+`SaveLines` jurnal `closing` kalau ada aktivitas → `period.Close(closedBy)` + `periodRepo.Update`).
+3. **Ubah constructor `ReopenPeriodUseCase`** (`reopen_period.go:12-18`, saat ini `NewReopenPeriodUseCase(periodRepo)`) jadi menerima juga `journalRepo` + `transactor`. `Execute` dibungkus `transactor.WithTx`: `journalRepo.FindBySource(ctx, "closing", periodID)` — kalau ketemu (bukan error not-found), `entry.Cancel()` + `journalRepo.Update`; lanjut `period.Reopen()` + `periodRepo.Update` seperti sekarang.
+4. **Update wiring di `module.go`** (baris `closePeriodUC := command.NewClosePeriodUseCase(periodRepo)` dan `reopenPeriodUC := command.NewReopenPeriodUseCase(periodRepo)`) — tambahkan argumen baru sesuai signature di atas (`accountRepo`, `journalRepo`, `transactor` sudah semuanya sudah dibuat lebih awal di fungsi yang sama, tinggal pass).

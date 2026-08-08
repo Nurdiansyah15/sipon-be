@@ -72,7 +72,18 @@ Tabel ini dibuat di migrasi `*_create_keuangan_tables` dengan kolom `periode`/`t
 | proof_key | VARCHAR(512) nullable | key MinIO bukti transfer |
 | created_by, created_at, updated_at | | |
 
-**🔧 Perubahan diusulkan**: `debit_account_id` → **`NOT NULL`**. Alasan di `docs/rules/akuntansi.md` §2.2 — tanpa akun kas/bank tujuan, payment yang diverifikasi tidak bisa diposting ke jurnal. Karena belum ada volume data besar, migrasi bisa langsung `ALTER COLUMN ... SET NOT NULL` setelah backfill akun default untuk baris lama (kalau ada), atau langsung kalau memang belum ada data produksi.
+**🔧 Perubahan diusulkan**: `debit_account_id` → **`NOT NULL`**. Alasan di `docs/rules/akuntansi.md` §2.2 — tanpa akun kas/bank tujuan, payment yang diverifikasi tidak bisa diposting ke jurnal.
+
+```sql
+-- Backfill dulu kalau ada baris lama tanpa debit_account_id (pilih akun kas default,
+-- mis. kode '1101' dari seed COA) — aman dilewati kalau belum ada data produksi:
+UPDATE payments SET debit_account_id = (SELECT id FROM accounts WHERE code = '1101')
+WHERE debit_account_id IS NULL;
+
+ALTER TABLE payments ALTER COLUMN debit_account_id SET NOT NULL;
+```
+
+Sejalan dengan itu, `dto.CreateManualPaymentRequest.DebitAccountID` (`application/dto/payment_dto.go:5`) berubah dari `*string` opsional jadi `string` dengan `binding:"required"`, dan `create_manual_payment.go` meneruskannya sebagai nilai non-pointer ke `payEntity.NewPayment(...)` (perhatikan signature `NewPayment` saat ini menerima `debitAccountID *string` — kalau field DTO jadi wajib, tetap boleh dikonversi ke pointer sebelum diteruskan, yang penting validasi "tidak boleh kosong" terjadi di DTO/handler, bukan cuma di constructor entity).
 
 ### `invoice_adjustments` — tidak berubah.
 
@@ -130,7 +141,7 @@ ALTER TABLE accounting_periods ADD CONSTRAINT accounting_periods_status_check
 | status | VARCHAR(20) CHECK | `draft`, `posted`, `cancelled` |
 | created_at, updated_at | | |
 
-**Tidak ada kolom `deleted_at`** — catat ini karena dua query laporan (`report_ledger.go`, `report_trial_balance.go`) saat ini mem-filter `WHERE je.deleted_at IS NULL`, yang berarti keduanya **akan gagal dieksekusi** (kolom tidak ada). Lihat [bug: kolom deleted_at tidak ada](../bugs/akuntansi-laporan-ledger-trial-balance-kolom-deleted-at.md).
+**Tidak ada kolom `deleted_at`** — catat ini karena empat query laporan (`report_ledger.go`, `report_trial_balance.go`, `report_income_statement.go`, `report_balance_sheet.go`) saat ini mem-filter `WHERE je.deleted_at IS NULL`, yang berarti semuanya **akan gagal dieksekusi** (kolom tidak ada). Lihat [bug: 4 laporan query kolom deleted_at yang tidak ada](../bugs/akuntansi-laporan-jurnal-kolom-deleted-at-tidak-ada.md).
 
 **🔧 Perubahan diusulkan**: tambah **unique partial index** untuk mencegah double-posting dari sumber otomatis:
 

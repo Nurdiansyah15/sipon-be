@@ -9,7 +9,7 @@ Dokumen ini adalah rencana untuk menyambungkan semuanya, dipecah ke tiga dokumen
 - **[`docs/rules/akuntansi.md`](../rules/akuntansi.md)** — aturan bisnis: kapan jurnal dibuat, oleh siapa, aturan periode & closing, dan aturan integritas COA lainnya. Ini rujukan utama kalau ada pertanyaan "seharusnya begini atau begitu?".
 - **[`docs/schemas/keuangan-akuntansi.md`](../schemas/keuangan-akuntansi.md)** — skema tabel saat ini + perubahan yang diusulkan (5 perubahan, lihat tabel ringkasan di dokumen itu).
 - **[`docs/specs/keuangan-akuntansi-api.md`](../specs/keuangan-akuntansi-api.md)** — endpoint yang sudah ada + perubahan perilaku/endpoint baru.
-- **[`docs/bugs/`](../bugs/)** — 7 bug konkret yang ditemukan saat riset untuk dokumen ini (lihat `docs/bugs/README.md` untuk daftar lengkap), sebagian besar justru **akar penyebab** kenapa penyambungan ini belum pernah kejadian atau akan langsung gagal begitu disambungkan tanpa diperbaiki dulu.
+- **[`docs/bugs/`](../bugs/)** — 8 bug konkret yang ditemukan saat riset untuk dokumen ini (lihat `docs/bugs/README.md` untuk daftar lengkap), sebagian besar justru **akar penyebab** kenapa penyambungan ini belum pernah kejadian atau akan langsung gagal begitu disambungkan tanpa diperbaiki dulu. Dua yang paling luas dampaknya: **4 dari 6 laporan akuntansi** (bukan cuma ledger & trial balance) query kolom `deleted_at` yang tidak ada dan pasti gagal; dan setidaknya **9 titik di seluruh modul keuangan** (termasuk yang baru mau ditambah di rencana ini kalau tidak hati-hati) mengembalikan error domain tanpa dibungkus `WrapRepoErr`/`WrapConflictErr` sehingga selalu tampil sebagai HTTP 500 alih-alih 400/404/409 yang seharusnya.
 
 Lingkup sengaja dijaga sederhana — organisasi pengurus pondok pesantren/sekolah, bukan entitas komersial: tidak ada multi-currency, pajak otomatis, depresiasi otomatis, atau refund (lihat `docs/rules/akuntansi.md` §1.6).
 
@@ -24,12 +24,13 @@ Auto-posting tidak bisa asal disambung ke `create_invoice`/`verify_payment` sebe
 Semua bug ini didokumentasikan lengkap (lokasi, gejala, saran perbaikan) di `docs/bugs/`. Ringkasan urutan kerja:
 
 1. **`docs/bugs/akuntansi-journal-lines-tidak-tersimpan.md`** — `PostgresJournalRepository.Save` harus memanggil `SaveLines`. Sekalian tambahkan `transactor.WithTx` ke `CreateManualJournalUseCase` (belum ada sama sekali).
-2. **`docs/bugs/akuntansi-manual-journal-nomor-selalu-1.md`** — tambah `NextJournalNumber` ke `JournalRepository`, pakai `finance_number_sequences` (`doc_type='journal'`), pola sama seperti `NextInvoiceNumber`/`NextPaymentNumber`.
-3. **`docs/bugs/akuntansi-laporan-ledger-trial-balance-kolom-deleted-at.md`** — hapus filter `deleted_at` yang tidak ada, ganti jadi filter `status='posted'`.
-4. **`docs/bugs/akuntansi-cancel-invoice-partial-payment.md`** — `Invoice.Cancel()` tolak kalau `PaidAmount > 0`, bukan cuma status `paid`.
-5. **`docs/bugs/akuntansi-cancel-journal-tidak-cek-periode.md`** — `CancelJournalUseCase` tolak kalau periode jurnal tidak `open`.
+2. **`docs/bugs/akuntansi-manual-journal-nomor-selalu-1.md`** — tambah `NextJournalNumber` ke `JournalRepository` (signature & implementasi persis ada di file bug ini), pakai `finance_number_sequences` (`doc_type='journal'`), pola sama seperti `NextInvoiceNumber`/`NextPaymentNumber`.
+3. **`docs/bugs/akuntansi-laporan-jurnal-kolom-deleted-at-tidak-ada.md`** — hapus filter `deleted_at` yang tidak ada di **4 file** (`report_ledger.go`, `report_trial_balance.go`, `report_income_statement.go`, `report_balance_sheet.go` — dua kemunculan di file terakhir), ganti jadi filter `status='posted'`.
+4. **`docs/bugs/keuangan-kernel-error-tanpa-wrap-selalu-500.md`** — perbaiki minimal `create_manual_journal.go:41` (dipakai ulang di Fase 1/2 sebagai pola periode-tertutup); 8 lokasi lain di file ini sifatnya opsional/boleh disambil kalau menyentuh file yang sama, tidak wajib untuk paket ini.
+5. **`docs/bugs/akuntansi-cancel-invoice-partial-payment.md`** — `Invoice.Cancel()` tolak kalau `PaidAmount > 0`, bukan cuma status `paid`.
+6. **`docs/bugs/akuntansi-cancel-journal-tidak-cek-periode.md`** — `CancelJournalUseCase` tolak kalau periode jurnal tidak `open`.
 
-**Verifikasi Fase 0**: `go build/vet/test`. Manual: buat 2 jurnal manual di bulan yang sama (nomor tidak boleh tabrakan, baris tersimpan & muncul di `GET /admin/journal-entries/:id`); panggil `GET /admin/reports/ledger` & `/reports/trial-balance` (tidak boleh 500); coba batalkan invoice `partial` (harus ditolak); coba batalkan jurnal di periode `closed` (harus ditolak).
+**Verifikasi Fase 0**: `go build/vet/test`. Manual: buat 2 jurnal manual di bulan yang sama (nomor tidak boleh tabrakan, baris tersimpan & muncul di `GET /admin/journal-entries/:id`); panggil `GET /admin/reports/ledger`, `/reports/trial-balance`, `/reports/income-statement`, `/reports/balance-sheet` (tidak boleh 500); coba batalkan invoice `partial` (harus ditolak, bukan 500); coba batalkan jurnal di periode `closed` (harus ditolak, bukan 500).
 
 ---
 

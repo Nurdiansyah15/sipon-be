@@ -72,12 +72,12 @@ Prinsip: **tidak menambah endpoint baru untuk hal yang bisa jadi efek samping en
 
 ### B.1 `POST /admin/invoices`, `POST /admin/invoices/batch` — tidak berubah request
 
-Response `InvoiceResponse` **tidak perlu** ditambah field jurnal (jurnal bisa ditelusuri lewat B.4). Perilaku baru: use-case ini sekarang memanggil `AutoPostingService.PostInvoiceIssued` di transaksi yang sama dengan pembuatan invoice. Error baru yang mungkin muncul:
+Response `InvoiceResponse` **tidak perlu** ditambah field jurnal (jurnal bisa ditelusuri lewat B.4). Perilaku baru: use-case ini sekarang memanggil `AutoPostingService.PostInvoiceIssued` di transaksi yang sama dengan pembuatan invoice. Error baru yang mungkin muncul — **semua wajib dibungkus `application.WrapConflictErr(err, kode)` sebelum dikembalikan dari use-case**, bukan `kernel.New(kode)` telanjang, supaya statusnya benar 409 dan bukan 500 (lihat `docs/bugs/keuangan-kernel-error-tanpa-wrap-selalu-500.md`):
 
-| Error | Kapan | Kode |
-|---|---|---|
-| Periode akuntansi untuk tanggal invoice tidak ditemukan/tidak `open` | Tidak ada `accounting_periods` yang mencakup tanggal invoice, atau ada tapi sudah `closed`/`locked` | `JOURNAL_PERIOD_CLOSED` (existing) |
-| Mapping akun pendapatan untuk tipe komponen tidak ditemukan | `fee_component.type` baru yang belum ada di mapping akun | kode baru, mis. `JOURNAL_ACCOUNT_MAPPING_NOT_FOUND` (lihat catatan di bug auto-posting) |
+| Error | Kapan | Kode domain | HTTP (setelah di-`WrapConflictErr`) |
+|---|---|---|---|
+| Periode akuntansi untuk tanggal invoice tidak ditemukan/tidak `open` | Tidak ada `accounting_periods` yang mencakup tanggal invoice (`FindByDate` return not-found), atau ada tapi sudah `closed`/`locked` | `JOURNAL_PERIOD_CLOSED` (existing, `journal_constant.go`) | 409 |
+| Mapping akun pendapatan untuk tipe komponen tidak ditemukan | `fee_component.type` baru yang belum ada di `feeTypeRevenueAccount` (`auto_posting.go:37-42`) | `JOURNAL_ACCOUNT_MAPPING_NOT_FOUND` (kode baru, tambahkan ke `journal_constant.go` — lihat `docs/bugs/akuntansi-auto-posting-tidak-terpasang.md` langkah 1) | 409 |
 
 Generate massal (`/invoices/batch`) memposting satu jurnal `invoice_issued` **per invoice yang berhasil dibuat** (bukan satu jurnal gabungan) — konsisten dengan billing_batch_targets yang juga mencatat granular per santri.
 
@@ -126,10 +126,10 @@ Sekarang menjalankan proses closing penuh (rules doc §3.2) dalam satu transaksi
 ```
 
 **Error baru**:
-| Kondisi | Pesan |
-|---|---|
-| Akun `3200`/`3201` tidak ditemukan di COA | "Akun Saldo Laba/Laba Tahun Berjalan belum ada, closing tidak bisa dijalankan" |
-| Periode bukan `open` | pakai `PERIOD_INVALID_STATUS` (existing) |
+| Kondisi | Kode domain | HTTP |
+|---|---|---|
+| Akun `3200`/`3201` tidak ditemukan/tidak aktif di COA | `PERIOD_CLOSING_ACCOUNT_MISSING` (kode baru di `period_constant.go`, dibungkus `application.WrapConflictErr`) | 409 |
+| Periode bukan `open` | `PERIOD_INVALID_STATUS` (existing) — **saat ini use-case lain sudah membungkusnya lewat `WrapRepoErr` yang salah memetakan ke 404, bukan cuma soal wrap/tidak-wrap** (lihat `docs/bugs/keuangan-kernel-error-tanpa-wrap-selalu-500.md` untuk pola yang benar); untuk endpoint ini pakai `application.WrapConflictErr(err, periodConst.CodePeriodInvalidStatus)` → 409, lebih sesuai semantik "state tidak valid" dibanding 404 | 409 |
 
 **`POST /admin/periods/:id/reopen`**: kalau periode punya jurnal `closing`, jurnal itu ikut di-`cancel` (bukan dihapus) sebagai bagian dari reopen — satu transaksi.
 

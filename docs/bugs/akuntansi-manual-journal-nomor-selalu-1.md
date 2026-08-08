@@ -26,4 +26,26 @@ Fitur jurnal manual (satu-satunya cara bendahara mencatat transaksi non-billing 
 
 ## Saran Perbaikan
 
-Pakai mekanisme yang sama seperti `NextInvoiceNumber`/`NextPaymentNumber` (`internal/modules/keuangan/infrastructure/persistence/number_sequence.go`, tabel `finance_number_sequences`): tambah `NextJournalNumber(ctx) (string, error)` di `JournalRepository`, implementasikan dengan `nextNumberSeq(ctx, execer, "journal", year)`, panggil dari `CreateManualJournalUseCase.Execute` (dan dari `AutoPostingService` sekaligus, ganti `generateJournalNumber(seq, ...)` yang saat ini menerima `seq` mentah dari pemanggil — lihat bug auto-posting).
+Pakai mekanisme yang sama seperti `NextInvoiceNumber`/`NextPaymentNumber` (`internal/modules/keuangan/infrastructure/persistence/number_sequence.go`, tabel `finance_number_sequences`):
+
+1. **Tambah ke interface** `internal/modules/keuangan/domain/journal/repository/interfaces.go`, di dalam `JournalRepository`:
+   ```go
+   NextJournalNumber(ctx context.Context) (string, error)
+   ```
+2. **Implementasikan** di `internal/modules/keuangan/infrastructure/persistence/postgres_journal_repo.go` (pola persis `PostgresInvoiceRepository.NextInvoiceNumber`, `postgres_invoice_repo.go:31-39`):
+   ```go
+   func (r *PostgresJournalRepository) NextJournalNumber(ctx context.Context) (string, error) {
+       execer := execerFromContext(ctx, r.db)
+       year := time.Now().Year()
+       seq, err := nextNumberSeq(ctx, execer, "journal", year)
+       if err != nil {
+           return "", kernel.Wrap(constant.CodeJournalPersistenceFailed, err)
+       }
+       return fmt.Sprintf("JRN/%d/%02d/%06d", year, int(time.Now().Month()), seq), nil
+   }
+   ```
+   (`nextNumberSeq` sudah ada dan reusable lintas repo — sama fungsi yang dipakai `NextInvoiceNumber`/`NextPaymentNumber` — cukup panggil dengan `doc_type="journal"`.)
+3. **Ganti pemanggil**:
+   - `create_manual_journal.go:49` — ganti `jn := fmt.Sprintf("JRN/%d/%02d/%06d", ...)` jadi `jn, err := uc.journalRepo.NextJournalNumber(ctx)` (tangani error dengan `application.WrapRepoErr(err, journalConst.CodeJournalPersistenceFailed)`, ikuti pola penanganan error `NextInvoiceNumber` di `create_invoice.go:89-92`).
+   - `auto_posting.go` — ganti `generateJournalNumber(seq, sourceType)` (baris 44-62) jadi panggilan `s.journalRepo.NextJournalNumber(ctx)`, lalu tempelkan prefix kosmetik sesuai `sourceType` secara terpisah kalau prefix per jenis sumber (`INV`/`PAY`/`CNL`/`ADJ`/`CLS`/`JRN`) masih mau dipertahankan — lihat `docs/schemas/keuangan-akuntansi.md` §3 baris #5 untuk opsi menyederhanakannya jadi satu prefix `JRN` untuk semua (lebih ringkas, tidak kehilangan informasi karena `source_type` sudah tersimpan terpisah di kolom `journal_entries.source_type`).
+

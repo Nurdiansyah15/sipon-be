@@ -100,24 +100,30 @@ Aturan:
 
 Tujuan closing: memindahkan saldo akun nominal (Pendapatan & Beban) ke ekuitas, supaya periode berikutnya mulai dari saldo nol untuk akun-akun itu (akun riil — Aset/Kewajiban/Ekuitas — saldonya jalan terus/carry-forward).
 
-Langkah (satu transaksi DB, dipicu satu aksi "Tutup Periode"):
+Langkah (satu transaksi DB, dipicu satu aksi "Tutup Periode" — `ClosePeriodUseCase.Execute`):
 
 1. **Validasi pra-syarat**:
-   - Periode berstatus `open`.
-   - Tidak ada payment `pending` yang tanggalnya masuk periode ini yang belum diputuskan verify/reject (peringatkan bendahara, jangan blokir keras — datanya tetap valid, cuma perlu diselesaikan agar laporan periode ini final).
-   - Akun `3200 Saldo Laba` dan `3201 Laba Tahun Berjalan` (dari seed COA) harus ada & aktif — kalau tidak ada, closing gagal dengan pesan jelas, bukan 500 generik.
-2. **Hitung saldo tiap akun Pendapatan (4xxx) & Beban (5xxx)** untuk periode ini (jumlah kredit − debit untuk akun bersaldo normal kredit, dan sebaliknya untuk yang normal debit — sama seperti perhitungan running balance yang dipakai `ReportLedgerUseCase`).
-3. **Buat satu jurnal penutup** (`source_type='closing'`, `source_id=<period_id>`):
+   - Periode berstatus `open` (`period.CanPost()`/`IsOpen()`).
+   - Akun `3200 Saldo Laba` dan `3201 Laba Tahun Berjalan` harus ada & aktif (`accountRepo.FindByCode(ctx, "3200")`, `FindByCode(ctx, "3201")`) — kalau tidak ada, tolak dengan kode error baru (mis. `CodePeriodClosingAccountMissing`), **wajib** dibungkus `application.WrapConflictErr` (lihat `docs/bugs/keuangan-kernel-error-tanpa-wrap-selalu-500.md` — jangan sampai closing yang gagal karena COA belum lengkap malah tampil sebagai 500).
+2. **Hitung saldo tiap akun Pendapatan (4xxx) & Beban (5xxx)** untuk periode ini — reuse query yang sama persis dengan `ReportIncomeStatementUseCase` (`application/query/report_income_statement.go:36-45`, setelah kolom `deleted_at` dihapus dari query itu — lihat bug terkait):
+   ```sql
+   SELECT jel.account_id, COALESCE(SUM(jel.debit),0) AS total_debit, COALESCE(SUM(jel.credit),0) AS total_credit
+   FROM journal_entry_lines jel
+   JOIN journal_entries je ON je.id = jel.journal_entry_id
+   WHERE je.period_id = $1 AND je.status = 'posted'
+   GROUP BY jel.account_id
    ```
-   Dr. setiap akun Pendapatan sebesar saldonya   (menutup ke nol)
-       Cr. Laba Tahun Berjalan (3201)             = total pendapatan
-
-   Dr. Laba Tahun Berjalan (3201)                 = total beban
-       Cr. setiap akun Beban sebesar saldonya     (menutup ke nol)
-   ```
-   Kalau laba (pendapatan > beban): `Dr. Laba Tahun Berjalan, Cr. Saldo Laba (3200)` sebesar selisihnya. Kalau rugi: kebalikannya. Ini tetap satu jurnal balance (total debit = total kredit), bukan beberapa jurnal terpisah — lebih gampang ditelusuri.
+   Untuk tiap akun `type='revenue'`: `balance = total_credit - total_debit`. Untuk tiap akun `type='expense'`: `balance = total_debit - total_credit`. **Lewati akun dengan `balance <= 0`** (tidak ada aktivitas — baris jurnal dengan nominal 0 melanggar `CHECK (debit > 0 AND credit = 0) OR (debit = 0 AND credit > 0)`).
+3. **Susun baris jurnal penutup** (`source_type='closing'`, `source_id=<period_id>`), satu jurnal untuk semuanya:
+   - Untuk tiap akun revenue dengan `balance > 0`: baris `Debit = balance` ke akun itu (menutup saldo kreditnya ke nol). Jumlahkan semua ini sebagai `totalRevenue`.
+   - Satu baris `Credit = totalRevenue` ke `3201 Laba Tahun Berjalan` (kalau `totalRevenue > 0`).
+   - Untuk tiap akun expense dengan `balance > 0`: baris `Credit = balance` ke akun itu (menutup saldo debitnya ke nol). Jumlahkan semua ini sebagai `totalExpense`.
+   - Satu baris `Debit = totalExpense` ke `3201 Laba Tahun Berjalan` (kalau `totalExpense > 0`).
+   - Hitung `diff = totalRevenue - totalExpense`. Kalau `diff > 0` (laba): baris `Debit = diff` ke `3201`, baris `Credit = diff` ke `3200 Saldo Laba`. Kalau `diff < 0` (rugi): baris `Debit = -diff` ke `3200`, baris `Credit = -diff` ke `3201`. Kalau `diff == 0`: **jangan** tambah baris ini (nominal nol tidak valid).
+   - Total debit di jurnal ini akan selalu sama dengan total kredit secara matematis (lihat pembuktian di `docs/bugs/akuntansi-closing-period-tidak-generate-jurnal.md`) — tetap panggil `JournalEntry.Validate()`/`Post()` seperti biasa sebagai jaring pengaman, jangan di-skip.
+   - **Kalau `totalRevenue == 0 && totalExpense == 0`** (tidak ada aktivitas revenue/expense sama sekali di periode ini — kurang dari 2 baris): **lewati pembuatan jurnal closing sama sekali** (langsung ke langkah 4), jangan paksa `Save` jurnal dengan < 2 baris (akan gagal di `Validate()`).
 4. **Ubah status periode jadi `closed`**, isi `closed_by`/`closed_at`, dalam transaksi yang sama dengan langkah 3 (jangan sampai jurnal penutup kebuat tapi status gagal ke-update, atau sebaliknya).
-5. Kalau closing ternyata salah (mis. ada koreksi yang kelewat), **reopen**: batalkan jurnal `closing` periode itu (`status = cancelled`, bukan dihapus) dan kembalikan status periode ke `open`. Setelah dikoreksi, closing bisa dijalankan ulang (akan membuat jurnal `closing` baru).
+5. Kalau closing ternyata salah (mis. ada koreksi yang kelewat), **reopen** (`ReopenPeriodUseCase`): kalau periode itu punya jurnal `closing` (`journalRepo.FindBySource(ctx, "closing", periodID)`), batalkan (`entry.Cancel()` → `status='cancelled'`, bukan dihapus) sebagai bagian dari transaksi reopen yang sama, lalu kembalikan status periode ke `open`. Setelah dikoreksi, closing bisa dijalankan ulang dan akan membuat jurnal `closing` baru untuk `source_id` (period_id) yang sama — ini **aman** terhadap unique partial index anti-dobel-posting yang diusulkan di `docs/schemas/keuangan-akuntansi.md` (`... WHERE ... AND status != 'cancelled'`) karena jurnal `closing` lama sudah `status='cancelled'` (dikecualikan dari constraint) saat jurnal baru dibuat — tidak perlu pengecualian khusus untuk `source_type='closing'`.
 6. **`locked` tidak bisa reopen** — kalau sudah dikunci, tutup buku periode itu final selamanya. Perubahan salah harus dikoreksi lewat jurnal di periode berjalan (periode baru), bukan mengubah masa lalu — ini prinsip akuntansi standar (tidak mengubah catatan historis yang sudah difinalisasi).
 
 ### 3.3 Setiap dokumen (invoice/payment/jurnal manual) harus jatuh di periode yang benar
