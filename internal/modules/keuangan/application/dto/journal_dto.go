@@ -44,6 +44,7 @@ type JournalLineResponse struct {
 	ID          string  `json:"id"`
 	AccountID   string  `json:"account_id"`
 	AccountCode string  `json:"account_code"`
+	AccountName string  `json:"account_name,omitempty"`
 	Description *string `json:"description,omitempty"`
 	Debit       float64 `json:"debit"`
 	Credit      float64 `json:"credit"`

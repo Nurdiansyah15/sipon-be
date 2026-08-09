@@ -73,6 +73,7 @@ func journalEntryToResponse(entry *journalEntity.JournalEntry, lines []*journalE
 				ID:          l.ID,
 				AccountID:   l.AccountID,
 				AccountCode: l.AccountCode,
+				AccountName: l.AccountName,
 				Description: l.Description,
 				Debit:       l.Debit,
 				Credit:      l.Credit,

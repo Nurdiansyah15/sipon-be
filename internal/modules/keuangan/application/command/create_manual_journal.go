@@ -191,6 +191,7 @@ func toJournalEntryResponse(entry *journalEntity.JournalEntry) *dto.JournalEntry
 				ID:          l.ID,
 				AccountID:   l.AccountID,
 				AccountCode: l.AccountCode,
+				AccountName: l.AccountName,
 				Description: l.Description,
 				Debit:       l.Debit,
 				Credit:      l.Credit,

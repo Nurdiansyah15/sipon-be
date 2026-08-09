@@ -13,6 +13,7 @@ import (
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalEntity "sipon-be/internal/modules/keuangan/domain/journal/entity"
 	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/shared/kernel"
 )
@@ -83,7 +84,11 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 
 	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
-		return fmt.Errorf("find active period: %w", err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
+			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
+		}
+		return fmt.Errorf("find period by date: %w", err)
 	}
 
 	netAmount := amount - discountAmount
@@ -105,11 +110,12 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 	}
 	entry.SetSource(journalConst.SourceInvoiceIssued, invoiceID)
 
+	lineDesc := fmt.Sprintf("Invoice %s", invoiceNumber)
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, netAmount, 0, nil,
+		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, netAmount, 0, &lineDesc,
 	))
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, 0, netAmount, nil,
+		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, 0, netAmount, &lineDesc,
 	))
 
 	if err := entry.Post(); err != nil {
@@ -143,7 +149,11 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 
 	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
-		return fmt.Errorf("find active period: %w", err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
+			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
+		}
+		return fmt.Errorf("find period by date: %w", err)
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
@@ -163,11 +173,12 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 	}
 	entry.SetSource(journalConst.SourcePaymentVerified, paymentID)
 
+	lineDesc := fmt.Sprintf("Pembayaran %s", paymentNumber)
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, debitAcc.ID, debitAcc.Code, amount, 0, nil,
+		uuid.New().String(), entry.ID, debitAcc.ID, debitAcc.Code, amount, 0, &lineDesc,
 	))
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, amount, nil,
+		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, amount, &lineDesc,
 	))
 
 	if err := entry.Post(); err != nil {
@@ -202,7 +213,11 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 
 	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
-		return fmt.Errorf("find active period: %w", err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
+			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
+		}
+		return fmt.Errorf("find period by date: %w", err)
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
@@ -222,11 +237,12 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 	}
 	entry.SetSource(journalConst.SourceInvoiceCancelled, invoiceID)
 
+	lineDesc := fmt.Sprintf("Pembatalan invoice %s", invoiceNumber)
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, originalAmount, 0, nil,
+		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, originalAmount, 0, &lineDesc,
 	))
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, originalAmount, nil,
+		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, originalAmount, &lineDesc,
 	))
 
 	if err := entry.Post(); err != nil {
@@ -261,7 +277,11 @@ func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, i
 
 	period, err := s.periodRepo.FindByDate(ctx, entryDate)
 	if err != nil {
-		return fmt.Errorf("find active period: %w", err)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
+			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
+		}
+		return fmt.Errorf("find period by date: %w", err)
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
@@ -281,11 +301,12 @@ func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, i
 	}
 	entry.SetSource(journalConst.SourceAdjustment, adjustmentID)
 
+	lineDesc := fmt.Sprintf("Penyesuaian invoice %s", invoiceNumber)
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, adjustmentAmount, 0, nil,
+		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, adjustmentAmount, 0, &lineDesc,
 	))
 	entry.AddLine(journalEntity.NewJournalEntryLine(
-		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, adjustmentAmount, nil,
+		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, adjustmentAmount, &lineDesc,
 	))
 
 	if err := entry.Post(); err != nil {

@@ -220,7 +220,10 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 	execer := execerFromContext(ctx, r.db)
 
 	rows, err := execer.QueryContext(ctx,
-		`SELECT id, journal_entry_id, account_id, account_code, description, debit, credit FROM journal_entry_lines WHERE journal_entry_id=$1 ORDER BY id ASC`,
+		`SELECT jel.id, jel.journal_entry_id, jel.account_id, jel.account_code, COALESCE(a.name, '') AS account_name, jel.description, jel.debit, jel.credit
+		 FROM journal_entry_lines jel
+		 LEFT JOIN accounts a ON a.id = jel.account_id
+		 WHERE jel.journal_entry_id=$1 ORDER BY jel.id ASC`,
 		entryID,
 	)
 	if err != nil {
@@ -231,11 +234,11 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 	items := make([]*entity.JournalEntryLine, 0)
 	for rows.Next() {
 		var (
-			id, jeID, accountID, accountCode string
-			description                      sql.NullString
-			debit, credit                    float64
+			id, jeID, accountID, accountCode, accountName string
+			description                                   sql.NullString
+			debit, credit                                 float64
 		)
-		if err := rows.Scan(&id, &jeID, &accountID, &accountCode, &description, &debit, &credit); err != nil {
+		if err := rows.Scan(&id, &jeID, &accountID, &accountCode, &accountName, &description, &debit, &credit); err != nil {
 			return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data baris jurnal", err)
 		}
 		items = append(items, &entity.JournalEntryLine{
@@ -243,6 +246,7 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 			JournalEntryID: jeID,
 			AccountID:      accountID,
 			AccountCode:    accountCode,
+			AccountName:    accountName,
 			Description:    strFromNull(description),
 			Debit:          debit,
 			Credit:         credit,

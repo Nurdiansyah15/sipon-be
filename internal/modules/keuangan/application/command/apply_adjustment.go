@@ -18,6 +18,7 @@ import (
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -90,6 +91,8 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			case journalConst.CodeJournalAccountMappingNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case periodConst.CodePeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)

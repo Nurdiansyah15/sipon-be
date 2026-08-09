@@ -5,6 +5,7 @@ type JournalEntryLine struct {
 	JournalEntryID  string
 	AccountID       string
 	AccountCode     string
+	AccountName     string
 	Description     *string
 	Debit           float64
 	Credit          float64

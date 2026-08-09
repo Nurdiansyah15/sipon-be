@@ -271,8 +271,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 					txCtx, inv.ID, inv.InvoiceNumber, "",
 					*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
 				); err != nil {
-					errMsgs = append(errMsgs, err.Error())
-					continue
+					return err
 				}
 			}
 			createdCount++
