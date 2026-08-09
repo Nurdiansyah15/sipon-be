@@ -227,6 +227,7 @@ func (r *PostgresReportReader) AccountBalancesByPeriod(ctx context.Context, peri
 		JOIN journal_entries je ON je.id = jel.journal_entry_id
 		WHERE je.period_id = $1
 			AND je.status = 'posted'
+			AND je.source_type IS DISTINCT FROM 'closing'
 		GROUP BY jel.account_id`,
 		periodID,
 	)
