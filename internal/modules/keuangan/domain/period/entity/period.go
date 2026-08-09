@@ -75,15 +75,6 @@ func (p *AccountingPeriod) Lock(closedBy string) error {
 	return nil
 }
 
-func (p *AccountingPeriod) StartClosing() error {
-	if p.Status != constant.PeriodOpen {
-		return kernel.WrapMsg(constant.CodePeriodInvalidStatus, "Hanya periode berstatus open yang dapat memulai penutupan", nil)
-	}
-	p.Status = constant.PeriodClosing
-	p.UpdatedAt = time.Now()
-	return nil
-}
-
 func (p *AccountingPeriod) CanPost() bool {
 	return p.Status == constant.PeriodOpen
 }

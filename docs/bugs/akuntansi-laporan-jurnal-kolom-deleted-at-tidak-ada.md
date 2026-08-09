@@ -2,6 +2,8 @@
 
 **Severity**: Tinggi — bukan cuma 2 laporan seperti temuan awal, tapi **4 dari 6 laporan akuntansi** akan selalu gagal (error DB), bukan sekadar menampilkan data kosong.
 
+> **Status: Diperbaiki** — klausa `AND jel.deleted_at IS NULL AND je.deleted_at IS NULL` dihapus dari `report_ledger.go`, `report_trial_balance.go`, `report_income_statement.go`, dan `report_balance_sheet.go` (dua query), diganti `AND je.status = 'posted'`.
+
 ## Lokasi (dikonfirmasi lewat `grep -n "deleted_at" internal/modules/keuangan/application/query/report_*.go`)
 
 | File | Baris | Query |

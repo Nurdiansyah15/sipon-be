@@ -97,8 +97,7 @@ func (uc *ReportBalanceSheetUseCase) computePeriodBalances(ctx context.Context, 
 	FROM journal_entry_lines jel
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
 	WHERE je.period_id = $1
-		AND jel.deleted_at IS NULL
-		AND je.deleted_at IS NULL
+		AND je.status = 'posted'
 	GROUP BY jel.account_id`
 
 	return uc.queryBalances(ctx, sqlQuery, periodID)
@@ -111,8 +110,7 @@ func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, 
 		COALESCE(SUM(jel.credit), 0) as total_credit
 	FROM journal_entry_lines jel
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE jel.deleted_at IS NULL
-		AND je.deleted_at IS NULL`
+	WHERE je.status = 'posted'`
 	args := []interface{}{}
 	if asOfDate != nil && *asOfDate != "" {
 		sqlQuery += ` AND je.entry_date <= $1`

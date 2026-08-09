@@ -2,6 +2,8 @@
 
 **Severity**: Tinggi — user-facing. Validasi bisnis yang seharusnya 400/409 tampil sebagai "Internal Server Error" generik. Ditemukan saat menyusun rencana penyempurnaan akuntansi karena rencana itu akan menambah beberapa error path baru yang rawan jatuh ke perangkap yang sama.
 
+> **Status: Diperbaiki** — semua use-case keuangan kini memetakan error ke app error (`kernel.WrapMsg(application.ErrCode*, ...)`) secara inline per titik pemanggilan, sesuai pola identity module. Tidak ada lagi `kernel.New(domainCode)` telanjang, `WrapRepoErr`/`WrapConflictErr`, atau `WrapRepoErr(fmt.Errorf(...))` di `internal/modules/keuangan/application/`.
+
 ## Cara kerja pemetaan status HTTP (`internal/shared/httperror/http_error.go`)
 
 ```go

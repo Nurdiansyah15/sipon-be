@@ -74,7 +74,7 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if !fee.IsActive {
-		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak valid", nil)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Komponen biaya tidak aktif", nil)
 	}
 
 	period, err := uc.billingPeriodRepo.FindByID(ctx, cmd.BillingPeriodID)

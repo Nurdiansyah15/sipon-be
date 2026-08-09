@@ -124,16 +124,6 @@ func TestPeriodCanPost(t *testing.T) {
 		}
 	})
 
-	t.Run("closing", func(t *testing.T) {
-		p := createTestPeriod()
-		if err := p.StartClosing(); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if p.CanPost() {
-			t.Error("closing period should not be postable")
-		}
-	})
-
 	t.Run("closed", func(t *testing.T) {
 		p := createTestPeriod()
 		if err := p.Close("user-1"); err != nil {
@@ -156,21 +146,6 @@ func TestPeriodCanPost(t *testing.T) {
 			t.Error("locked period should not be postable")
 		}
 	})
-}
-
-func TestPeriodStartClosing(t *testing.T) {
-	p := createTestPeriod()
-
-	if err := p.StartClosing(); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if p.Status != constant.PeriodClosing {
-		t.Errorf("expected closing status, got %s", p.Status)
-	}
-
-	if err := p.StartClosing(); err == nil {
-		t.Error("expected error when starting closing on non-open period")
-	}
 }
 
 func TestPeriodIsOpen(t *testing.T) {

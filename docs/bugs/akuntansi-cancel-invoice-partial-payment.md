@@ -2,6 +2,8 @@
 
 **Severity**: Sedang — celah integritas data, belum tentu sering terpicu tapi konsekuensinya nyata kalau terjadi.
 
+> **Status: Diperbaiki** — `Invoice.Cancel()` kini menolak setiap invoice dengan `PaidAmount > 0` (mencakup `paid` maupun `partial`).
+
 ## Lokasi
 
 `internal/modules/keuangan/domain/invoice/entity/invoice.go:92-99`

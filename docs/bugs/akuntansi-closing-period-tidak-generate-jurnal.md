@@ -2,6 +2,8 @@
 
 **Severity**: Sedang — belum ada jalur yang mengklaim fitur ini "sudah jadi" secara eksplisit di kode aktif, tapi ini gap fungsional besar terhadap rencana awal yang sudah didokumentasikan.
 
+> **Status: Diperbaiki** — `ClosePeriodUseCase` kini membuat jurnal penutup (`source_type='closing'`, `source_id=period_id`) dalam satu transaksi: validasi akun 3200/3201 ada, hitung saldo revenue/expense per periode, pindahkan ke 3201 Laba Tahun Berjalan lalu 3200 Saldo Laba, baru ubah status periode jadi `closed`. `ReopenPeriodUseCase` membatalkan jurnal closing (status `cancelled`) dalam transaksi yang sama. Status `closing` & `AccountingPeriod.StartClosing()` dihapus (migrasi baru `20260809120000_drop_period_closing_status`).
+
 ## Lokasi
 
 - `internal/modules/keuangan/application/command/close_period.go` — `Execute` hanya memanggil `period.Close(closedBy)` lalu `Update`, tidak membuat jurnal apa pun.

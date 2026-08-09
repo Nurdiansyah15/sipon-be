@@ -47,6 +47,12 @@ func (r *PostgresJournalRepository) Save(ctx context.Context, entry *entity.Jour
 	if err != nil {
 		return kernel.WrapMsg(constant.CodeJournalPersistenceFailed, "gagal menyimpan jurnal", err)
 	}
+
+	if len(entry.Lines) > 0 {
+		if err := r.SaveLines(ctx, entry.ID, entry.Lines); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -246,6 +252,39 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data baris jurnal", err)
 	}
 	return items, nil
+}
+
+func (r *PostgresJournalRepository) ComputeAccountBalances(ctx context.Context, periodID string) (map[string]repository.AccountBalance, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	rows, err := execer.QueryContext(ctx,
+		`SELECT jel.account_id, COALESCE(SUM(jel.debit), 0) AS total_debit, COALESCE(SUM(jel.credit), 0) AS total_credit
+		 FROM journal_entry_lines jel
+		 JOIN journal_entries je ON je.id = jel.journal_entry_id
+		 WHERE je.period_id = $1 AND je.status = 'posted'
+		 GROUP BY jel.account_id`,
+		periodID,
+	)
+	if err != nil {
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal menghitung saldo akun", err)
+	}
+	defer rows.Close()
+
+	balances := make(map[string]repository.AccountBalance)
+	for rows.Next() {
+		var (
+			accountID                     string
+			totalDebit, totalCredit       float64
+		)
+		if err := rows.Scan(&accountID, &totalDebit, &totalCredit); err != nil {
+			return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca saldo akun", err)
+		}
+		balances[accountID] = repository.AccountBalance{Debit: totalDebit, Credit: totalCredit}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca saldo akun", err)
+	}
+	return balances, nil
 }
 
 func (r *PostgresJournalRepository) scan(sc scanner) (*entity.JournalEntry, error) {

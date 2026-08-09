@@ -40,8 +40,7 @@ func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.I
 	FROM journal_entry_lines jel
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
 	WHERE je.period_id = $1
-		AND jel.deleted_at IS NULL
-		AND je.deleted_at IS NULL
+		AND je.status = 'posted'
 	GROUP BY jel.account_id`
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.PeriodID)

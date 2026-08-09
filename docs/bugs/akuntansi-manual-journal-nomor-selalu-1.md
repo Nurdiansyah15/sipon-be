@@ -2,6 +2,8 @@
 
 **Severity**: Tinggi — endpoint jurnal manual yang sudah aktif (`POST /admin/journal-entries`) akan gagal dipakai lebih dari satu kali dalam bulan yang sama.
 
+> **Status: Diperbaiki** — `NextJournalNumber` sudah ditambahkan ke interface & implementasi Postgres (memakai `nextNumberSeq`/`finance_number_sequences` + VO `JournalNumber`), dan `create_manual_journal.go` serta `auto_posting.go` kini memakainya.
+
 ## Lokasi
 
 `internal/modules/keuangan/application/command/create_manual_journal.go:49`

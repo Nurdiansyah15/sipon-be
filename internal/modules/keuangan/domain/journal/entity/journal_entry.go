@@ -78,7 +78,7 @@ func (j *JournalEntry) Cancel() error {
 	if j.Status != constant.JournalPosted {
 		return kernel.WrapMsg(constant.CodeJournalInvalidStatus, "Hanya jurnal berstatus posted yang dapat dibatalkan", nil)
 	}
-	if j.SourceType != nil && *j.SourceType != constant.SourceManual {
+	if j.SourceType != nil && *j.SourceType != constant.SourceManual && *j.SourceType != constant.SourceClosing {
 		return kernel.WrapMsg(constant.CodeJournalAutoCannotCancel, "Jurnal otomatis tidak dapat dibatalkan manual", nil)
 	}
 	j.Status = constant.JournalCancelled

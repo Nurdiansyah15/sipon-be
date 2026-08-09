@@ -20,6 +20,11 @@ type JournalListResult struct {
 	Total int64
 }
 
+type AccountBalance struct {
+	Debit  float64
+	Credit float64
+}
+
 type JournalRepository interface {
 	Save(ctx context.Context, entry *entity.JournalEntry) error
 	Update(ctx context.Context, entry *entity.JournalEntry) error
@@ -30,4 +35,5 @@ type JournalRepository interface {
 	FindBySource(ctx context.Context, sourceType string, sourceID string) (*entity.JournalEntry, error)
 	SaveLines(ctx context.Context, entryID string, lines []*entity.JournalEntryLine) error
 	FindLinesByEntryID(ctx context.Context, entryID string) ([]*entity.JournalEntryLine, error)
+	ComputeAccountBalances(ctx context.Context, periodID string) (map[string]AccountBalance, error)
 }

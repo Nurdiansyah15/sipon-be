@@ -38,8 +38,7 @@ func (uc *ReportLedgerUseCase) Execute(ctx context.Context, query dto.LedgerQuer
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
 	WHERE jel.account_id = $1 
 		AND je.period_id = $2
-		AND jel.deleted_at IS NULL
-		AND je.deleted_at IS NULL
+		AND je.status = 'posted'
 	ORDER BY je.entry_date ASC, je.journal_number ASC`
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.AccountID, query.PeriodID)

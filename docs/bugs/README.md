@@ -8,11 +8,11 @@ Format tiap file: **Lokasi** (file:line), **Gejala**, **Akar masalah**, **Dampak
 
 | Bug | Severity | Status |
 |---|---|---|
-| [Auto-posting jurnal tidak pernah terpasang](akuntansi-auto-posting-tidak-terpasang.md) | Tinggi | Terbuka |
-| [Nomor jurnal manual selalu 1](akuntansi-manual-journal-nomor-selalu-1.md) | Tinggi | Terbuka |
-| [Baris jurnal (journal_entry_lines) tidak pernah tersimpan](akuntansi-journal-lines-tidak-tersimpan.md) | Tinggi | Terbuka |
-| [4 dari 6 laporan akuntansi query kolom `deleted_at` yang tidak ada](akuntansi-laporan-jurnal-kolom-deleted-at-tidak-ada.md) | Tinggi | Terbuka |
-| [Error domain tanpa Wrap selalu jadi HTTP 500 (9 lokasi)](keuangan-kernel-error-tanpa-wrap-selalu-500.md) | Tinggi | Terbuka |
-| [Proses closing periode tidak membuat jurnal penutup](akuntansi-closing-period-tidak-generate-jurnal.md) | Sedang | Terbuka |
-| [Cancel invoice tidak menolak invoice berstatus partial](akuntansi-cancel-invoice-partial-payment.md) | Sedang | Terbuka |
-| [Cancel journal tidak mengecek status periode akuntansi](akuntansi-cancel-journal-tidak-cek-periode.md) | Sedang | Terbuka |
+| [Auto-posting jurnal tidak pernah terpasang](akuntansi-auto-posting-tidak-terpasang.md) | Tinggi | Diperbaiki |
+| [Nomor jurnal manual selalu 1](akuntansi-manual-journal-nomor-selalu-1.md) | Tinggi | Diperbaiki |
+| [Baris jurnal (journal_entry_lines) tidak pernah tersimpan](akuntansi-journal-lines-tidak-tersimpan.md) | Tinggi | Diperbaiki |
+| [4 dari 6 laporan akuntansi query kolom `deleted_at` yang tidak ada](akuntansi-laporan-jurnal-kolom-deleted-at-tidak-ada.md) | Tinggi | Diperbaiki |
+| [Error domain tanpa Wrap selalu jadi HTTP 500 (9 lokasi)](keuangan-kernel-error-tanpa-wrap-selalu-500.md) | Tinggi | Diperbaiki |
+| [Proses closing periode tidak membuat jurnal penutup](akuntansi-closing-period-tidak-generate-jurnal.md) | Sedang | Diperbaiki |
+| [Cancel invoice tidak menolak invoice berstatus partial](akuntansi-cancel-invoice-partial-payment.md) | Sedang | Diperbaiki |
+| [Cancel journal tidak mengecek status periode akuntansi](akuntansi-cancel-journal-tidak-cek-periode.md) | Sedang | Diperbaiki |

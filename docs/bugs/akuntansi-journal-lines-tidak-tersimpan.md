@@ -2,6 +2,8 @@
 
 **Severity**: Tinggi — jurnal yang dibuat (manual maupun otomatis nanti) tidak punya rincian baris debit/kredit di database, walau header-nya sukses tersimpan.
 
+> **Status: Diperbaiki** — `PostgresJournalRepository.Save` kini memanggil `SaveLines` untuk `entry.Lines` (dalam `execer`/tx yang sama). `CreateManualJournalUseCase` juga kini dibungkus `transactor.WithTx` sehingga header + lines atomik.
+
 ## Lokasi
 
 - `internal/modules/keuangan/infrastructure/persistence/postgres_journal_repo.go` — method `Save(ctx, entry)` (baris ~30) hanya melakukan `INSERT INTO journal_entries (...)`. Method `SaveLines(ctx, entryID, lines)` (baris ~182) ada dan berfungsi, tapi **tidak pernah dipanggil** dari `Save` maupun dari pemanggil manapun.

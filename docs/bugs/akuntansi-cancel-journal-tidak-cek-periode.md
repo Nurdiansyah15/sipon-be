@@ -2,6 +2,8 @@
 
 **Severity**: Sedang.
 
+> **Status: Diperbaiki** — `CancelJournalUseCase` kini menerima `periodRepo`, mengambil periode dari `entry.PeriodID`, dan menolak pembatalan kalau periode bukan `open` (`ErrCodeConflict`, "Periode akuntansi sudah ditutup atau dikunci").
+
 ## Lokasi
 
 `internal/modules/keuangan/application/command/cancel_journal.go`
