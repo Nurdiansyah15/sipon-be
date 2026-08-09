@@ -275,11 +275,21 @@ func (r *PostgresSantriBillingAssignmentRepository) Save(ctx context.Context, a 
 }
 
 func (r *PostgresSantriBillingAssignmentRepository) FindActiveBySantriID(ctx context.Context, santriID string) (*entity.SantriBillingAssignment, error) {
+	return r.FindActiveBySantriIDAt(ctx, santriID, time.Now())
+}
+
+// FindActiveBySantriIDAt mengambil assignment terbaru yang masih berlaku pada
+// tanggal tertentu (effective_from <= atDate < effective_until). Dipakai untuk
+// generate tagihan batch supaya masa berlaku skema dievaluasi terhadap
+// issued_date yang diinput, bukan selalu waktu server.
+func (r *PostgresSantriBillingAssignmentRepository) FindActiveBySantriIDAt(ctx context.Context, santriID string, atDate time.Time) (*entity.SantriBillingAssignment, error) {
 	execer := execerFromContext(ctx, r.db)
 
 	row := execer.QueryRowContext(ctx,
-		`SELECT `+assignmentColumns+` FROM santri_billing_assignments WHERE santri_id=$1 AND (effective_until IS NULL OR effective_until > NOW()) ORDER BY effective_from DESC LIMIT 1`,
-		santriID,
+		`SELECT `+assignmentColumns+` FROM santri_billing_assignments
+		 WHERE santri_id=$1 AND effective_from <= $2 AND (effective_until IS NULL OR effective_until > $2)
+		 ORDER BY effective_from DESC LIMIT 1`,
+		santriID, atDate,
 	)
 	return r.scanAssignment(row)
 }

@@ -3,7 +3,8 @@ package dto
 type CreateInvoiceRequest struct {
 	SantriID        string  `json:"santri_id" binding:"required"`
 	FeeComponentID  string  `json:"fee_component_id" binding:"required"`
-	BillingPeriodID string  `json:"billing_period_id" binding:"required"`
+	BillingPeriodID *string `json:"billing_period_id,omitempty"`
+	IssuedDate      string  `json:"issued_date" binding:"required"`
 	Amount          float64 `json:"amount" binding:"required"`
 	DueDate         string  `json:"due_date" binding:"required"`
 	Notes           *string `json:"notes,omitempty"`
@@ -12,6 +13,7 @@ type CreateInvoiceRequest struct {
 type CreateInvoiceBatchRequest struct {
 	BillingSchemeID string `json:"billing_scheme_id" binding:"required"`
 	BillingPeriodID string `json:"billing_period_id" binding:"required"`
+	IssuedDate      string `json:"issued_date" binding:"required"`
 	DueDate         string `json:"due_date" binding:"required"`
 }
 
@@ -32,7 +34,7 @@ type InvoiceResponse struct {
 	BillingSchemeID *string                     `json:"billing_scheme_id,omitempty"`
 	FeeComponentID  string                      `json:"fee_component_id"`
 	FeeComponent    *FeeComponentBriefResponse  `json:"fee_component,omitempty"`
-	BillingPeriodID string                      `json:"billing_period_id"`
+	BillingPeriodID *string                     `json:"billing_period_id,omitempty"`
 	BillingPeriod   *BillingPeriodBriefResponse `json:"billing_period,omitempty"`
 	Amount          float64                     `json:"amount"`
 	DiscountAmount  float64                     `json:"discount_amount"`

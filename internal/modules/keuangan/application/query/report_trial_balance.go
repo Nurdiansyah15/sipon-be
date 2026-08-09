@@ -33,11 +33,11 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 		COALESCE(SUM(jel.credit), 0) as total_credit
 	FROM journal_entry_lines jel
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE je.period_id = $1
+	WHERE je.entry_date <= $1
 		AND je.status = 'posted'
 	GROUP BY jel.account_id`
 
-	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.PeriodID)
+	rows, err := uc.db.QueryContext(ctx, sqlQuery, period.EndDate)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}

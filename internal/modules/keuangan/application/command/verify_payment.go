@@ -10,6 +10,7 @@ import (
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
@@ -97,6 +98,8 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 						return kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 					case periodConst.CodePeriodNotFound:
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					case journalConst.CodeJournalPeriodClosed:
+						return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 					}
 				}
 				return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)

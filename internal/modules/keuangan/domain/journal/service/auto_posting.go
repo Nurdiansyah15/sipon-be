@@ -14,6 +14,7 @@ import (
 	journalEntity "sipon-be/internal/modules/keuangan/domain/journal/entity"
 	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
 	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
+	periodEntity "sipon-be/internal/modules/keuangan/domain/period/entity"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/shared/kernel"
 )
@@ -59,6 +60,23 @@ func (s *AutoPostingService) alreadyPosted(ctx context.Context, sourceType journ
 	return false, err
 }
 
+// findPostablePeriod mencari periode akuntansi yang mencakup entryDate dan
+// menolak posting bila periode tersebut sudah ditutup/dikunci.
+func (s *AutoPostingService) findPostablePeriod(ctx context.Context, entryDate time.Time) (*periodEntity.AccountingPeriod, error) {
+	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
+			return nil, kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
+		}
+		return nil, fmt.Errorf("find period by date: %w", err)
+	}
+	if !period.CanPost() {
+		return nil, kernel.WrapMsg(journalConst.CodeJournalPeriodClosed, "Periode akuntansi untuk tanggal ini sudah ditutup", nil)
+	}
+	return period, nil
+}
+
 func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, amount, discountAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
 	posted, err := s.alreadyPosted(ctx, journalConst.SourceInvoiceIssued, invoiceID)
 	if err != nil {
@@ -82,13 +100,9 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 		return fmt.Errorf("find revenue account %s: %w", revCode, err)
 	}
 
-	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	period, err := s.findPostablePeriod(ctx, entryDate)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
-			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
-		}
-		return fmt.Errorf("find period by date: %w", err)
+		return err
 	}
 
 	netAmount := amount - discountAmount
@@ -147,13 +161,9 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 		return fmt.Errorf("find piutang account: %w", err)
 	}
 
-	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	period, err := s.findPostablePeriod(ctx, entryDate)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
-			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
-		}
-		return fmt.Errorf("find period by date: %w", err)
+		return err
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
@@ -211,13 +221,9 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 		return fmt.Errorf("find revenue account %s: %w", revCode, err)
 	}
 
-	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	period, err := s.findPostablePeriod(ctx, entryDate)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
-			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
-		}
-		return fmt.Errorf("find period by date: %w", err)
+		return err
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
@@ -275,13 +281,9 @@ func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, i
 		return fmt.Errorf("find revenue account %s: %w", revCode, err)
 	}
 
-	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	period, err := s.findPostablePeriod(ctx, entryDate)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) && ke.Code == periodConst.CodePeriodNotFound {
-			return kernel.WrapMsg(periodConst.CodePeriodNotFound, "Periode akuntansi untuk tanggal ini belum dibuat atau sudah ditutup", ke)
-		}
-		return fmt.Errorf("find period by date: %w", err)
+		return err
 	}
 
 	jvNum, err := s.journalRepo.NextJournalNumber(ctx)

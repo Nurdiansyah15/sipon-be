@@ -9,12 +9,17 @@ import (
 )
 
 func createTestInvoice() *entity.Invoice {
+	bp := "bp-1"
 	inv, _ := entity.NewInvoice(
 		"inv-1", "INV/2026/08/000001", "santri-1", "user-1",
-		"fc-1", "bp-1",
+		"fc-1", &bp,
 		500000, time.Now().AddDate(0, 1, 0), "user-1",
 	)
 	return inv
+}
+
+func testIssuedDate() time.Time {
+	return time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 }
 
 func TestNewInvoice(t *testing.T) {
@@ -29,7 +34,7 @@ func TestNewInvoice(t *testing.T) {
 
 func TestInvoiceIssue(t *testing.T) {
 	inv := createTestInvoice()
-	if err := inv.Issue(); err != nil {
+	if err := inv.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if inv.Status != constant.StatusIssued {
@@ -39,14 +44,14 @@ func TestInvoiceIssue(t *testing.T) {
 		t.Error("issuedAt should not be nil after issuing")
 	}
 
-	if err := inv.Issue(); err == nil {
+	if err := inv.Issue(testIssuedDate()); err == nil {
 		t.Error("expected error when issuing twice")
 	}
 }
 
 func TestInvoiceAddPayment(t *testing.T) {
 	inv := createTestInvoice()
-	if err := inv.Issue(); err != nil {
+	if err := inv.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -70,7 +75,7 @@ func TestInvoiceAddPayment(t *testing.T) {
 
 func TestInvoiceExpire(t *testing.T) {
 	inv := createTestInvoice()
-	if err := inv.Issue(); err != nil {
+	if err := inv.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -96,7 +101,7 @@ func TestInvoiceCancel(t *testing.T) {
 	}
 
 	inv2 := createTestInvoice()
-	if err := inv2.Issue(); err != nil {
+	if err := inv2.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := inv2.Cancel(); err != nil {
@@ -104,7 +109,7 @@ func TestInvoiceCancel(t *testing.T) {
 	}
 
 	inv3 := createTestInvoice()
-	if err := inv3.Issue(); err != nil {
+	if err := inv3.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if err := inv3.AddPayment(500000); err != nil {
@@ -117,7 +122,7 @@ func TestInvoiceCancel(t *testing.T) {
 
 func TestInvoiceRemainingAmount(t *testing.T) {
 	inv := createTestInvoice()
-	if err := inv.Issue(); err != nil {
+	if err := inv.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	inv.ApplyDiscount(50000)
@@ -139,7 +144,7 @@ func TestInvoiceHasOutstanding(t *testing.T) {
 	if inv.HasOutstanding() {
 		t.Error("draft should not have outstanding")
 	}
-	if err := inv.Issue(); err != nil {
+	if err := inv.Issue(testIssuedDate()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !inv.HasOutstanding() {

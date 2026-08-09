@@ -139,6 +139,29 @@ Status `closing` dihapus dari domain (`AccountingPeriod.StartClosing()` dihapus,
 
 Setelah menyimpan `invoice_adjustments` dan mengubah `discount_amount`, posting jurnal koreksi (`source_type='adjustment'`) sebesar nilai adjustment — lihat rules doc §2.1. Hanya berlaku kalau invoice sudah `issued` (sudah punya jurnal awal untuk dikoreksi); kalau masih `draft`, cukup ubah `discount_amount` seperti sekarang tanpa jurnal (belum ada apa pun untuk dikoreksi).
 
+### B.7 `POST /admin/invoices` & `/admin/invoices/batch` — `issued_date` eksplisit
+
+`issued_date` kini jadi input wajib di kedua endpoint dan menjadi tanggal terbit invoice (`Invoice.Issue(issuedDate)`), menggantikan `time.Now()` implisit. Auto-posting (`invoice_issued`) memakai tanggal ini, bukan tanggal hari ini.
+
+**`POST /admin/invoices`** (single/manual):
+- Request body baru: `issued_date` wajib, `billing_period_id` **opsional** (`*string`).
+- Aturan validasi:
+  - Komponen **periodik** (`fee_component.is_periodic = true`) → `billing_period_id` wajib.
+  - Komponen **non-periodik** → `billing_period_id` boleh kosong; kalau diisi, `issued_date` tetap harus dalam rentang periode itu (satu aturan validasi).
+  - `issued_date` di luar rentang `billing_period_id` yang dipilih → 400.
+  - Duplikat (cek `FindBySantriComponentPeriod`) hanya dilakukan kalau `billing_period_id` diisi.
+
+| Kondisi | Kode domain | HTTP |
+|---|---|---|
+| Komponen periodik tapi `billing_period_id` kosong | validasi inline (`ErrCodeBadRequest`) | 400 |
+| `issued_date` di luar rentang periode tagihan yang dipilih | validasi inline (`ErrCodeBadRequest`) | 400 |
+| Periode tagihan tidak `open` | existing | 409 |
+| Periode akuntansi untuk `issued_date` sudah ditutup | `journalConst.CodeJournalPeriodClosed` | 409 |
+
+**`POST /admin/invoices/batch`**:
+- `billing_period_id` tetap wajib; tambah `issued_date` wajib di body.
+- `issued_date` di luar rentang periode tagihan → seluruh batch ditolak 400 sebelum ada invoice dibuat.
+
 ---
 
 ## C. Ringkasan Dampak ke Permission

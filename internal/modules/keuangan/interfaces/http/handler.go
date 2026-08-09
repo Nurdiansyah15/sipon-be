@@ -464,6 +464,7 @@ func (h *KeuanganHandler) CreateInvoice(c *gin.Context) {
 		SantriID:        req.SantriID,
 		FeeComponentID:  req.FeeComponentID,
 		BillingPeriodID: req.BillingPeriodID,
+		IssuedDate:      req.IssuedDate,
 		Amount:          req.Amount,
 		DueDate:         req.DueDate,
 		Notes:           req.Notes,
@@ -488,6 +489,7 @@ func (h *KeuanganHandler) CreateInvoiceBatch(c *gin.Context) {
 	cmd := command.CreateInvoiceBatchCmd{
 		BillingSchemeID: req.BillingSchemeID,
 		BillingPeriodID: req.BillingPeriodID,
+		IssuedDate:      req.IssuedDate,
 		DueDate:         req.DueDate,
 		CreatedBy:       userID,
 	}
@@ -944,10 +946,11 @@ func (h *KeuanganHandler) DownloadReceipt(c *gin.Context) {
 		feeName = fc.Name
 	}
 
-	bp, err := h.billingPeriodRepo.FindByID(c.Request.Context(), inv.BillingPeriodID)
-	billingPeriodName := inv.BillingPeriodID
-	if err == nil {
-		billingPeriodName = bp.Name
+	billingPeriodName := ""
+	if inv.BillingPeriodID != nil {
+		if bp, err := h.billingPeriodRepo.FindByID(c.Request.Context(), *inv.BillingPeriodID); err == nil {
+			billingPeriodName = bp.Name
+		}
 	}
 
 	pdfData := external.ReceiptData{

@@ -91,6 +91,8 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			case journalConst.CodeJournalAccountMappingNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case journalConst.CodeJournalPeriodClosed:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			case periodConst.CodePeriodNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}

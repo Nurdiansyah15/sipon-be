@@ -14,7 +14,7 @@ type Invoice struct {
 	UserID          string
 	BillingSchemeID *string
 	FeeComponentID  string
-	BillingPeriodID string
+	BillingPeriodID *string
 	Amount          float64
 	DiscountAmount  float64
 	PaidAmount      float64
@@ -28,8 +28,8 @@ type Invoice struct {
 	DeletedAt       *time.Time
 }
 
-func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, billingPeriodID string, amount float64, dueDate time.Time, createdBy string) (*Invoice, error) {
-	if id == "" || invoiceNumber == "" || santriID == "" || userID == "" || feeComponentID == "" || billingPeriodID == "" || createdBy == "" {
+func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID string, billingPeriodID *string, amount float64, dueDate time.Time, createdBy string) (*Invoice, error) {
+	if id == "" || invoiceNumber == "" || santriID == "" || userID == "" || feeComponentID == "" || createdBy == "" {
 		return nil, kernel.WrapMsg(constant.CodeInvoiceNotFound, "Data invoice tidak lengkap", nil)
 	}
 	now := time.Now()
@@ -49,15 +49,13 @@ func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, billingPeri
 	}, nil
 }
 
-func (i *Invoice) Issue() error {
+func (i *Invoice) Issue(issuedDate time.Time) error {
 	if i.Status != constant.StatusDraft {
 		return kernel.WrapMsg(constant.CodeInvoiceInvalidStatus, "Hanya invoice berstatus draft yang dapat diterbitkan", nil)
 	}
-	now := time.Now()
 	i.Status = constant.StatusIssued
-	nowDate := now
-	i.IssuedAt = &nowDate
-	i.UpdatedAt = now
+	i.IssuedAt = &issuedDate
+	i.UpdatedAt = time.Now()
 	return nil
 }
 

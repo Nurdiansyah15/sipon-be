@@ -37,10 +37,12 @@ type LedgerLineResponse struct {
 }
 
 type LedgerResponse struct {
-	AccountID   string               `json:"account_id"`
-	AccountCode string               `json:"account_code"`
-	AccountName string               `json:"account_name"`
-	Lines       []LedgerLineResponse `json:"lines"`
+	AccountID      string               `json:"account_id"`
+	AccountCode    string               `json:"account_code"`
+	AccountName    string               `json:"account_name"`
+	OpeningBalance float64              `json:"opening_balance"`
+	Lines          []LedgerLineResponse `json:"lines"`
+	ClosingBalance float64              `json:"closing_balance"`
 }
 
 type LedgerQuery struct {

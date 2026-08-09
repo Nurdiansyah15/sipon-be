@@ -8,16 +8,18 @@ import (
 	"sipon-be/internal/modules/keuangan/application/dto"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ReportBalanceSheetUseCase struct {
 	db          *sql.DB
 	accountRepo accRepo.AccountRepository
+	periodRepo  periodRepo.AccountingPeriodRepository
 }
 
-func NewReportBalanceSheetUseCase(db *sql.DB, accountRepo accRepo.AccountRepository) *ReportBalanceSheetUseCase {
-	return &ReportBalanceSheetUseCase{db: db, accountRepo: accountRepo}
+func NewReportBalanceSheetUseCase(db *sql.DB, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportBalanceSheetUseCase {
+	return &ReportBalanceSheetUseCase{db: db, accountRepo: accountRepo, periodRepo: periodRepo}
 }
 
 func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.BalanceSheetQuery) (*dto.BalanceSheetResponse, error) {
@@ -26,29 +28,27 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	accountMap := make(map[string]*accountInfo)
+	normalBalance := make(map[string]accConst.NormalBalance, len(allAccounts))
 	for _, acc := range allAccounts {
-		accountMap[acc.ID] = &accountInfo{
-			Code:          acc.Code,
-			Name:          acc.Name,
-			Type:          acc.Type,
-			IsDebitNormal: acc.NormalBalance == accConst.BalanceDebit,
-		}
+		normalBalance[acc.ID] = acc.NormalBalance
 	}
 
-	var balances map[string]float64
+	// Selalu kumulatif sampai tanggal tertentu (carry-forward akun riil).
+	// Kalau caller kirim period_id, resolve jadi end_date periode tsb.
+	var asOfDate string
 	if query.PeriodID != nil && *query.PeriodID != "" {
-		balances, err = uc.computePeriodBalances(ctx, *query.PeriodID)
-	} else {
-		balances, err = uc.computeBalancesToDate(ctx, query.AsOfDate)
+		period, err := uc.periodRepo.FindByID(ctx, *query.PeriodID)
+		if err != nil {
+			return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
+		}
+		asOfDate = period.EndDate.Format("2006-01-02")
+	} else if query.AsOfDate != nil {
+		asOfDate = *query.AsOfDate
 	}
+
+	balances, err := uc.computeBalancesToDate(ctx, asOfDate)
 	if err != nil {
 		return nil, err
-	}
-
-	asOfDate := ""
-	if query.AsOfDate != nil {
-		asOfDate = *query.AsOfDate
 	}
 
 	var assets, liabilities, equities []dto.BalanceSheetLine
@@ -59,6 +59,11 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 			continue
 		}
 		bal := balances[acc.ID]
+		// queryBalances menghitung debit - credit. Untuk akun credit-normal
+		// (liability/equity) saldo yang benar = credit - debit.
+		if normalBalance[acc.ID] != accConst.BalanceDebit {
+			bal = -bal
+		}
 		line := dto.BalanceSheetLine{
 			AccountID:   acc.ID,
 			AccountCode: acc.Code,
@@ -89,21 +94,7 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 	}, nil
 }
 
-func (uc *ReportBalanceSheetUseCase) computePeriodBalances(ctx context.Context, periodID string) (map[string]float64, error) {
-	sqlQuery := `SELECT 
-		jel.account_id,
-		COALESCE(SUM(jel.debit), 0) as total_debit,
-		COALESCE(SUM(jel.credit), 0) as total_credit
-	FROM journal_entry_lines jel
-	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE je.period_id = $1
-		AND je.status = 'posted'
-	GROUP BY jel.account_id`
-
-	return uc.queryBalances(ctx, sqlQuery, periodID)
-}
-
-func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, asOfDate *string) (map[string]float64, error) {
+func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, asOfDate string) (map[string]float64, error) {
 	sqlQuery := `SELECT 
 		jel.account_id,
 		COALESCE(SUM(jel.debit), 0) as total_debit,
@@ -112,9 +103,9 @@ func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, 
 	JOIN journal_entries je ON je.id = jel.journal_entry_id
 	WHERE je.status = 'posted'`
 	args := []interface{}{}
-	if asOfDate != nil && *asOfDate != "" {
+	if asOfDate != "" {
 		sqlQuery += ` AND je.entry_date <= $1`
-		args = append(args, *asOfDate)
+		args = append(args, asOfDate)
 	}
 	sqlQuery += ` GROUP BY jel.account_id`
 
@@ -137,15 +128,8 @@ func (uc *ReportBalanceSheetUseCase) queryBalances(ctx context.Context, sqlQuery
 		}
 		balances[accountID] = totalDebit - totalCredit
 	}
-	if err := rows.Err(); err != nil {
+		if err := rows.Err(); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	return balances, nil
-}
-
-type accountInfo struct {
-	Code          string
-	Name          string
-	Type          accConst.AccountType
-	IsDebitNormal bool
 }

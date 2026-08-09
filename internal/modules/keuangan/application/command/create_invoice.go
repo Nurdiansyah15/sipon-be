@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -53,7 +54,8 @@ type CreateInvoiceCmd struct {
 	SantriID        string
 	FeeComponentID  string
 	BillingSchemeID *string
-	BillingPeriodID string
+	BillingPeriodID *string
+	IssuedDate      string
 	Amount          float64
 	DueDate         string
 	Notes           *string
@@ -77,19 +79,32 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "Komponen biaya tidak aktif", nil)
 	}
 
-	period, err := uc.billingPeriodRepo.FindByID(ctx, cmd.BillingPeriodID)
+	issuedDate, err := time.Parse("2006-01-02", cmd.IssuedDate)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			switch ke.Code {
-			case bpConst.CodeBillingPeriodNotFound:
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal terbit tidak valid", err)
+	}
+
+	var billingPeriod *bpEntity.BillingPeriod
+	if fee.IsPeriodic && (cmd.BillingPeriodID == nil || *cmd.BillingPeriodID == "") {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Komponen biaya ini periodik, periode tagihan wajib diisi", nil)
+	}
+	if cmd.BillingPeriodID != nil && *cmd.BillingPeriodID != "" {
+		billingPeriod, err = uc.billingPeriodRepo.FindByID(ctx, *cmd.BillingPeriodID)
+		if err != nil {
+			var ke *kernel.AppError
+			if errors.As(err, &ke) && ke.Code == bpConst.CodeBillingPeriodNotFound {
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-	if !period.IsOpen() {
-		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Status periode tagihan tidak valid", nil)
+		if !billingPeriod.IsOpen() {
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Status periode tagihan tidak valid", nil)
+		}
+		if issuedDate.Before(billingPeriod.StartDate) || issuedDate.After(billingPeriod.EndDate) {
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest,
+				fmt.Sprintf("Tanggal terbit harus dalam rentang periode tagihan %s (%s s.d. %s)",
+					billingPeriod.Name, billingPeriod.StartDate.Format("2006-01-02"), billingPeriod.EndDate.Format("2006-01-02")), nil)
+		}
 	}
 
 	santri, err := uc.kesantrianReader.GetSantriByID(ctx, cmd.SantriID)
@@ -104,9 +119,11 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	existing, _ := uc.invoiceRepo.FindBySantriComponentPeriod(ctx, cmd.SantriID, cmd.FeeComponentID, cmd.BillingPeriodID)
-	if existing != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Invoice duplikat", nil)
+	if billingPeriod != nil {
+		existing, _ := uc.invoiceRepo.FindBySantriComponentPeriod(ctx, cmd.SantriID, cmd.FeeComponentID, billingPeriod.ID)
+		if existing != nil {
+			return nil, kernel.WrapMsg(application.ErrCodeConflict, "Invoice duplikat", nil)
+		}
 	}
 
 	dueDate, err := time.Parse("2006-01-02", cmd.DueDate)
@@ -137,7 +154,7 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 	inv.Notes = cmd.Notes
 
 	if cmd.Issue {
-		if err := inv.Issue(); err != nil {
+		if err := inv.Issue(issuedDate); err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {
 				switch ke.Code {
@@ -170,6 +187,8 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 					switch ke.Code {
 					case journalConst.CodeJournalAccountMappingNotFound:
 						return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+					case journalConst.CodeJournalPeriodClosed:
+						return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 					case accConst.CodeAccountNotFound:
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 					case periodConst.CodePeriodNotFound:
@@ -185,7 +204,7 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		return nil, err
 	}
 
-	return toInvoiceResponse(inv, period), nil
+	return toInvoiceResponse(inv, billingPeriod), nil
 }
 
 func toInvoiceResponse(inv *invEntity.Invoice, period *bpEntity.BillingPeriod) *dto.InvoiceResponse {

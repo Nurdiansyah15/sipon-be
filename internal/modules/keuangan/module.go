@@ -95,9 +95,9 @@ func NewModule(
 	listAssignmentsUC := query.NewListAssignmentsUseCase(db)
 	reportSummaryUC := query.NewReportSummaryUseCase(db)
 	reportOutstandingUC := query.NewReportOutstandingUseCase(db)
-	reportLedgerUC := query.NewReportLedgerUseCase(db, accountRepo)
+	reportLedgerUC := query.NewReportLedgerUseCase(db, accountRepo, periodRepo)
 	reportTrialBalanceUC := query.NewReportTrialBalanceUseCase(db, accountRepo, periodRepo)
-	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(db, accountRepo)
+	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(db, accountRepo, periodRepo)
 	reportIncomeStatementUC := query.NewReportIncomeStatementUseCase(db, accountRepo, periodRepo)
 
 	handler := keuanganHTTP.NewKeuanganHandler(

@@ -53,7 +53,7 @@ func (r *PostgresInvoiceRepository) Save(ctx context.Context, inv *entity.Invoic
 	_, err := execer.ExecContext(ctx, query,
 		inv.ID, inv.InvoiceNumber, inv.SantriID, inv.UserID,
 		nullStr(inv.BillingSchemeID), inv.FeeComponentID,
-		inv.BillingPeriodID, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
+		nullStr(inv.BillingPeriodID), inv.Amount, inv.DiscountAmount, inv.PaidAmount,
 		string(inv.Status), inv.DueDate, nullTimeVal(inv.IssuedAt), nullStr(inv.Notes),
 		inv.CreatedBy, inv.CreatedAt, inv.UpdatedAt, nullTimeVal(inv.DeletedAt),
 	)
@@ -78,7 +78,7 @@ func (r *PostgresInvoiceRepository) Update(ctx context.Context, inv *entity.Invo
 
 	res, err := execer.ExecContext(ctx, query,
 		inv.SantriID, inv.UserID, nullStr(inv.BillingSchemeID), inv.FeeComponentID,
-		inv.BillingPeriodID, inv.Amount, inv.DiscountAmount, inv.PaidAmount,
+		nullStr(inv.BillingPeriodID), inv.Amount, inv.DiscountAmount, inv.PaidAmount,
 		string(inv.Status), inv.DueDate, nullTimeVal(inv.IssuedAt), nullStr(inv.Notes),
 		inv.UpdatedAt, nullTimeVal(inv.DeletedAt),
 		inv.ID,
@@ -220,15 +220,15 @@ func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santri
 
 func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 	var (
-		id, invoiceNumber, santriID, userID, feeComponentID, billingPeriodID string
-		billingSchemeID, notes                                              sql.NullString
-		amount, discountAmount, paidAmount                                  float64
-		status                                                              string
-		dueDate                                                             time.Time
-		issuedAt                                                            sql.NullTime
-		createdBy                                                           string
-		createdAt, updatedAt                                                time.Time
-		deletedAt                                                           sql.NullTime
+		id, invoiceNumber, santriID, userID, feeComponentID string
+		billingSchemeID, billingPeriodID, notes             sql.NullString
+		amount, discountAmount, paidAmount                  float64
+		status                                              string
+		dueDate                                             time.Time
+		issuedAt                                            sql.NullTime
+		createdBy                                           string
+		createdAt, updatedAt                                time.Time
+		deletedAt                                           sql.NullTime
 	)
 
 	err := sc.Scan(
@@ -250,7 +250,7 @@ func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 		UserID:          userID,
 		BillingSchemeID: strFromNull(billingSchemeID),
 		FeeComponentID:  feeComponentID,
-		BillingPeriodID: billingPeriodID,
+		BillingPeriodID: strFromNull(billingPeriodID),
 		Amount:          amount,
 		DiscountAmount:  discountAmount,
 		PaidAmount:      paidAmount,

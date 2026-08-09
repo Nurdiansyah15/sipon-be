@@ -16,3 +16,5 @@ Format tiap file: **Lokasi** (file:line), **Gejala**, **Akar masalah**, **Dampak
 | [Proses closing periode tidak membuat jurnal penutup](akuntansi-closing-period-tidak-generate-jurnal.md) | Sedang | Diperbaiki |
 | [Cancel invoice tidak menolak invoice berstatus partial](akuntansi-cancel-invoice-partial-payment.md) | Sedang | Diperbaiki |
 | [Cancel journal tidak mengecek status periode akuntansi](akuntansi-cancel-journal-tidak-cek-periode.md) | Sedang | Diperbaiki |
+| [Buku Besar/Neraca Saldo/Neraca tidak kumulatif lintas periode](akuntansi-laporan-tidak-kumulatif-lintas-periode.md) | Tinggi | Diperbaiki |
+| [Auto-posting tidak cek status periode akuntansi (bisa posting ke periode tertutup)](akuntansi-auto-posting-tidak-cek-status-periode.md) | Tinggi | Diperbaiki |

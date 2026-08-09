@@ -47,7 +47,7 @@ Tabel ini dibuat di migrasi `*_create_keuangan_tables` dengan kolom `periode`/`t
 | santri_id, user_id | UUID | no FK (cross-module) |
 | billing_scheme_id | UUID nullable | audit trail |
 | fee_component_id | UUID FK → fee_components | |
-| billing_period_id | UUID NOT NULL FK → billing_periods | periode tagihan (bukan periode akuntansi) |
+| billing_period_id | UUID **nullable** FK → billing_periods | periode tagihan (bukan periode akuntansi). ✅ Kini nullable — wajib untuk komponen periodik, opsional untuk non-periodik (lihat [`docs/plan/invoice-issued-date-dan-periode-opsional.md`](../plan/invoice-issued-date-dan-periode-opsional.md)). `issued_date` harus dalam rentangnya bila diisi. |
 | amount, discount_amount, paid_amount | NUMERIC(14,2) | |
 | status | VARCHAR(20) CHECK | `draft`, `issued`, `partial`, `paid`, `expired`, `cancelled` |
 | due_date | DATE | |

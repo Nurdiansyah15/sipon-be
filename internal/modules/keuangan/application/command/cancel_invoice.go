@@ -73,6 +73,8 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string, cancelle
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			case journalConst.CodeJournalAccountMappingNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case journalConst.CodeJournalPeriodClosed:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 			case accConst.CodeAccountNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			case periodConst.CodePeriodNotFound:

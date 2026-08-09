@@ -45,8 +45,8 @@ func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeCompon
 			}
 		}
 	}
-	if billingPeriodRepo != nil {
-		if bp, err := billingPeriodRepo.FindByID(ctx, inv.BillingPeriodID); err == nil {
+	if billingPeriodRepo != nil && inv.BillingPeriodID != nil {
+		if bp, err := billingPeriodRepo.FindByID(ctx, *inv.BillingPeriodID); err == nil {
 			resp.BillingPeriod = &dto.BillingPeriodBriefResponse{
 				ID:     bp.ID,
 				Name:   bp.Name,

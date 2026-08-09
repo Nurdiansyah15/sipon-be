@@ -69,6 +69,7 @@ func NewCreateInvoiceBatchUseCase(
 type CreateInvoiceBatchCmd struct {
 	BillingSchemeID string
 	BillingPeriodID string
+	IssuedDate      string
 	DueDate         string
 	CreatedBy       string
 }
@@ -110,6 +111,16 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Status periode tagihan tidak valid", nil)
 	}
 
+	issuedDate, err := time.Parse("2006-01-02", cmd.IssuedDate)
+	if err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal terbit tidak valid", err)
+	}
+	if issuedDate.Before(period.StartDate) || issuedDate.After(period.EndDate) {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest,
+			fmt.Sprintf("Tanggal terbit harus dalam rentang periode tagihan %s (%s s.d. %s)",
+				period.Name, period.StartDate.Format("2006-01-02"), period.EndDate.Format("2006-01-02")), nil)
+	}
+
 	dueDate, err := time.Parse("2006-01-02", cmd.DueDate)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
@@ -144,7 +155,7 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 	eligible := make([]eligibleBatchTarget, 0, len(santriInfos))
 
 	for _, info := range santriInfos {
-		assignment, err := uc.assignmentRepo.FindActiveBySantriID(ctx, info.SantriID)
+		assignment, err := uc.assignmentRepo.FindActiveBySantriIDAt(ctx, info.SantriID, issuedDate)
 		var status bbConst.BillingBatchTargetStatus
 		switch {
 		case err != nil:
@@ -171,7 +182,7 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 	created, skipped, errored := 0, len(targets)-len(eligible), 0
 
 	for _, et := range eligible {
-		finalStatus, invoiceID, reason := uc.processTarget(ctx, et, scheme, cmd, dueDate)
+		finalStatus, invoiceID, reason := uc.processTarget(ctx, et, scheme, cmd, dueDate, issuedDate)
 
 		switch finalStatus {
 		case bbConst.TargetCreated:
@@ -217,6 +228,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 	scheme *bsEntity.BillingScheme,
 	cmd CreateInvoiceBatchCmd,
 	dueDate time.Time,
+	issuedDate time.Time,
 ) (bbConst.BillingBatchTargetStatus, *string, *string) {
 	var (
 		finalStatus bbConst.BillingBatchTargetStatus
@@ -250,7 +262,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 			}
 			inv, err := invEntity.NewInvoice(
 				uuid.New().String(), invNum.String(), et.santriID, et.userID,
-				item.FeeComponentID, cmd.BillingPeriodID,
+				item.FeeComponentID, &cmd.BillingPeriodID,
 				amount, dueDate, cmd.CreatedBy,
 			)
 			if err != nil {
@@ -258,7 +270,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 				continue
 			}
 			inv.BillingSchemeID = &cmd.BillingSchemeID
-			if err := inv.Issue(); err != nil {
+			if err := inv.Issue(issuedDate); err != nil {
 				errMsgs = append(errMsgs, err.Error())
 				continue
 			}
