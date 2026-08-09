@@ -53,7 +53,7 @@ func GenerateReceiptPDF(data ReceiptData) ([]byte, error) {
 	addRow(pdf, "Periode", data.BillingPeriod)
 	pdf.Ln(2)
 
-	addRow(pdf, "Jumlah", formatRupiah(data.Amount))
+	addRow(pdf, "Jumlah", FormatRupiah(data.Amount))
 	addRow(pdf, "Metode", data.PaymentMethod)
 	if data.ReferenceNumber != "" {
 		addRow(pdf, "Referensi", data.ReferenceNumber)
@@ -84,7 +84,7 @@ func addRow(pdf *gofpdf.Fpdf, label, value string) {
 	pdf.CellFormat(0, 6, value, "", 1, "L", false, 0, "")
 }
 
-func formatRupiah(amount float64) string {
+func FormatRupiah(amount float64) string {
 	return fmt.Sprintf("Rp %s", commaFormat(int64(amount)))
 }
 

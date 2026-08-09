@@ -1068,3 +1068,223 @@ func (h *KeuanganHandler) ReportIncomeStatement(c *gin.Context) {
 	}
 	respond.OK(c, "laporan laba rugi berhasil diambil", resp)
 }
+
+// ── Export PDF laporan ───────────────────────────────────────────────────────
+
+func (h *KeuanganHandler) ReportSummaryPDF(c *gin.Context) {
+	var req dto.InvoiceSummaryQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, err := h.reportSummaryUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	rows := make([][]string, 0, len(items))
+	var totalTagihan, totalTerbayar, totalTunggakan float64
+	for _, it := range items {
+		rows = append(rows, []string{
+			it.BillingPeriodName,
+			external.FormatRupiah(it.TotalTagihan),
+			external.FormatRupiah(it.TotalTerbayar),
+			external.FormatRupiah(it.TotalTunggakan),
+			fmt.Sprintf("%d", it.JumlahInvoice),
+			fmt.Sprintf("%d", it.JumlahLunas),
+			fmt.Sprintf("%d", it.JumlahBelum),
+		})
+		totalTagihan += it.TotalTagihan
+		totalTerbayar += it.TotalTerbayar
+		totalTunggakan += it.TotalTunggakan
+	}
+
+	pdf, err := external.GenerateSummaryPDF(external.SummaryReportData{
+		Title:          "Rekap Tagihan & Pembayaran",
+		Rows:           rows,
+		TotalTagihan:   totalTagihan,
+		TotalTerbayar:  totalTerbayar,
+		TotalTunggakan: totalTunggakan,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}
+
+func (h *KeuanganHandler) ReportOutstandingPDF(c *gin.Context) {
+	var req dto.OutstandingListQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	req.Limit = 10000
+	req.Page = 1
+	items, _, err := h.reportOutstandingUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	rows := make([][]string, 0, len(items))
+	for i, it := range items {
+		rows = append(rows, []string{
+			fmt.Sprintf("%d", i+1),
+			it.SantriID,
+			external.FormatRupiah(it.TotalOutstanding),
+		})
+	}
+
+	pdf, err := external.GenerateOutstandingPDF(external.OutstandingReportData{
+		Title: "Tunggakan per Santri",
+		Rows:  rows,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}
+
+func (h *KeuanganHandler) ReportLedgerPDF(c *gin.Context) {
+	var req dto.LedgerQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.reportLedgerUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	rows := make([][]string, 0, len(resp.Lines))
+	for _, line := range resp.Lines {
+		rows = append(rows, []string{
+			line.Date,
+			line.JournalNumber,
+			line.Description,
+			external.FormatRupiah(line.Debit),
+			external.FormatRupiah(line.Credit),
+			external.FormatRupiah(line.Balance),
+		})
+	}
+
+	pdf, err := external.GenerateLedgerPDF(external.LedgerReportData{
+		Title: fmt.Sprintf("%s - %s", resp.AccountCode, resp.AccountName),
+		Rows:  rows,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}
+
+func (h *KeuanganHandler) ReportTrialBalancePDF(c *gin.Context) {
+	var req dto.TrialBalanceQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.reportTrialBalanceUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	rows := make([][]string, 0, len(resp.Lines))
+	for _, line := range resp.Lines {
+		rows = append(rows, []string{
+			line.AccountCode,
+			line.AccountName,
+			external.FormatRupiah(line.Debit),
+			external.FormatRupiah(line.Credit),
+		})
+	}
+
+	pdf, err := external.GenerateTrialBalancePDF(external.TrialBalanceReportData{
+		Title:      resp.PeriodName,
+		Rows:       rows,
+		TotalDebit: resp.TotalDebit,
+		TotalCredit: resp.TotalCredit,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}
+
+func (h *KeuanganHandler) ReportBalanceSheetPDF(c *gin.Context) {
+	var req dto.BalanceSheetQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.reportBalanceSheetUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	toRows := func(lines []dto.BalanceSheetLine) [][]string {
+		rows := make([][]string, 0, len(lines))
+		for _, l := range lines {
+			rows = append(rows, []string{l.AccountCode, l.AccountName, external.FormatRupiah(l.Amount)})
+		}
+		return rows
+	}
+
+	pdf, err := external.GenerateBalanceSheetPDF(external.BalanceSheetReportData{
+		Title:           fmt.Sprintf("Per tanggal %s", resp.AsOfDate),
+		Assets:          toRows(resp.Assets),
+		TotalAssets:     resp.TotalAssets,
+		Liabilities:     toRows(resp.Liabilities),
+		TotalLiabilities: resp.TotalLiabilities,
+		Equities:        toRows(resp.Equities),
+		TotalEquities:   resp.TotalEquities,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}
+
+func (h *KeuanganHandler) ReportIncomeStatementPDF(c *gin.Context) {
+	var req dto.IncomeStatementQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.reportIncomeStatementUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+
+	toRows := func(lines []dto.IncomeStatementLine) [][]string {
+		rows := make([][]string, 0, len(lines))
+		for _, l := range lines {
+			rows = append(rows, []string{l.AccountCode, l.AccountName, external.FormatRupiah(l.Amount)})
+		}
+		return rows
+	}
+
+	pdf, err := external.GenerateIncomeStatementPDF(external.IncomeStatementReportData{
+		Title:        resp.PeriodName,
+		Revenues:     toRows(resp.Revenues),
+		TotalRevenue: resp.TotalRevenue,
+		Expenses:     toRows(resp.Expenses),
+		TotalExpense: resp.TotalExpense,
+		NetIncome:    resp.NetIncome,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	c.Data(200, "application/pdf", pdf)
+}

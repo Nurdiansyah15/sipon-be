@@ -82,5 +82,12 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.GET("/reports/trial-balance", middleware.RequirePermission("view_keuangan_reports"), h.ReportTrialBalance)
 		admin.GET("/reports/balance-sheet", middleware.RequirePermission("view_keuangan_reports"), h.ReportBalanceSheet)
 		admin.GET("/reports/income-statement", middleware.RequirePermission("view_keuangan_reports"), h.ReportIncomeStatement)
+
+		admin.GET("/reports/summary/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportSummaryPDF)
+		admin.GET("/reports/outstanding/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportOutstandingPDF)
+		admin.GET("/reports/ledger/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportLedgerPDF)
+		admin.GET("/reports/trial-balance/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportTrialBalancePDF)
+		admin.GET("/reports/balance-sheet/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportBalanceSheetPDF)
+		admin.GET("/reports/income-statement/pdf", middleware.RequirePermission("view_keuangan_reports"), h.ReportIncomeStatementPDF)
 	}
 }
