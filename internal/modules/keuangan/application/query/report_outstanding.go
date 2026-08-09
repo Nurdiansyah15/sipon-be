@@ -2,20 +2,19 @@ package query
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ReportOutstandingUseCase struct {
-	db *sql.DB
+	reportReader ports.ReportReader
 }
 
-func NewReportOutstandingUseCase(db *sql.DB) *ReportOutstandingUseCase {
-	return &ReportOutstandingUseCase{db: db}
+func NewReportOutstandingUseCase(reportReader ports.ReportReader) *ReportOutstandingUseCase {
+	return &ReportOutstandingUseCase{reportReader: reportReader}
 }
 
 func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.OutstandingListQuery) ([]dto.OutstandingSantriResponse, *dto.Meta, error) {
@@ -27,50 +26,19 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 	if limit <= 0 {
 		limit = 20
 	}
-	offset := (page - 1) * limit
 
-	where := "WHERE i.deleted_at IS NULL AND i.status != 'paid' AND i.status != 'cancelled'"
-	args := []interface{}{}
-	argIdx := 1
-
-	if query.BillingPeriodID != nil && *query.BillingPeriodID != "" {
-		where += fmt.Sprintf(" AND i.billing_period_id = $%d", argIdx)
-		args = append(args, *query.BillingPeriodID)
-		argIdx++
-	}
-
-	countQuery := `SELECT COUNT(DISTINCT i.santri_id) FROM invoices i ` + where
-	var total int64
-	if err := uc.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-
-	dataQuery := `SELECT 
-		i.santri_id,
-		COALESCE(SUM(i.amount - i.discount_amount - i.paid_amount), 0) as total_outstanding,
-		COUNT(*) as jumlah_invoice
-	FROM invoices i ` + where + `
-	GROUP BY i.santri_id
-	ORDER BY total_outstanding DESC
-	LIMIT $` + fmt.Sprintf("%d", argIdx) + ` OFFSET $` + fmt.Sprintf("%d", argIdx+1)
-	args = append(args, limit, offset)
-
-	rows, err := uc.db.QueryContext(ctx, dataQuery, args...)
+	items, total, err := uc.reportReader.OutstandingBySantri(ctx, query.BillingPeriodID, page, limit)
 	if err != nil {
 		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
-	defer rows.Close()
 
-	results := make([]dto.OutstandingSantriResponse, 0)
-	for rows.Next() {
-		var r dto.OutstandingSantriResponse
-		if err := rows.Scan(&r.SantriID, &r.TotalOutstanding, &r.JumlahInvoice); err != nil {
-			return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-		}
-		results = append(results, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	results := make([]dto.OutstandingSantriResponse, 0, len(items))
+	for _, it := range items {
+		results = append(results, dto.OutstandingSantriResponse{
+			SantriID:         it.SantriID,
+			TotalOutstanding: it.TotalOutstanding,
+			JumlahInvoice:    it.JumlahInvoice,
+		})
 	}
 
 	totalPages := (total + int64(limit) - 1) / int64(limit)

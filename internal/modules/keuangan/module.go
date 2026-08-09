@@ -45,6 +45,8 @@ func NewModule(
 	journalRepo := persistence.NewPostgresJournalRepository(db)
 	periodRepo := persistence.NewPostgresAccountingPeriodRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
+	assignmentReader := persistence.NewPostgresAssignmentReader(db)
+	reportReader := persistence.NewPostgresReportReader(db)
 
 	autoPostingService := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)
 
@@ -92,13 +94,13 @@ func NewModule(
 	getJournalEntryBySourceUC := query.NewGetJournalEntryBySourceUseCase(journalRepo)
 	listPeriodsUC := query.NewListPeriodsUseCase(periodRepo)
 	getActivePeriodUC := query.NewGetActivePeriodUseCase(periodRepo)
-	listAssignmentsUC := query.NewListAssignmentsUseCase(db)
-	reportSummaryUC := query.NewReportSummaryUseCase(db)
-	reportOutstandingUC := query.NewReportOutstandingUseCase(db)
-	reportLedgerUC := query.NewReportLedgerUseCase(db, accountRepo, periodRepo)
-	reportTrialBalanceUC := query.NewReportTrialBalanceUseCase(db, accountRepo, periodRepo)
-	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(db, accountRepo, periodRepo)
-	reportIncomeStatementUC := query.NewReportIncomeStatementUseCase(db, accountRepo, periodRepo)
+	listAssignmentsUC := query.NewListAssignmentsUseCase(assignmentReader)
+	reportSummaryUC := query.NewReportSummaryUseCase(reportReader)
+	reportOutstandingUC := query.NewReportOutstandingUseCase(reportReader)
+	reportLedgerUC := query.NewReportLedgerUseCase(reportReader, accountRepo, periodRepo)
+	reportTrialBalanceUC := query.NewReportTrialBalanceUseCase(reportReader, accountRepo, periodRepo)
+	reportBalanceSheetUC := query.NewReportBalanceSheetUseCase(reportReader, accountRepo, periodRepo)
+	reportIncomeStatementUC := query.NewReportIncomeStatementUseCase(reportReader, accountRepo, periodRepo)
 
 	handler := keuanganHTTP.NewKeuanganHandler(
 		createFeeComponentUC,

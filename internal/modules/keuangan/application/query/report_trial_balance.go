@@ -2,23 +2,23 @@ package query
 
 import (
 	"context"
-	"database/sql"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ReportTrialBalanceUseCase struct {
-	db          *sql.DB
-	accountRepo accRepo.AccountRepository
-	periodRepo  periodRepo.AccountingPeriodRepository
+	reportReader ports.ReportReader
+	accountRepo  accRepo.AccountRepository
+	periodRepo   periodRepo.AccountingPeriodRepository
 }
 
-func NewReportTrialBalanceUseCase(db *sql.DB, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportTrialBalanceUseCase {
-	return &ReportTrialBalanceUseCase{db: db, accountRepo: accountRepo, periodRepo: periodRepo}
+func NewReportTrialBalanceUseCase(reportReader ports.ReportReader, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportTrialBalanceUseCase {
+	return &ReportTrialBalanceUseCase{reportReader: reportReader, accountRepo: accountRepo, periodRepo: periodRepo}
 }
 
 func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.TrialBalanceQuery) (*dto.TrialBalanceResponse, error) {
@@ -27,36 +27,9 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
-	sqlQuery := `SELECT 
-		jel.account_id,
-		COALESCE(SUM(jel.debit), 0) as total_debit,
-		COALESCE(SUM(jel.credit), 0) as total_credit
-	FROM journal_entry_lines jel
-	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE je.entry_date <= $1
-		AND je.status = 'posted'
-	GROUP BY jel.account_id`
-
-	rows, err := uc.db.QueryContext(ctx, sqlQuery, period.EndDate)
+	asOfDate := period.EndDate.Format("2006-01-02")
+	balances, err := uc.reportReader.AccountBalancesToDate(ctx, &asOfDate)
 	if err != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-	defer rows.Close()
-
-	type balanceRow struct {
-		AccountID   string
-		TotalDebit  float64
-		TotalCredit float64
-	}
-	balances := make([]balanceRow, 0)
-	for rows.Next() {
-		var br balanceRow
-		if err := rows.Scan(&br.AccountID, &br.TotalDebit, &br.TotalCredit); err != nil {
-			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-		}
-		balances = append(balances, br)
-	}
-	if err := rows.Err(); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
@@ -82,11 +55,11 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 			AccountCode: parts[0],
 			AccountName: parts[1],
 			AccountType: parts[2],
-			Debit:       br.TotalDebit,
-			Credit:      br.TotalCredit,
+			Debit:       br.Debit,
+			Credit:      br.Credit,
 		}
-		totalDebit += br.TotalDebit
-		totalCredit += br.TotalCredit
+		totalDebit += br.Debit
+		totalCredit += br.Credit
 		lines = append(lines, line)
 	}
 

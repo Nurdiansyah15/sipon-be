@@ -2,62 +2,42 @@ package query
 
 import (
 	"context"
-	"database/sql"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ListAssignmentsUseCase struct {
-	db *sql.DB
+	assignmentReader ports.AssignmentReader
 }
 
-func NewListAssignmentsUseCase(db *sql.DB) *ListAssignmentsUseCase {
-	return &ListAssignmentsUseCase{db: db}
+func NewListAssignmentsUseCase(assignmentReader ports.AssignmentReader) *ListAssignmentsUseCase {
+	return &ListAssignmentsUseCase{assignmentReader: assignmentReader}
 }
 
 func (uc *ListAssignmentsUseCase) Execute(ctx context.Context) ([]dto.AssignmentResponse, error) {
-	query := `
-		SELECT id, santri_id, billing_scheme_id, effective_from, effective_until, assigned_by, created_at
-		FROM santri_billing_assignments
-		WHERE effective_until IS NULL OR effective_until >= CURRENT_DATE
-		ORDER BY created_at DESC
-	`
-
-	rows, err := uc.db.QueryContext(ctx, query)
+	items, err := uc.assignmentReader.ListActive(ctx)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
-	defer rows.Close()
 
-	var results []dto.AssignmentResponse
-	for rows.Next() {
-		var a dto.AssignmentResponse
-		var effectiveFrom sql.NullTime
-		var effectiveUntil sql.NullTime
-
-		if err := rows.Scan(&a.ID, &a.SantriID, &a.BillingSchemeID, &effectiveFrom, &effectiveUntil, &a.AssignedBy, &a.CreatedAt); err != nil {
-			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	results := make([]dto.AssignmentResponse, 0, len(items))
+	for _, a := range items {
+		result := dto.AssignmentResponse{
+			ID:              a.ID,
+			SantriID:        a.SantriID,
+			BillingSchemeID: a.BillingSchemeID,
+			EffectiveFrom:   a.EffectiveFrom.Format("2006-01-02"),
+			AssignedBy:      a.AssignedBy,
+			CreatedAt:       a.CreatedAt.Format("2006-01-02"),
 		}
-
-		if effectiveFrom.Valid {
-			a.EffectiveFrom = effectiveFrom.Time.Format("2006-01-02")
+		if a.EffectiveUntil != nil {
+			s := a.EffectiveUntil.Format("2006-01-02")
+			result.EffectiveUntil = &s
 		}
-		if effectiveUntil.Valid {
-			s := effectiveUntil.Time.Format("2006-01-02")
-			a.EffectiveUntil = &s
-		}
-
-		results = append(results, a)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-
-	if results == nil {
-		results = []dto.AssignmentResponse{}
+		results = append(results, result)
 	}
 
 	return results, nil

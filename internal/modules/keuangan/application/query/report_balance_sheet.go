@@ -2,10 +2,10 @@ package query
 
 import (
 	"context"
-	"database/sql"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
@@ -13,13 +13,13 @@ import (
 )
 
 type ReportBalanceSheetUseCase struct {
-	db          *sql.DB
-	accountRepo accRepo.AccountRepository
-	periodRepo  periodRepo.AccountingPeriodRepository
+	reportReader ports.ReportReader
+	accountRepo  accRepo.AccountRepository
+	periodRepo   periodRepo.AccountingPeriodRepository
 }
 
-func NewReportBalanceSheetUseCase(db *sql.DB, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportBalanceSheetUseCase {
-	return &ReportBalanceSheetUseCase{db: db, accountRepo: accountRepo, periodRepo: periodRepo}
+func NewReportBalanceSheetUseCase(reportReader ports.ReportReader, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportBalanceSheetUseCase {
+	return &ReportBalanceSheetUseCase{reportReader: reportReader, accountRepo: accountRepo, periodRepo: periodRepo}
 }
 
 func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.BalanceSheetQuery) (*dto.BalanceSheetResponse, error) {
@@ -35,20 +35,26 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 
 	// Selalu kumulatif sampai tanggal tertentu (carry-forward akun riil).
 	// Kalau caller kirim period_id, resolve jadi end_date periode tsb.
-	var asOfDate string
+	var asOfDate *string
 	if query.PeriodID != nil && *query.PeriodID != "" {
 		period, err := uc.periodRepo.FindByID(ctx, *query.PeriodID)
 		if err != nil {
 			return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 		}
-		asOfDate = period.EndDate.Format("2006-01-02")
+		d := period.EndDate.Format("2006-01-02")
+		asOfDate = &d
 	} else if query.AsOfDate != nil {
-		asOfDate = *query.AsOfDate
+		asOfDate = query.AsOfDate
 	}
 
-	balances, err := uc.computeBalancesToDate(ctx, asOfDate)
+	balances, err := uc.reportReader.AccountBalancesToDate(ctx, asOfDate)
 	if err != nil {
-		return nil, err
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+
+	balanceMap := make(map[string]float64, len(balances))
+	for _, bal := range balances {
+		balanceMap[bal.AccountID] = bal.Debit - bal.Credit
 	}
 
 	var assets, liabilities, equities []dto.BalanceSheetLine
@@ -58,8 +64,8 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 		if !acc.IsPostable || !acc.IsActive {
 			continue
 		}
-		bal := balances[acc.ID]
-		// queryBalances menghitung debit - credit. Untuk akun credit-normal
+		bal := balanceMap[acc.ID]
+		// balanceMap menghitung debit - credit. Untuk akun credit-normal
 		// (liability/equity) saldo yang benar = credit - debit.
 		if normalBalance[acc.ID] != accConst.BalanceDebit {
 			bal = -bal
@@ -83,8 +89,13 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 		}
 	}
 
+	asOfDateStr := ""
+	if asOfDate != nil {
+		asOfDateStr = *asOfDate
+	}
+
 	return &dto.BalanceSheetResponse{
-		AsOfDate:         asOfDate,
+		AsOfDate:         asOfDateStr,
 		Assets:           assets,
 		TotalAssets:      totalAssets,
 		Liabilities:      liabilities,
@@ -92,44 +103,4 @@ func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.Bala
 		Equities:         equities,
 		TotalEquities:    totalEquities,
 	}, nil
-}
-
-func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, asOfDate string) (map[string]float64, error) {
-	sqlQuery := `SELECT 
-		jel.account_id,
-		COALESCE(SUM(jel.debit), 0) as total_debit,
-		COALESCE(SUM(jel.credit), 0) as total_credit
-	FROM journal_entry_lines jel
-	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE je.status = 'posted'`
-	args := []interface{}{}
-	if asOfDate != "" {
-		sqlQuery += ` AND je.entry_date <= $1`
-		args = append(args, asOfDate)
-	}
-	sqlQuery += ` GROUP BY jel.account_id`
-
-	return uc.queryBalances(ctx, sqlQuery, args...)
-}
-
-func (uc *ReportBalanceSheetUseCase) queryBalances(ctx context.Context, sqlQuery string, args ...interface{}) (map[string]float64, error) {
-	rows, err := uc.db.QueryContext(ctx, sqlQuery, args...)
-	if err != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-	defer rows.Close()
-
-	balances := make(map[string]float64)
-	for rows.Next() {
-		var accountID string
-		var totalDebit, totalCredit float64
-		if err := rows.Scan(&accountID, &totalDebit, &totalCredit); err != nil {
-			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-		}
-		balances[accountID] = totalDebit - totalCredit
-	}
-		if err := rows.Err(); err != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
-	return balances, nil
 }

@@ -2,10 +2,10 @@ package query
 
 import (
 	"context"
-	"database/sql"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
@@ -13,13 +13,13 @@ import (
 )
 
 type ReportIncomeStatementUseCase struct {
-	db          *sql.DB
-	accountRepo accRepo.AccountRepository
-	periodRepo  periodRepo.AccountingPeriodRepository
+	reportReader ports.ReportReader
+	accountRepo  accRepo.AccountRepository
+	periodRepo   periodRepo.AccountingPeriodRepository
 }
 
-func NewReportIncomeStatementUseCase(db *sql.DB, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportIncomeStatementUseCase {
-	return &ReportIncomeStatementUseCase{db: db, accountRepo: accountRepo, periodRepo: periodRepo}
+func NewReportIncomeStatementUseCase(reportReader ports.ReportReader, accountRepo accRepo.AccountRepository, periodRepo periodRepo.AccountingPeriodRepository) *ReportIncomeStatementUseCase {
+	return &ReportIncomeStatementUseCase{reportReader: reportReader, accountRepo: accountRepo, periodRepo: periodRepo}
 }
 
 func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.IncomeStatementQuery) (*dto.IncomeStatementResponse, error) {
@@ -33,33 +33,14 @@ func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.I
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	sqlQuery := `SELECT 
-		jel.account_id,
-		COALESCE(SUM(jel.debit), 0) as total_debit,
-		COALESCE(SUM(jel.credit), 0) as total_credit
-	FROM journal_entry_lines jel
-	JOIN journal_entries je ON je.id = jel.journal_entry_id
-	WHERE je.period_id = $1
-		AND je.status = 'posted'
-	GROUP BY jel.account_id`
-
-	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.PeriodID)
+	balanceRows, err := uc.reportReader.AccountBalancesByPeriod(ctx, query.PeriodID)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
-	defer rows.Close()
 
-	balances := make(map[string]float64)
-	for rows.Next() {
-		var accountID string
-		var totalDebit, totalCredit float64
-		if err := rows.Scan(&accountID, &totalDebit, &totalCredit); err != nil {
-			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-		}
-		balances[accountID] = totalCredit - totalDebit
-	}
-	if err := rows.Err(); err != nil {
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	balances := make(map[string]float64, len(balanceRows))
+	for _, bal := range balanceRows {
+		balances[bal.AccountID] = bal.Credit - bal.Debit
 	}
 
 	var revenues, expenses []dto.IncomeStatementLine
