@@ -59,7 +59,7 @@ func NewModule(
 	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor, autoPostingService)
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
-	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo)
+	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
 	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
 	createAccountUC := command.NewCreateAccountUseCase(accountRepo)

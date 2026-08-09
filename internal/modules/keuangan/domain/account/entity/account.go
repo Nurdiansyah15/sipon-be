@@ -12,6 +12,7 @@ type Account struct {
 	Code          string
 	Name          string
 	Type          constant.AccountType
+	SubType       *constant.AccountSubType
 	ParentID      *string
 	Level         int
 	IsPostable    bool
@@ -25,9 +26,15 @@ type Account struct {
 	DeletedAt     *time.Time
 }
 
-func NewAccount(id, code, name string, accType constant.AccountType, parentID *string, level int, normalBalance constant.NormalBalance, createdBy string) (*Account, error) {
+func NewAccount(id, code, name string, accType constant.AccountType, parentID *string, level int, normalBalance constant.NormalBalance, subType *constant.AccountSubType, createdBy string) (*Account, error) {
 	if id == "" || code == "" || name == "" || createdBy == "" {
 		return nil, kernel.WrapMsg(constant.CodeAccountNotFound, "Data akun tidak lengkap", nil)
+	}
+	if subType != nil && !constant.IsValidSubTypeForType(accType, *subType) {
+		return nil, kernel.WrapMsg(constant.CodeAccountInvalidSubType, "Sub-tipe akun tidak valid untuk tipe akun ini", nil)
+	}
+	if level > 0 && subType == nil {
+		return nil, kernel.WrapMsg(constant.CodeAccountSubTypeRequired, "Akun postable wajib memiliki sub-tipe", nil)
 	}
 	now := time.Now()
 	return &Account{
@@ -35,6 +42,7 @@ func NewAccount(id, code, name string, accType constant.AccountType, parentID *s
 		Code:          code,
 		Name:          name,
 		Type:          accType,
+		SubType:       subType,
 		ParentID:      parentID,
 		Level:         level,
 		IsPostable:    level > 0,
@@ -47,13 +55,20 @@ func NewAccount(id, code, name string, accType constant.AccountType, parentID *s
 	}, nil
 }
 
-func (a *Account) Update(name string, description *string, isPostable bool) error {
+func (a *Account) Update(name string, description *string, isPostable bool, subType *constant.AccountSubType) error {
 	if a.IsSystem {
 		return kernel.WrapMsg(constant.CodeAccountIsSystem, "Akun sistem tidak dapat diubah", nil)
+	}
+	if subType != nil && !constant.IsValidSubTypeForType(a.Type, *subType) {
+		return kernel.WrapMsg(constant.CodeAccountInvalidSubType, "Sub-tipe akun tidak valid untuk tipe akun ini", nil)
+	}
+	if isPostable && subType == nil {
+		return kernel.WrapMsg(constant.CodeAccountSubTypeRequired, "Akun postable wajib memiliki sub-tipe", nil)
 	}
 	a.Name = name
 	a.Description = description
 	a.IsPostable = isPostable
+	a.SubType = subType
 	a.UpdatedAt = time.Now()
 	return nil
 }

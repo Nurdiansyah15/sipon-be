@@ -37,6 +37,7 @@ func (uc *GetAccountUseCase) Execute(ctx context.Context, id string) (*dto.Accou
 		Code:          acc.Code,
 		Name:          acc.Name,
 		Type:          string(acc.Type),
+		SubType:       subTypeStr(acc.SubType),
 		ParentID:      acc.ParentID,
 		Level:         acc.Level,
 		IsPostable:    acc.IsPostable,
@@ -47,4 +48,12 @@ func (uc *GetAccountUseCase) Execute(ctx context.Context, id string) (*dto.Accou
 		CreatedAt:     acc.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:     acc.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}, nil
+}
+
+func subTypeStr(st *accConst.AccountSubType) *string {
+	if st == nil {
+		return nil
+	}
+	s := string(*st)
+	return &s
 }

@@ -14,7 +14,7 @@ import (
 )
 
 const accountColumns = `
-	id, code, name, type, parent_id, level, is_postable, normal_balance, description,
+	id, code, name, type, sub_type, parent_id, level, is_postable, normal_balance, description,
 	is_active, is_system, created_by, created_at, updated_at, deleted_at
 `
 
@@ -30,12 +30,12 @@ func (r *PostgresAccountRepository) Save(ctx context.Context, acc *entity.Accoun
 	execer := execerFromContext(ctx, r.db)
 
 	query := `INSERT INTO accounts (` + accountColumns + `) VALUES (
-		$1,$2,$3,$4,$5,$6,$7,$8,$9,
-		$10,$11,$12,$13,$14,$15
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+		$11,$12,$13,$14,$15,$16
 	)`
 
 	_, err := execer.ExecContext(ctx, query,
-		acc.ID, acc.Code, acc.Name, string(acc.Type),
+		acc.ID, acc.Code, acc.Name, string(acc.Type), nullSubType(acc.SubType),
 		nullStr(acc.ParentID), acc.Level, acc.IsPostable, string(acc.NormalBalance),
 		nullStr(acc.Description), acc.IsActive, acc.IsSystem,
 		acc.CreatedBy, acc.CreatedAt, acc.UpdatedAt, nullTimeVal(acc.DeletedAt),
@@ -54,11 +54,12 @@ func (r *PostgresAccountRepository) Update(ctx context.Context, acc *entity.Acco
 
 	query := `UPDATE accounts SET
 		name=$1, description=$2, is_postable=$3, is_active=$4,
-		updated_at=$5, deleted_at=$6
-		WHERE id=$7 AND deleted_at IS NULL`
+		sub_type=$5, updated_at=$6, deleted_at=$7
+		WHERE id=$8 AND deleted_at IS NULL`
 
 	res, err := execer.ExecContext(ctx, query,
 		acc.Name, nullStr(acc.Description), acc.IsPostable, acc.IsActive,
+		nullSubType(acc.SubType),
 		acc.UpdatedAt, nullTimeVal(acc.DeletedAt),
 		acc.ID,
 	)
@@ -93,6 +94,11 @@ func (r *PostgresAccountRepository) List(ctx context.Context, q repository.Accou
 	if q.Type != nil && *q.Type != "" {
 		where += fmt.Sprintf(` AND type=$%d`, argIdx)
 		args = append(args, *q.Type)
+		argIdx++
+	}
+	if q.SubType != nil && *q.SubType != "" {
+		where += fmt.Sprintf(` AND sub_type=$%d`, argIdx)
+		args = append(args, *q.SubType)
 		argIdx++
 	}
 	if q.Active != nil {
@@ -244,7 +250,7 @@ func (r *PostgresAccountRepository) ExistsByCode(ctx context.Context, code strin
 func (r *PostgresAccountRepository) scan(sc scanner) (*entity.Account, error) {
 	var (
 		id, code, name, accType, createdBy                                  string
-		parentID, description                                               sql.NullString
+		parentID, description, subType                                      sql.NullString
 		level                                                               int
 		isPostable, isActive, isSystem                                      bool
 		normalBalance                                                       string
@@ -253,7 +259,7 @@ func (r *PostgresAccountRepository) scan(sc scanner) (*entity.Account, error) {
 	)
 
 	err := sc.Scan(
-		&id, &code, &name, &accType, &parentID, &level, &isPostable, &normalBalance, &description,
+		&id, &code, &name, &accType, &subType, &parentID, &level, &isPostable, &normalBalance, &description,
 		&isActive, &isSystem, &createdBy, &createdAt, &updatedAt, &deletedAt,
 	)
 	if err != nil {
@@ -268,6 +274,7 @@ func (r *PostgresAccountRepository) scan(sc scanner) (*entity.Account, error) {
 		Code:          code,
 		Name:          name,
 		Type:          constant.AccountType(accType),
+		SubType:       subTypeFromNull(subType),
 		ParentID:      strFromNull(parentID),
 		Level:         level,
 		IsPostable:    isPostable,

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
+	accountConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accountRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
@@ -154,6 +155,9 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 	}
 	if err := debitAcc.EnsurePostable(); err != nil {
 		return err
+	}
+	if debitAcc.SubType == nil || *debitAcc.SubType != accountConst.SubTypeCashBank {
+		return kernel.WrapMsg(accountConst.CodeAccountInvalidSubType, "Akun debit pembayaran harus merupakan akun kas atau bank", nil)
 	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")

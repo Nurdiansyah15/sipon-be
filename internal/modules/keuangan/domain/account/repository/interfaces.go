@@ -7,10 +7,11 @@ import (
 )
 
 type AccountListQuery struct {
-	Type   *string
-	Active *bool
-	Page   int
-	Limit  int
+	Type    *string
+	SubType *string
+	Active  *bool
+	Page    int
+	Limit   int
 }
 
 type AccountListResult struct {

@@ -46,16 +46,10 @@ func (uc *CreateAccountUseCase) Execute(ctx context.Context, req dto.CreateAccou
 		level := parent.Level + 1
 		accType := accConst.AccountType(req.Type)
 		normalBalance := accConst.NormalBalance(req.NormalBalance)
-		acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, level, normalBalance, createdBy)
+		subType := resolveSubType(req.SubType)
+		acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, level, normalBalance, subType, createdBy)
 		if err != nil {
-			var ke *kernel.AppError
-			if errors.As(err, &ke) {
-				switch ke.Code {
-				case accConst.CodeAccountNotFound:
-					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
-				}
-			}
-			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+			return nil, accountCreationError(err)
 		}
 		acc.Description = req.Description
 		acc.IsPostable = req.IsPostable
@@ -74,16 +68,10 @@ func (uc *CreateAccountUseCase) Execute(ctx context.Context, req dto.CreateAccou
 
 	accType := accConst.AccountType(req.Type)
 	normalBalance := accConst.NormalBalance(req.NormalBalance)
-	acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, 1, normalBalance, createdBy)
+	subType := resolveSubType(req.SubType)
+	acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, 1, normalBalance, subType, createdBy)
 	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			switch ke.Code {
-			case accConst.CodeAccountNotFound:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
-			}
-		}
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+		return nil, accountCreationError(err)
 	}
 	acc.Description = req.Description
 	acc.IsPostable = req.IsPostable
@@ -106,6 +94,7 @@ func toAccountResponse(acc *accEntity.Account) *dto.AccountResponse {
 		Code:          acc.Code,
 		Name:          acc.Name,
 		Type:          string(acc.Type),
+		SubType:       subTypeStr(acc.SubType),
 		ParentID:      acc.ParentID,
 		Level:         acc.Level,
 		IsPostable:    acc.IsPostable,
@@ -116,4 +105,31 @@ func toAccountResponse(acc *accEntity.Account) *dto.AccountResponse {
 		CreatedAt:     acc.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:     acc.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+}
+
+func resolveSubType(s *string) *accConst.AccountSubType {
+	if s == nil || *s == "" {
+		return nil
+	}
+	st := accConst.AccountSubType(*s)
+	return &st
+}
+
+func subTypeStr(st *accConst.AccountSubType) *string {
+	if st == nil {
+		return nil
+	}
+	s := string(*st)
+	return &s
+}
+
+func accountCreationError(err error) error {
+	var ke *kernel.AppError
+	if errors.As(err, &ke) {
+		switch ke.Code {
+		case accConst.CodeAccountNotFound, accConst.CodeAccountInvalidSubType, accConst.CodeAccountSubTypeRequired:
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+	}
+	return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 }

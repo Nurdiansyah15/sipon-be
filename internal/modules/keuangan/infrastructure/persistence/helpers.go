@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"sipon-be/internal/modules/keuangan/domain/account/constant"
 )
 
 type scanner interface {
@@ -45,6 +47,21 @@ func nullInt32(i *int32) interface{} {
 		return nil
 	}
 	return *i
+}
+
+func nullSubType(s *constant.AccountSubType) interface{} {
+	if s == nil {
+		return nil
+	}
+	return string(*s)
+}
+
+func subTypeFromNull(ns sql.NullString) *constant.AccountSubType {
+	if !ns.Valid {
+		return nil
+	}
+	v := constant.AccountSubType(ns.String)
+	return &v
 }
 
 func strFromNull(ns sql.NullString) *string {

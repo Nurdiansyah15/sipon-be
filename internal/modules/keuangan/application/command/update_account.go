@@ -32,12 +32,18 @@ func (uc *UpdateAccountUseCase) Execute(ctx context.Context, id string, req dto.
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	if err := acc.Update(req.Name, req.Description, req.IsPostable); err != nil {
+	subType := acc.SubType
+	if req.SubType != nil {
+		subType = resolveSubType(req.SubType)
+	}
+	if err := acc.Update(req.Name, req.Description, req.IsPostable, subType); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case accConst.CodeAccountIsSystem:
 				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case accConst.CodeAccountInvalidSubType, accConst.CodeAccountSubTypeRequired:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
 			}
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)

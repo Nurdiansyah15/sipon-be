@@ -49,7 +49,7 @@ func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentLis
 		}
 		if p.DebitAccountID != nil {
 			if acc, err := uc.accountRepo.FindByID(ctx, *p.DebitAccountID); err == nil {
-				resp.DebitAccount = &dto.AccountBriefResponse{ID: acc.ID, Code: acc.Code, Name: acc.Name, Type: string(acc.Type)}
+				resp.DebitAccount = &dto.AccountBriefResponse{ID: acc.ID, Code: acc.Code, Name: acc.Name, Type: string(acc.Type), SubType: subTypeStr(acc.SubType)}
 			}
 		}
 		items[i] = resp

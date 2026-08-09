@@ -19,10 +19,11 @@ func NewListAccountsUseCase(accountRepo accRepo.AccountRepository) *ListAccounts
 
 func (uc *ListAccountsUseCase) Execute(ctx context.Context, query dto.AccountListQuery) ([]dto.AccountResponse, *dto.Meta, error) {
 	repoQuery := accRepo.AccountListQuery{
-		Type:   query.Type,
-		Active: query.Active,
-		Page:   query.Page,
-		Limit:  query.Limit,
+		Type:    query.Type,
+		SubType: query.SubType,
+		Active:  query.Active,
+		Page:    query.Page,
+		Limit:   query.Limit,
 	}
 	if repoQuery.Page == 0 {
 		repoQuery.Page = 1
@@ -43,6 +44,7 @@ func (uc *ListAccountsUseCase) Execute(ctx context.Context, query dto.AccountLis
 			Code:          acc.Code,
 			Name:          acc.Name,
 			Type:          string(acc.Type),
+			SubType:       subTypeStr(acc.SubType),
 			ParentID:      acc.ParentID,
 			Level:         acc.Level,
 			IsPostable:    acc.IsPostable,

@@ -9,6 +9,8 @@ import (
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
@@ -20,10 +22,11 @@ import (
 type CreateManualPaymentUseCase struct {
 	paymentRepo payRepo.PaymentRepository
 	invoiceRepo invRepo.InvoiceRepository
+	accountRepo accRepo.AccountRepository
 }
 
-func NewCreateManualPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository) *CreateManualPaymentUseCase {
-	return &CreateManualPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo}
+func NewCreateManualPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, accountRepo accRepo.AccountRepository) *CreateManualPaymentUseCase {
+	return &CreateManualPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, accountRepo: accountRepo}
 }
 
 func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.CreateManualPaymentRequest, createdBy string) (*dto.PaymentResponse, error) {
@@ -42,6 +45,31 @@ func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.Creat
 	paymentDate, err := time.Parse("2006-01-02", req.PaymentDate)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
+	}
+
+	debitAcc, err := uc.accountRepo.FindByID(ctx, req.DebitAccountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if err := debitAcc.EnsurePostable(); err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotPostable:
+				return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun tidak dapat diposting", err)
+	}
+	if debitAcc.SubType == nil || *debitAcc.SubType != accConst.SubTypeCashBank {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun debit pembayaran harus merupakan akun kas atau bank", nil)
 	}
 
 	method := payConst.PaymentMethod(req.Method)
