@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	santriConst "sipon-be/internal/modules/kesantrian/domain/santri/constant"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
@@ -23,7 +24,6 @@ import (
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
-	santriConst "sipon-be/internal/modules/kesantrian/domain/santri/constant"
 	"sipon-be/internal/shared/kernel"
 )
 

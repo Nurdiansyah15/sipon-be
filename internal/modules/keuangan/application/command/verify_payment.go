@@ -93,6 +93,8 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 					switch ke.Code {
 					case accConst.CodeAccountNotFound:
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					case accConst.CodeAccountNotPostable:
+						return kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 					case periodConst.CodePeriodNotFound:
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 					}

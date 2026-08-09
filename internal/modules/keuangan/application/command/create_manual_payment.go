@@ -49,10 +49,11 @@ func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.Creat
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+	debitAccountID := req.DebitAccountID
 	payment, err := payEntity.NewPayment(
 		uuid.New().String(), payNum.String(), req.InvoiceID,
 		req.Amount, method, paymentDate,
-		req.DebitAccountID, req.ReferenceNumber, req.Notes, req.ProofKey,
+		&debitAccountID, req.ReferenceNumber, req.Notes, req.ProofKey,
 		createdBy,
 	)
 	if err != nil {

@@ -69,13 +69,12 @@ func (s *COASeeder) Run(ctx context.Context, db *sql.DB) error {
 			desc = sql.NullString{String: "Group - " + a.Name, Valid: true}
 		}
 
-		_, err := db.ExecContext(ctx, `
+		err := db.QueryRowContext(ctx, `
 			INSERT INTO accounts (id, code, name, type, parent_id, level, is_postable, normal_balance, description, is_active, is_system, created_by, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())
 			ON CONFLICT (code) DO UPDATE SET
 				name = EXCLUDED.name,
 				type = EXCLUDED.type,
-				parent_id = EXCLUDED.parent_id,
 				level = EXCLUDED.level,
 				is_postable = EXCLUDED.is_postable,
 				normal_balance = EXCLUDED.normal_balance,
@@ -83,7 +82,8 @@ func (s *COASeeder) Run(ctx context.Context, db *sql.DB) error {
 				is_active = EXCLUDED.is_active,
 				is_system = EXCLUDED.is_system,
 				updated_at = NOW()
-		`, id, a.Code, a.Name, a.Type, nil, a.Level, a.IsPostable == 1, a.NormalBalance, desc, true, a.IsSystem == 1, usergodID)
+			RETURNING id
+		`, id, a.Code, a.Name, a.Type, nil, a.Level, a.IsPostable == 1, a.NormalBalance, desc, true, a.IsSystem == 1, usergodID).Scan(&id)
 		if err != nil {
 			log.Printf("[coa_seeder] error upserting account %s: %v\n", a.Code, err)
 			return err

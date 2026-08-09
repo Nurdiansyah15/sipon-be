@@ -55,6 +55,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.DELETE("/accounts/:id", middleware.RequirePermission("manage_accounts"), h.DeleteAccount)
 
 		admin.GET("/journal-entries", middleware.RequirePermission("manage_journal"), h.ListJournalEntries)
+		admin.GET("/journal-entries/by-source", middleware.RequirePermission("manage_journal"), h.GetJournalEntryBySource)
 		admin.GET("/journal-entries/:id", middleware.RequirePermission("manage_journal"), h.GetJournalEntry)
 		admin.POST("/journal-entries", middleware.RequirePermission("manage_journal"), h.CreateJournalEntry)
 		admin.POST("/journal-entries/:id/cancel", middleware.RequirePermission("manage_journal"), h.CancelJournalEntry)

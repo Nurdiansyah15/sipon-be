@@ -132,6 +132,9 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 	if err != nil {
 		return fmt.Errorf("find debit account: %w", err)
 	}
+	if err := debitAcc.EnsurePostable(); err != nil {
+		return err
+	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
 	if err != nil {
@@ -224,6 +227,65 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 	))
 	entry.AddLine(journalEntity.NewJournalEntryLine(
 		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, originalAmount, nil,
+	))
+
+	if err := entry.Post(); err != nil {
+		return err
+	}
+
+	return s.journalRepo.Save(ctx, entry)
+}
+
+func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, invoiceNumber, description string, entryDate time.Time, adjustmentAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+	posted, err := s.alreadyPosted(ctx, journalConst.SourceAdjustment, adjustmentID)
+	if err != nil {
+		return err
+	}
+	if posted {
+		return nil
+	}
+
+	revCode, ok := feeTypeRevenueAccount[feeType]
+	if !ok {
+		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
+	}
+
+	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
+	if err != nil {
+		return fmt.Errorf("find piutang account: %w", err)
+	}
+	revenue, err := s.accountRepo.FindByCode(ctx, revCode)
+	if err != nil {
+		return fmt.Errorf("find revenue account %s: %w", revCode, err)
+	}
+
+	period, err := s.periodRepo.FindByDate(ctx, entryDate)
+	if err != nil {
+		return fmt.Errorf("find active period: %w", err)
+	}
+
+	jvNum, err := s.journalRepo.NextJournalNumber(ctx)
+	if err != nil {
+		return err
+	}
+	entry, err := journalEntity.NewJournalEntry(
+		uuid.New().String(),
+		jvNum.String(),
+		entryDate,
+		fmt.Sprintf("Invoice adjustment %s: %s", invoiceNumber, description),
+		period.ID,
+		postedBy,
+	)
+	if err != nil {
+		return err
+	}
+	entry.SetSource(journalConst.SourceAdjustment, adjustmentID)
+
+	entry.AddLine(journalEntity.NewJournalEntryLine(
+		uuid.New().String(), entry.ID, revenue.ID, revenue.Code, adjustmentAmount, 0, nil,
+	))
+	entry.AddLine(journalEntity.NewJournalEntryLine(
+		uuid.New().String(), entry.ID, piutang.ID, piutang.Code, 0, adjustmentAmount, nil,
 	))
 
 	if err := entry.Post(); err != nil {

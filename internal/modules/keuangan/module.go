@@ -56,7 +56,7 @@ func NewModule(
 	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, billingPeriodRepo, kesantrianReader, transactor, autoPostingService)
 	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor, autoPostingService)
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
-	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo)
+	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo)
 	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
@@ -89,6 +89,7 @@ func NewModule(
 	getAccountUC := query.NewGetAccountUseCase(accountRepo)
 	listJournalEntriesUC := query.NewListJournalEntriesUseCase(journalRepo)
 	getJournalEntryUC := query.NewGetJournalEntryUseCase(journalRepo)
+	getJournalEntryBySourceUC := query.NewGetJournalEntryBySourceUseCase(journalRepo)
 	listPeriodsUC := query.NewListPeriodsUseCase(periodRepo)
 	getActivePeriodUC := query.NewGetActivePeriodUseCase(periodRepo)
 	listAssignmentsUC := query.NewListAssignmentsUseCase(db)
@@ -136,6 +137,7 @@ func NewModule(
 		getAccountUC,
 		listJournalEntriesUC,
 		getJournalEntryUC,
+		getJournalEntryBySourceUC,
 		listPeriodsUC,
 		getActivePeriodUC,
 		listAssignmentsUC,

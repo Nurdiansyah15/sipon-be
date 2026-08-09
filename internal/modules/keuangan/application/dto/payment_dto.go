@@ -2,7 +2,7 @@ package dto
 
 type CreateManualPaymentRequest struct {
 	InvoiceID       string  `json:"invoice_id" binding:"required"`
-	DebitAccountID  *string `json:"debit_account_id,omitempty"`
+	DebitAccountID  string  `json:"debit_account_id" binding:"required"`
 	Amount          float64 `json:"amount" binding:"required"`
 	Method          string  `json:"method" binding:"required"`
 	ReferenceNumber *string `json:"reference_number,omitempty"`

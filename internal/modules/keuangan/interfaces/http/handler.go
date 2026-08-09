@@ -54,26 +54,27 @@ type KeuanganHandler struct {
 	openBillingPeriodUC   *command.OpenBillingPeriodUseCase
 	closeBillingPeriodUC  *command.CloseBillingPeriodUseCase
 
-	listFeeComponentsUC  *query.ListFeeComponentsUseCase
-	listBillingSchemesUC *query.ListBillingSchemesUseCase
-	getBillingSchemeUC   *query.GetBillingSchemeUseCase
-	listInvoicesUC       *query.ListInvoicesUseCase
-	getInvoiceUC         *query.GetInvoiceUseCase
-	myInvoicesUC         *query.MyInvoicesUseCase
-	listPaymentsUC       *query.ListPaymentsUseCase
-	getPaymentUC         *query.GetPaymentUseCase
-	myPaymentsUC         *query.MyPaymentsUseCase
-	listAccountsUC       *query.ListAccountsUseCase
-	getAccountUC         *query.GetAccountUseCase
-	listJournalEntriesUC *query.ListJournalEntriesUseCase
-	getJournalEntryUC    *query.GetJournalEntryUseCase
-	listPeriodsUC        *query.ListPeriodsUseCase
-	getActivePeriodUC    *query.GetActivePeriodUseCase
-	listAssignmentsUC    *query.ListAssignmentsUseCase
-	listBillingPeriodsUC *query.ListBillingPeriodsUseCase
-	getBillingPeriodUC   *query.GetBillingPeriodUseCase
-	listBillingBatchesUC *query.ListBillingBatchesUseCase
-	getBillingBatchUC    *query.GetBillingBatchUseCase
+	listFeeComponentsUC       *query.ListFeeComponentsUseCase
+	listBillingSchemesUC      *query.ListBillingSchemesUseCase
+	getBillingSchemeUC        *query.GetBillingSchemeUseCase
+	listInvoicesUC            *query.ListInvoicesUseCase
+	getInvoiceUC              *query.GetInvoiceUseCase
+	myInvoicesUC              *query.MyInvoicesUseCase
+	listPaymentsUC            *query.ListPaymentsUseCase
+	getPaymentUC              *query.GetPaymentUseCase
+	myPaymentsUC              *query.MyPaymentsUseCase
+	listAccountsUC            *query.ListAccountsUseCase
+	getAccountUC              *query.GetAccountUseCase
+	listJournalEntriesUC      *query.ListJournalEntriesUseCase
+	getJournalEntryUC         *query.GetJournalEntryUseCase
+	getJournalEntryBySourceUC *query.GetJournalEntryBySourceUseCase
+	listPeriodsUC             *query.ListPeriodsUseCase
+	getActivePeriodUC         *query.GetActivePeriodUseCase
+	listAssignmentsUC         *query.ListAssignmentsUseCase
+	listBillingPeriodsUC      *query.ListBillingPeriodsUseCase
+	getBillingPeriodUC        *query.GetBillingPeriodUseCase
+	listBillingBatchesUC      *query.ListBillingBatchesUseCase
+	getBillingBatchUC         *query.GetBillingBatchUseCase
 
 	reportSummaryUC         *query.ReportSummaryUseCase
 	reportOutstandingUC     *query.ReportOutstandingUseCase
@@ -126,6 +127,7 @@ func NewKeuanganHandler(
 	getAccountUC *query.GetAccountUseCase,
 	listJournalEntriesUC *query.ListJournalEntriesUseCase,
 	getJournalEntryUC *query.GetJournalEntryUseCase,
+	getJournalEntryBySourceUC *query.GetJournalEntryBySourceUseCase,
 	listPeriodsUC *query.ListPeriodsUseCase,
 	getActivePeriodUC *query.GetActivePeriodUseCase,
 	listAssignmentsUC *query.ListAssignmentsUseCase,
@@ -146,60 +148,61 @@ func NewKeuanganHandler(
 	invoiceRepo invRepo.InvoiceRepository,
 ) *KeuanganHandler {
 	return &KeuanganHandler{
-		createFeeComponentUC:   createFeeComponentUC,
-		updateFeeComponentUC:   updateFeeComponentUC,
-		createBillingSchemeUC:  createBillingSchemeUC,
-		updateBillingSchemeUC:  updateBillingSchemeUC,
-		assignSchemeToSantriUC: assignSchemeToSantriUC,
-		createInvoiceUC:        createInvoiceUC,
-		createInvoiceBatchUC:   createInvoiceBatchUC,
-		cancelInvoiceUC:        cancelInvoiceUC,
-		applyAdjustmentUC:      applyAdjustmentUC,
-		createManualPaymentUC:  createManualPaymentUC,
-		verifyPaymentUC:        verifyPaymentUC,
-		rejectPaymentUC:        rejectPaymentUC,
-		createAccountUC:        createAccountUC,
-		updateAccountUC:        updateAccountUC,
-		createManualJournalUC:  createManualJournalUC,
-		cancelJournalUC:        cancelJournalUC,
-		createPeriodUC:         createPeriodUC,
-		closePeriodUC:          closePeriodUC,
-		reopenPeriodUC:         reopenPeriodUC,
-		lockPeriodUC:           lockPeriodUC,
-		createBillingPeriodUC:  createBillingPeriodUC,
-		openBillingPeriodUC:    openBillingPeriodUC,
-		closeBillingPeriodUC:   closeBillingPeriodUC,
-		listFeeComponentsUC:    listFeeComponentsUC,
-		listBillingSchemesUC:   listBillingSchemesUC,
-		getBillingSchemeUC:     getBillingSchemeUC,
-		listInvoicesUC:         listInvoicesUC,
-		getInvoiceUC:           getInvoiceUC,
-		myInvoicesUC:           myInvoicesUC,
-		listPaymentsUC:         listPaymentsUC,
-		getPaymentUC:           getPaymentUC,
-		myPaymentsUC:           myPaymentsUC,
-		listAccountsUC:         listAccountsUC,
-		getAccountUC:           getAccountUC,
-		listJournalEntriesUC:   listJournalEntriesUC,
-		getJournalEntryUC:      getJournalEntryUC,
-		listPeriodsUC:          listPeriodsUC,
-		getActivePeriodUC:      getActivePeriodUC,
-		listAssignmentsUC:      listAssignmentsUC,
-		listBillingPeriodsUC:   listBillingPeriodsUC,
-		getBillingPeriodUC:     getBillingPeriodUC,
-		listBillingBatchesUC:   listBillingBatchesUC,
-		getBillingBatchUC:      getBillingBatchUC,
-		reportSummaryUC:         reportSummaryUC,
-		reportOutstandingUC:     reportOutstandingUC,
-		reportLedgerUC:          reportLedgerUC,
-		reportTrialBalanceUC:    reportTrialBalanceUC,
-		reportBalanceSheetUC:    reportBalanceSheetUC,
-		reportIncomeStatementUC: reportIncomeStatementUC,
-		feeComponentRepo:        feeComponentRepo,
-		billingSchemeRepo:      billingSchemeRepo,
-		billingPeriodRepo:      billingPeriodRepo,
-		accountRepo:            accountRepo,
-		invoiceRepo:            invoiceRepo,
+		createFeeComponentUC:      createFeeComponentUC,
+		updateFeeComponentUC:      updateFeeComponentUC,
+		createBillingSchemeUC:     createBillingSchemeUC,
+		updateBillingSchemeUC:     updateBillingSchemeUC,
+		assignSchemeToSantriUC:    assignSchemeToSantriUC,
+		createInvoiceUC:           createInvoiceUC,
+		createInvoiceBatchUC:      createInvoiceBatchUC,
+		cancelInvoiceUC:           cancelInvoiceUC,
+		applyAdjustmentUC:         applyAdjustmentUC,
+		createManualPaymentUC:     createManualPaymentUC,
+		verifyPaymentUC:           verifyPaymentUC,
+		rejectPaymentUC:           rejectPaymentUC,
+		createAccountUC:           createAccountUC,
+		updateAccountUC:           updateAccountUC,
+		createManualJournalUC:     createManualJournalUC,
+		cancelJournalUC:           cancelJournalUC,
+		createPeriodUC:            createPeriodUC,
+		closePeriodUC:             closePeriodUC,
+		reopenPeriodUC:            reopenPeriodUC,
+		lockPeriodUC:              lockPeriodUC,
+		createBillingPeriodUC:     createBillingPeriodUC,
+		openBillingPeriodUC:       openBillingPeriodUC,
+		closeBillingPeriodUC:      closeBillingPeriodUC,
+		listFeeComponentsUC:       listFeeComponentsUC,
+		listBillingSchemesUC:      listBillingSchemesUC,
+		getBillingSchemeUC:        getBillingSchemeUC,
+		listInvoicesUC:            listInvoicesUC,
+		getInvoiceUC:              getInvoiceUC,
+		myInvoicesUC:              myInvoicesUC,
+		listPaymentsUC:            listPaymentsUC,
+		getPaymentUC:              getPaymentUC,
+		myPaymentsUC:              myPaymentsUC,
+		listAccountsUC:            listAccountsUC,
+		getAccountUC:              getAccountUC,
+		listJournalEntriesUC:      listJournalEntriesUC,
+		getJournalEntryUC:         getJournalEntryUC,
+		getJournalEntryBySourceUC: getJournalEntryBySourceUC,
+		listPeriodsUC:             listPeriodsUC,
+		getActivePeriodUC:         getActivePeriodUC,
+		listAssignmentsUC:         listAssignmentsUC,
+		listBillingPeriodsUC:      listBillingPeriodsUC,
+		getBillingPeriodUC:        getBillingPeriodUC,
+		listBillingBatchesUC:      listBillingBatchesUC,
+		getBillingBatchUC:         getBillingBatchUC,
+		reportSummaryUC:           reportSummaryUC,
+		reportOutstandingUC:       reportOutstandingUC,
+		reportLedgerUC:            reportLedgerUC,
+		reportTrialBalanceUC:      reportTrialBalanceUC,
+		reportBalanceSheetUC:      reportBalanceSheetUC,
+		reportIncomeStatementUC:   reportIncomeStatementUC,
+		feeComponentRepo:          feeComponentRepo,
+		billingSchemeRepo:         billingSchemeRepo,
+		billingPeriodRepo:         billingPeriodRepo,
+		accountRepo:               accountRepo,
+		invoiceRepo:               invoiceRepo,
 	}
 }
 
@@ -727,6 +730,21 @@ func (h *KeuanganHandler) GetJournalEntry(c *gin.Context) {
 	respond.OK(c, "detail jurnal berhasil diambil", resp)
 }
 
+func (h *KeuanganHandler) GetJournalEntryBySource(c *gin.Context) {
+	sourceType := c.Query("source_type")
+	sourceID := c.Query("source_id")
+	if sourceType == "" || sourceID == "" {
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeBadRequest, "source_type dan source_id wajib diisi", nil))
+		return
+	}
+	resp, err := h.getJournalEntryBySourceUC.Execute(c.Request.Context(), sourceType, sourceID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "jurnal berhasil ditemukan", resp)
+}
+
 func (h *KeuanganHandler) CreateJournalEntry(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	var req dto.CreateJournalEntryRequest
@@ -933,13 +951,13 @@ func (h *KeuanganHandler) DownloadReceipt(c *gin.Context) {
 	}
 
 	pdfData := external.ReceiptData{
-		ReceiptNumber:   payment.PaymentNumber,
-		PaymentDate:     payment.PaymentDate,
-		InvoiceNumber:   inv.InvoiceNumber,
-		FeeComponent:    feeName,
-		BillingPeriod:   billingPeriodName,
-		Amount:          payment.Amount,
-		PaymentMethod:   payment.Method,
+		ReceiptNumber: payment.PaymentNumber,
+		PaymentDate:   payment.PaymentDate,
+		InvoiceNumber: inv.InvoiceNumber,
+		FeeComponent:  feeName,
+		BillingPeriod: billingPeriodName,
+		Amount:        payment.Amount,
+		PaymentMethod: payment.Method,
 		ReferenceNumber: func() string {
 			if payment.ReferenceNumber != nil {
 				return *payment.ReferenceNumber

@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
+	journalEntity "sipon-be/internal/modules/keuangan/domain/journal/entity"
 	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
 	"sipon-be/internal/shared/kernel"
 )
@@ -37,6 +38,10 @@ func (uc *GetJournalEntryUseCase) Execute(ctx context.Context, id string) (*dto.
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	return journalEntryToResponse(entry, lines), nil
+}
+
+func journalEntryToResponse(entry *journalEntity.JournalEntry, lines []*journalEntity.JournalEntryLine) *dto.JournalEntryResponse {
 	resp := &dto.JournalEntryResponse{
 		ID:            entry.ID,
 		JournalNumber: entry.JournalNumber,
@@ -75,5 +80,5 @@ func (uc *GetJournalEntryUseCase) Execute(ctx context.Context, id string) (*dto.
 		}
 	}
 
-	return resp, nil
+	return resp
 }

@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	closingAccountRetainedEarnings     = "3200"
-	closingAccountCurrentYearEarnings  = "3201"
+	closingAccountRetainedEarnings    = "3200"
+	closingAccountCurrentYearEarnings = "3201"
 )
 
 type ClosePeriodUseCase struct {
@@ -38,7 +38,11 @@ func NewClosePeriodUseCase(periodRepo periodRepo.AccountingPeriodRepository, acc
 }
 
 func (uc *ClosePeriodUseCase) Execute(ctx context.Context, periodID string, closedBy string) (*dto.PeriodResponse, error) {
-	var resp *dto.PeriodResponse
+	var (
+		resp                    *dto.PeriodResponse
+		closingJournalEntryID   *string
+		totalRevenue, totalExpense float64
+	)
 	err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		period, err := uc.periodRepo.FindByID(txCtx, periodID)
 		if err != nil {
@@ -71,7 +75,6 @@ func (uc *ClosePeriodUseCase) Execute(ctx context.Context, periodID string, clos
 			accountByID[acc.ID] = acc
 		}
 
-		var totalRevenue, totalExpense float64
 		var revenueLines, expenseLines []*journalEntity.JournalEntryLine
 		for accountID, bal := range balances {
 			acc := accountByID[accountID]
@@ -164,6 +167,8 @@ func (uc *ClosePeriodUseCase) Execute(ctx context.Context, periodID string, clos
 			if err := uc.journalRepo.Save(txCtx, entry); err != nil {
 				return err
 			}
+			id := entry.ID
+			closingJournalEntryID = &id
 		}
 
 		if err := period.Close(closedBy); err != nil {
@@ -173,6 +178,17 @@ func (uc *ClosePeriodUseCase) Execute(ctx context.Context, periodID string, clos
 			return err
 		}
 		resp = toPeriodResponse(period)
+		resp.ClosingJournalEntryID = closingJournalEntryID
+		if totalRevenue > 0 {
+			tr := totalRevenue
+			resp.TotalRevenue = &tr
+		}
+		if totalExpense > 0 {
+			te := totalExpense
+			resp.TotalExpense = &te
+		}
+		net := totalRevenue - totalExpense
+		resp.NetIncome = &net
 		return nil
 	})
 	if err != nil {
