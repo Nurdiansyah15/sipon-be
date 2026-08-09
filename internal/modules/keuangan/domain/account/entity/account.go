@@ -27,7 +27,7 @@ type Account struct {
 
 func NewAccount(id, code, name string, accType constant.AccountType, parentID *string, level int, normalBalance constant.NormalBalance, createdBy string) (*Account, error) {
 	if id == "" || code == "" || name == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeAccountNotFound)
+		return nil, kernel.WrapMsg(constant.CodeAccountNotFound, "Data akun tidak lengkap", nil)
 	}
 	now := time.Now()
 	return &Account{
@@ -49,7 +49,7 @@ func NewAccount(id, code, name string, accType constant.AccountType, parentID *s
 
 func (a *Account) Update(name string, description *string, isPostable bool) error {
 	if a.IsSystem {
-		return kernel.New(constant.CodeAccountIsSystem)
+		return kernel.WrapMsg(constant.CodeAccountIsSystem, "Akun sistem tidak dapat diubah", nil)
 	}
 	a.Name = name
 	a.Description = description
@@ -60,7 +60,7 @@ func (a *Account) Update(name string, description *string, isPostable bool) erro
 
 func (a *Account) Deactivate() error {
 	if a.IsSystem {
-		return kernel.New(constant.CodeAccountIsSystem)
+		return kernel.WrapMsg(constant.CodeAccountIsSystem, "Akun sistem tidak dapat dinonaktifkan", nil)
 	}
 	a.IsActive = false
 	a.UpdatedAt = time.Now()
@@ -74,7 +74,7 @@ func (a *Account) Activate() {
 
 func (a *Account) SoftDelete() error {
 	if a.IsSystem {
-		return kernel.New(constant.CodeAccountIsSystem)
+		return kernel.WrapMsg(constant.CodeAccountIsSystem, "Akun sistem tidak dapat dihapus", nil)
 	}
 	now := time.Now()
 	a.DeletedAt = &now
@@ -84,7 +84,7 @@ func (a *Account) SoftDelete() error {
 
 func (a *Account) EnsurePostable() error {
 	if !a.IsPostable || !a.IsActive {
-		return kernel.New(constant.CodeAccountNotPostable)
+		return kernel.WrapMsg(constant.CodeAccountNotPostable, "Akun tidak dapat diposting", nil)
 	}
 	return nil
 }

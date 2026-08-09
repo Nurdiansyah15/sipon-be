@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -25,12 +25,12 @@ func NewReportIncomeStatementUseCase(db *sql.DB, accountRepo accRepo.AccountRepo
 func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.IncomeStatementQuery) (*dto.IncomeStatementResponse, error) {
 	period, err := uc.periodRepo.FindByID(ctx, query.PeriodID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	allAccounts, err := uc.accountRepo.ListAll(ctx)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	sqlQuery := `SELECT 
@@ -46,7 +46,7 @@ func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.I
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.PeriodID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -55,12 +55,12 @@ func (uc *ReportIncomeStatementUseCase) Execute(ctx context.Context, query dto.I
 		var accountID string
 		var totalDebit, totalCredit float64
 		if err := rows.Scan(&accountID, &totalDebit, &totalCredit); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		balances[accountID] = totalCredit - totalDebit
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	var revenues, expenses []dto.IncomeStatementLine

@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListAccountsUseCase struct {
@@ -33,7 +33,7 @@ func (uc *ListAccountsUseCase) Execute(ctx context.Context, query dto.AccountLis
 
 	result, err := uc.accountRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, accConst.CodeAccountQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.AccountResponse, len(result.Items))

@@ -43,7 +43,7 @@ func (uc *ReportSummaryUseCase) Execute(ctx context.Context, query dto.InvoiceSu
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -51,12 +51,12 @@ func (uc *ReportSummaryUseCase) Execute(ctx context.Context, query dto.InvoiceSu
 	for rows.Next() {
 		var r dto.InvoiceSummaryResponse
 		if err := rows.Scan(&r.BillingPeriodID, &r.BillingPeriodName, &r.TotalTagihan, &r.TotalTerbayar, &r.TotalTunggakan, &r.JumlahInvoice, &r.JumlahLunas, &r.JumlahBelum); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		results = append(results, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	return results, nil
 }

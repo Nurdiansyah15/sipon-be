@@ -23,7 +23,7 @@ type BillingBatch struct {
 
 func NewBillingBatch(id, name, billingSchemeID, billingPeriodID, createdBy string) (*BillingBatch, error) {
 	if id == "" || name == "" || billingSchemeID == "" || billingPeriodID == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeBillingBatchNotFound)
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchNotFound, "Data batch tagihan tidak lengkap", nil)
 	}
 	return &BillingBatch{
 		ID:              id,

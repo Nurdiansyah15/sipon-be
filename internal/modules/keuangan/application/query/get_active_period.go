@@ -2,11 +2,13 @@ package query
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetActivePeriodUseCase struct {
@@ -20,7 +22,14 @@ func NewGetActivePeriodUseCase(periodRepo periodRepo.AccountingPeriodRepository)
 func (uc *GetActivePeriodUseCase) Execute(ctx context.Context) (*dto.PeriodResponse, error) {
 	p, err := uc.periodRepo.FindActive(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case periodConst.CodePeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := &dto.PeriodResponse{

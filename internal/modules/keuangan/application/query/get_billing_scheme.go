@@ -2,12 +2,14 @@ package query
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
 	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetBillingSchemeUseCase struct {
@@ -28,7 +30,14 @@ func NewGetBillingSchemeUseCase(
 func (uc *GetBillingSchemeUseCase) Execute(ctx context.Context, id string) (*dto.BillingSchemeResponse, error) {
 	bs, err := uc.billingSchemeRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeBillingSchemeNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := &dto.BillingSchemeResponse{

@@ -42,7 +42,7 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 	countQuery := `SELECT COUNT(DISTINCT i.santri_id) FROM invoices i ` + where
 	var total int64
 	if err := uc.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
-		return nil, nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	dataQuery := `SELECT 
@@ -57,7 +57,7 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 
 	rows, err := uc.db.QueryContext(ctx, dataQuery, args...)
 	if err != nil {
-		return nil, nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -65,12 +65,12 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 	for rows.Next() {
 		var r dto.OutstandingSantriResponse
 		if err := rows.Scan(&r.SantriID, &r.TotalOutstanding, &r.JumlahInvoice); err != nil {
-			return nil, nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		results = append(results, r)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	totalPages := (total + int64(limit) - 1) / int64(limit)

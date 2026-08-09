@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -12,6 +13,7 @@ import (
 	adjRepo "sipon-be/internal/modules/keuangan/domain/adjustment/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ApplyAdjustmentUseCase struct {
@@ -26,7 +28,14 @@ func NewApplyAdjustmentUseCase(adjRepo adjRepo.AdjustmentRepository, invoiceRepo
 func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string, req dto.ApplyAdjustmentRequest, appliedBy string) (*dto.InvoiceResponse, error) {
 	inv, err := uc.invoiceRepo.FindByID(ctx, invoiceID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	adjustmentAmount := req.Amount
@@ -40,16 +49,30 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 		adjustmentAmount, req.Percentage, req.Description, appliedBy,
 	)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, adjConst.CodeAdjustmentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case adjConst.CodeAdjustmentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.adjRepo.Save(ctx, adj); err != nil {
-		return nil, application.WrapRepoErr(err, adjConst.CodeAdjustmentNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	inv.ApplyDiscount(adjustmentAmount)
 	if err := uc.invoiceRepo.Update(ctx, inv); err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toInvoiceResponse(inv, nil), nil

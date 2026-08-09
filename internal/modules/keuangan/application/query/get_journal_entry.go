@@ -2,11 +2,13 @@ package query
 
 import (
 	"context"
+	"errors"
 
-	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
-	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
+	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetJournalEntryUseCase struct {
@@ -20,12 +22,19 @@ func NewGetJournalEntryUseCase(journalRepo journalRepo.JournalRepository) *GetJo
 func (uc *GetJournalEntryUseCase) Execute(ctx context.Context, id string) (*dto.JournalEntryResponse, error) {
 	entry, err := uc.journalRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case journalConst.CodeJournalNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	lines, err := uc.journalRepo.FindLinesByEntryID(ctx, entry.ID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := &dto.JournalEntryResponse{

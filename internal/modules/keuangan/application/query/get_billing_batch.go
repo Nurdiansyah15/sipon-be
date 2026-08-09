@@ -2,11 +2,13 @@ package query
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	bbConst "sipon-be/internal/modules/keuangan/domain/billingbatch/constant"
 	bbRepo "sipon-be/internal/modules/keuangan/domain/billingbatch/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetBillingBatchUseCase struct {
@@ -21,12 +23,19 @@ func NewGetBillingBatchUseCase(batchRepo bbRepo.BillingBatchRepository, targetRe
 func (uc *GetBillingBatchUseCase) Execute(ctx context.Context, id string) (*dto.BillingBatchDetailResponse, error) {
 	batch, err := uc.batchRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bbConst.CodeBillingBatchNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	targets, err := uc.targetRepo.FindByBatchID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchQueryFailed)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := &dto.BillingBatchDetailResponse{

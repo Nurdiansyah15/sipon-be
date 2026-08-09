@@ -2,14 +2,20 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
+	"sipon-be/internal/shared/kernel"
 )
 
 type CancelInvoiceUseCase struct {
@@ -56,7 +62,24 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string, cancelle
 		return nil
 	})
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case invConst.CodeInvoiceInvalidStatus:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case feeConst.CodeFeeComponentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case journalConst.CodeJournalAccountMappingNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case accConst.CodeAccountNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case periodConst.CodePeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return resp, nil

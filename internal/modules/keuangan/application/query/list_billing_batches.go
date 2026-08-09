@@ -5,8 +5,8 @@ import (
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
-	bbConst "sipon-be/internal/modules/keuangan/domain/billingbatch/constant"
 	bbRepo "sipon-be/internal/modules/keuangan/domain/billingbatch/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListBillingBatchesUseCase struct {
@@ -32,7 +32,7 @@ func (uc *ListBillingBatchesUseCase) Execute(ctx context.Context, query dto.Bill
 
 	result, err := uc.batchRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.BillingBatchResponse, len(result.Items))

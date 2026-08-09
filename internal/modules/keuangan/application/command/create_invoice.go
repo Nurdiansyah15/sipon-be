@@ -2,7 +2,7 @@ package command
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,17 +10,20 @@ import (
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	bpConst "sipon-be/internal/modules/keuangan/domain/billingperiod/constant"
 	bpEntity "sipon-be/internal/modules/keuangan/domain/billingperiod/entity"
 	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	billRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
-	invConst 	"sipon-be/internal/modules/keuangan/domain/invoice/constant"
+	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
+	santriConst "sipon-be/internal/modules/kesantrian/domain/santri/constant"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -61,38 +64,59 @@ type CreateInvoiceCmd struct {
 func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCmd) (*dto.InvoiceResponse, error) {
 	fee, err := uc.feeRepo.FindByID(ctx, cmd.FeeComponentID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, feeConst.CodeFeeComponentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case feeConst.CodeFeeComponentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if !fee.IsActive {
-		return nil, kernel.New(feeConst.CodeFeeComponentNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak valid", nil)
 	}
 
 	period, err := uc.billingPeriodRepo.FindByID(ctx, cmd.BillingPeriodID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bpConst.CodeBillingPeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if !period.IsOpen() {
-		return nil, kernel.New(bpConst.CodeBillingPeriodInvalidStatus)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Status periode tagihan tidak valid", nil)
 	}
 
 	santri, err := uc.kesantrianReader.GetSantriByID(ctx, cmd.SantriID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, fmt.Errorf("santri not found: %w", err))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case santriConst.CodeSantriNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	existing, _ := uc.invoiceRepo.FindBySantriComponentPeriod(ctx, cmd.SantriID, cmd.FeeComponentID, cmd.BillingPeriodID)
 	if existing != nil {
-		return nil, application.WrapConflictErr(kernel.New(invConst.CodeInvoiceDuplicate), invConst.CodeInvoiceDuplicate)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Invoice duplikat", nil)
 	}
 
 	dueDate, err := time.Parse("2006-01-02", cmd.DueDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 
 	invNum, err := uc.invoiceRepo.NextInvoiceNumber(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoicePersistenceFailed)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	inv, err := invEntity.NewInvoice(
 		uuid.New().String(), invNum.String(), cmd.SantriID, santri.UserID,
@@ -100,27 +124,59 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		cmd.Amount, dueDate, cmd.CreatedBy,
 	)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	inv.BillingSchemeID = cmd.BillingSchemeID
 	inv.Notes = cmd.Notes
 
 	if cmd.Issue {
 		if err := inv.Issue(); err != nil {
-			return nil, application.WrapRepoErr(err, invConst.CodeInvoiceInvalidStatus)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case invConst.CodeInvoiceInvalidStatus:
+					return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 	}
 
 	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		if err := uc.invoiceRepo.Save(txCtx, inv); err != nil {
-			return application.WrapConflictErr(err, invConst.CodeInvoiceDuplicate)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case invConst.CodeInvoiceDuplicate:
+					return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+				}
+			}
+			return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		if cmd.Issue && uc.autoPosting != nil && inv.IssuedAt != nil {
 			if err := uc.autoPosting.PostInvoiceIssued(
 				txCtx, inv.ID, inv.InvoiceNumber, "",
 				*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
 			); err != nil {
-				return application.WrapConflictErr(err, journalConst.CodeJournalAccountMappingNotFound)
+				var ke *kernel.AppError
+				if errors.As(err, &ke) {
+					switch ke.Code {
+					case journalConst.CodeJournalAccountMappingNotFound:
+						return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+					case accConst.CodeAccountNotFound:
+						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					case periodConst.CodePeriodNotFound:
+						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					}
+				}
+				return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 			}
 		}
 		return nil

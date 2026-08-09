@@ -42,9 +42,9 @@ func (r *PostgresAccountRepository) Save(ctx context.Context, acc *entity.Accoun
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeAccountDuplicate, err)
+			return kernel.WrapMsg(constant.CodeAccountDuplicate, "Akun dengan kode yang sama sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeAccountPersistenceFailed, fmt.Errorf("save account: %w", err))
+		return kernel.WrapMsg(constant.CodeAccountPersistenceFailed, "gagal menyimpan akun", err)
 	}
 	return nil
 }
@@ -63,11 +63,11 @@ func (r *PostgresAccountRepository) Update(ctx context.Context, acc *entity.Acco
 		acc.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeAccountPersistenceFailed, fmt.Errorf("update account: %w", err))
+		return kernel.WrapMsg(constant.CodeAccountPersistenceFailed, "gagal memperbarui akun", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeAccountNotFound)
+		return kernel.WrapMsg(constant.CodeAccountNotFound, "Akun tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -104,7 +104,7 @@ func (r *PostgresAccountRepository) List(ctx context.Context, q repository.Accou
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM accounts `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("count accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal menghitung jumlah akun", err)
 	}
 
 	limit := q.Limit
@@ -116,7 +116,7 @@ func (r *PostgresAccountRepository) List(ctx context.Context, q repository.Accou
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("list accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal mendaftar akun", err)
 	}
 	defer rows.Close()
 
@@ -129,7 +129,7 @@ func (r *PostgresAccountRepository) List(ctx context.Context, q repository.Accou
 		items = append(items, acc)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("iterate account rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal membaca data akun", err)
 	}
 
 	return &repository.AccountListResult{Items: items, Total: total}, nil
@@ -140,7 +140,7 @@ func (r *PostgresAccountRepository) ListAll(ctx context.Context) ([]*entity.Acco
 
 	rows, err := execer.QueryContext(ctx, `SELECT `+accountColumns+` FROM accounts WHERE deleted_at IS NULL ORDER BY code ASC`)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("list all accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal mendaftar semua akun", err)
 	}
 	defer rows.Close()
 
@@ -153,7 +153,7 @@ func (r *PostgresAccountRepository) ListAll(ctx context.Context) ([]*entity.Acco
 		items = append(items, acc)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("iterate accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal membaca data akun", err)
 	}
 	return items, nil
 }
@@ -165,7 +165,7 @@ func (r *PostgresAccountRepository) ListPostable(ctx context.Context) ([]*entity
 		`SELECT `+accountColumns+` FROM accounts WHERE is_postable=true AND is_active=true AND deleted_at IS NULL ORDER BY code ASC`,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("list postable accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal mendaftar akun yang dapat diposting", err)
 	}
 	defer rows.Close()
 
@@ -178,7 +178,7 @@ func (r *PostgresAccountRepository) ListPostable(ctx context.Context) ([]*entity
 		items = append(items, acc)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("iterate postable accounts: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal membaca data akun yang dapat diposting", err)
 	}
 	return items, nil
 }
@@ -191,7 +191,7 @@ func (r *PostgresAccountRepository) FindChildren(ctx context.Context, parentID s
 		parentID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("find children: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal mencari akun turunan", err)
 	}
 	defer rows.Close()
 
@@ -204,7 +204,7 @@ func (r *PostgresAccountRepository) FindChildren(ctx context.Context, parentID s
 		items = append(items, acc)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("iterate children: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal membaca data akun turunan", err)
 	}
 	return items, nil
 }
@@ -218,7 +218,7 @@ func (r *PostgresAccountRepository) HasJournalEntries(ctx context.Context, accou
 		accountID,
 	).Scan(&exists)
 	if err != nil {
-		return false, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("has journal entries: %w", err))
+		return false, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal memeriksa keberadaan jurnal akun", err)
 	}
 	return exists, nil
 }
@@ -236,7 +236,7 @@ func (r *PostgresAccountRepository) ExistsByCode(ctx context.Context, code strin
 		err = execer.QueryRowContext(ctx, query, code, excludeID).Scan(&exists)
 	}
 	if err != nil {
-		return false, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("exists by code: %w", err))
+		return false, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal memeriksa ketersediaan kode", err)
 	}
 	return exists, nil
 }
@@ -258,9 +258,9 @@ func (r *PostgresAccountRepository) scan(sc scanner) (*entity.Account, error) {
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeAccountNotFound)
+			return nil, kernel.WrapMsg(constant.CodeAccountNotFound, "Akun tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeAccountQueryFailed, fmt.Errorf("scan account: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAccountQueryFailed, "gagal membaca data akun", err)
 	}
 
 	return &entity.Account{

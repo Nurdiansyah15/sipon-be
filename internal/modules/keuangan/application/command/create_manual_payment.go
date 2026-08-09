@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payEntity "sipon-be/internal/modules/keuangan/domain/payment/entity"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type CreateManualPaymentUseCase struct {
@@ -27,18 +29,25 @@ func NewCreateManualPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoic
 func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.CreateManualPaymentRequest, createdBy string) (*dto.PaymentResponse, error) {
 	_, err := uc.invoiceRepo.FindByID(ctx, req.InvoiceID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	paymentDate, err := time.Parse("2006-01-02", req.PaymentDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 
 	method := payConst.PaymentMethod(req.Method)
 	payNum, err := uc.paymentRepo.NextPaymentNumber(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	payment, err := payEntity.NewPayment(
 		uuid.New().String(), payNum.String(), req.InvoiceID,
@@ -47,11 +56,18 @@ func (uc *CreateManualPaymentUseCase) Execute(ctx context.Context, req dto.Creat
 		createdBy,
 	)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case payConst.CodePaymentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.paymentRepo.Save(ctx, payment); err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toPaymentResponse(payment), nil

@@ -25,10 +25,10 @@ type FeeComponent struct {
 
 func NewFeeComponent(id, code, name string, feeType constant.FeeComponentType, amount float64, createdBy string) (*FeeComponent, error) {
 	if id == "" || code == "" || name == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeFeeComponentNotFound)
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentNotFound, "Data komponen biaya tidak lengkap", nil)
 	}
 	if !constant.IsValidFeeType(feeType) {
-		return nil, kernel.New(constant.CodeFeeComponentInvalidType)
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentInvalidType, "Jenis komponen biaya tidak valid", nil)
 	}
 	now := time.Now()
 	return &FeeComponent{

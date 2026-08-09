@@ -16,9 +16,9 @@ type InvoiceSummaryQuery struct {
 }
 
 type OutstandingSantriResponse struct {
-	SantriID        string  `json:"santri_id"`
+	SantriID         string  `json:"santri_id"`
 	TotalOutstanding float64 `json:"total_outstanding"`
-	JumlahInvoice   int     `json:"jumlah_invoice"`
+	JumlahInvoice    int     `json:"jumlah_invoice"`
 }
 
 type OutstandingListQuery struct {
@@ -37,9 +37,9 @@ type LedgerLineResponse struct {
 }
 
 type LedgerResponse struct {
-	AccountID   string              `json:"account_id"`
-	AccountCode string              `json:"account_code"`
-	AccountName string              `json:"account_name"`
+	AccountID   string               `json:"account_id"`
+	AccountCode string               `json:"account_code"`
+	AccountName string               `json:"account_name"`
 	Lines       []LedgerLineResponse `json:"lines"`
 }
 

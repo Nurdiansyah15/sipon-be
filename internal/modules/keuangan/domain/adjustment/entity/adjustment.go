@@ -20,7 +20,7 @@ type InvoiceAdjustment struct {
 
 func NewInvoiceAdjustment(id, invoiceID string, adjType constant.AdjustmentType, amount float64, percentage *float64, description *string, appliedBy string) (*InvoiceAdjustment, error) {
 	if id == "" || invoiceID == "" || appliedBy == "" {
-		return nil, kernel.New(constant.CodeAdjustmentNotFound)
+		return nil, kernel.WrapMsg(constant.CodeAdjustmentNotFound, "Data penyesuaian tidak lengkap", nil)
 	}
 	return &InvoiceAdjustment{
 		ID:          id,

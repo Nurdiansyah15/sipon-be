@@ -35,7 +35,7 @@ func (r *PostgresPaymentRepository) NextPaymentNumber(ctx context.Context) (paym
 
 	seq, err := nextNumberSeq(ctx, execer, "payment", year)
 	if err != nil {
-		return paymentVO.PaymentNumber{}, kernel.Wrap(constant.CodePaymentPersistenceFailed, err)
+		return paymentVO.PaymentNumber{}, kernel.WrapMsg(constant.CodePaymentPersistenceFailed, "gagal membuat nomor pembayaran", err)
 	}
 
 	return paymentVO.NewPaymentNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
@@ -56,7 +56,7 @@ func (r *PostgresPaymentRepository) Save(ctx context.Context, p *entity.Payment)
 		nullStr(p.Notes), nullStr(p.ProofKey), p.CreatedBy, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodePaymentPersistenceFailed, fmt.Errorf("save payment: %w", err))
+		return kernel.WrapMsg(constant.CodePaymentPersistenceFailed, "gagal menyimpan pembayaran", err)
 	}
 	return nil
 }
@@ -77,11 +77,11 @@ func (r *PostgresPaymentRepository) Update(ctx context.Context, p *entity.Paymen
 		p.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodePaymentPersistenceFailed, fmt.Errorf("update payment: %w", err))
+		return kernel.WrapMsg(constant.CodePaymentPersistenceFailed, "gagal memperbarui pembayaran", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodePaymentNotFound)
+		return kernel.WrapMsg(constant.CodePaymentNotFound, "Pembayaran tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -118,7 +118,7 @@ func (r *PostgresPaymentRepository) List(ctx context.Context, q repository.Payme
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM payments `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("count payments: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal menghitung jumlah pembayaran", err)
 	}
 
 	limit := q.Limit
@@ -130,7 +130,7 @@ func (r *PostgresPaymentRepository) List(ctx context.Context, q repository.Payme
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("list payments: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal mendaftar pembayaran", err)
 	}
 	defer rows.Close()
 
@@ -143,7 +143,7 @@ func (r *PostgresPaymentRepository) List(ctx context.Context, q repository.Payme
 		items = append(items, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("iterate payment rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal membaca data pembayaran", err)
 	}
 
 	return &repository.PaymentListResult{Items: items, Total: total}, nil
@@ -157,7 +157,7 @@ func (r *PostgresPaymentRepository) FindByInvoiceID(ctx context.Context, invoice
 		invoiceID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("find by invoice id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal mencari pembayaran berdasarkan invoice", err)
 	}
 	defer rows.Close()
 
@@ -170,7 +170,7 @@ func (r *PostgresPaymentRepository) FindByInvoiceID(ctx context.Context, invoice
 		items = append(items, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("iterate invoice payments: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal membaca data pembayaran invoice", err)
 	}
 	return items, nil
 }
@@ -183,7 +183,7 @@ func (r *PostgresPaymentRepository) FindVerifiedByInvoiceID(ctx context.Context,
 		invoiceID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("find verified by invoice id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal mencari pembayaran terverifikasi invoice", err)
 	}
 	defer rows.Close()
 
@@ -196,7 +196,7 @@ func (r *PostgresPaymentRepository) FindVerifiedByInvoiceID(ctx context.Context,
 		items = append(items, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("iterate verified payments: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal membaca data pembayaran terverifikasi", err)
 	}
 	return items, nil
 }
@@ -218,9 +218,9 @@ func (r *PostgresPaymentRepository) scan(sc scanner) (*entity.Payment, error) {
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodePaymentNotFound)
+			return nil, kernel.WrapMsg(constant.CodePaymentNotFound, "Pembayaran tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodePaymentQueryFailed, fmt.Errorf("scan payment: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePaymentQueryFailed, "gagal membaca data pembayaran", err)
 	}
 
 	return &entity.Payment{

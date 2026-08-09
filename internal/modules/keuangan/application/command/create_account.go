@@ -2,14 +2,15 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accEntity "sipon-be/internal/modules/keuangan/domain/account/entity"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -24,28 +25,49 @@ func NewCreateAccountUseCase(accountRepo accRepo.AccountRepository) *CreateAccou
 func (uc *CreateAccountUseCase) Execute(ctx context.Context, req dto.CreateAccountRequest, createdBy string) (*dto.AccountResponse, error) {
 	exists, err := uc.accountRepo.ExistsByCode(ctx, req.Code, "")
 	if err != nil {
-		return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if exists {
-		return nil, kernel.New(accConst.CodeAccountDuplicate)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Akun dengan kode yang sama sudah ada", nil)
 	}
 
 	if req.ParentID != nil && *req.ParentID != "" {
 		parent, err := uc.accountRepo.FindByID(ctx, *req.ParentID)
 		if err != nil {
-			return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case accConst.CodeAccountNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		level := parent.Level + 1
 		accType := accConst.AccountType(req.Type)
 		normalBalance := accConst.NormalBalance(req.NormalBalance)
 		acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, level, normalBalance, createdBy)
 		if err != nil {
-			return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case accConst.CodeAccountNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		acc.Description = req.Description
 		acc.IsPostable = req.IsPostable
 		if err := uc.accountRepo.Save(ctx, acc); err != nil {
-			return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case accConst.CodeAccountDuplicate:
+					return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		return toAccountResponse(acc), nil
 	}
@@ -54,12 +76,26 @@ func (uc *CreateAccountUseCase) Execute(ctx context.Context, req dto.CreateAccou
 	normalBalance := accConst.NormalBalance(req.NormalBalance)
 	acc, err := accEntity.NewAccount(uuid.New().String(), req.Code, req.Name, accType, req.ParentID, 1, normalBalance, createdBy)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	acc.Description = req.Description
 	acc.IsPostable = req.IsPostable
 	if err := uc.accountRepo.Save(ctx, acc); err != nil {
-		return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountDuplicate:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	return toAccountResponse(acc), nil
 }

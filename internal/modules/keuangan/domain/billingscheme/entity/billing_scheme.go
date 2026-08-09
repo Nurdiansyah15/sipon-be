@@ -20,7 +20,7 @@ type BillingScheme struct {
 
 func NewBillingScheme(id, name string, createdBy string) (*BillingScheme, error) {
 	if id == "" || name == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeBillingSchemeNotFound)
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Data skema tagihan tidak lengkap", nil)
 	}
 	now := time.Now()
 	return &BillingScheme{
@@ -52,7 +52,7 @@ func (s *BillingScheme) Activate() {
 func (s *BillingScheme) AddItem(item *BillingSchemeItem) error {
 	for _, existing := range s.Items {
 		if existing.FeeComponentID == item.FeeComponentID {
-			return kernel.New(constant.CodeSchemeItemDuplicate)
+			return kernel.WrapMsg(constant.CodeSchemeItemDuplicate, "Komponen biaya sudah ada di skema tagihan", nil)
 		}
 	}
 	s.Items = append(s.Items, item)
@@ -66,5 +66,5 @@ func (s *BillingScheme) RemoveItem(itemID string) error {
 			return nil
 		}
 	}
-	return kernel.New(constant.CodeSchemeItemNotFound)
+	return kernel.WrapMsg(constant.CodeSchemeItemNotFound, "Item skema tagihan tidak ditemukan", nil)
 }

@@ -30,7 +30,7 @@ type Invoice struct {
 
 func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, billingPeriodID string, amount float64, dueDate time.Time, createdBy string) (*Invoice, error) {
 	if id == "" || invoiceNumber == "" || santriID == "" || userID == "" || feeComponentID == "" || billingPeriodID == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeInvoiceNotFound)
+		return nil, kernel.WrapMsg(constant.CodeInvoiceNotFound, "Data invoice tidak lengkap", nil)
 	}
 	now := time.Now()
 	return &Invoice{
@@ -51,7 +51,7 @@ func NewInvoice(id, invoiceNumber, santriID, userID, feeComponentID, billingPeri
 
 func (i *Invoice) Issue() error {
 	if i.Status != constant.StatusDraft {
-		return kernel.New(constant.CodeInvoiceInvalidStatus)
+		return kernel.WrapMsg(constant.CodeInvoiceInvalidStatus, "Hanya invoice berstatus draft yang dapat diterbitkan", nil)
 	}
 	now := time.Now()
 	i.Status = constant.StatusIssued
@@ -68,7 +68,7 @@ func (i *Invoice) ApplyDiscount(amount float64) {
 
 func (i *Invoice) AddPayment(amount float64) error {
 	if i.Status != constant.StatusIssued && i.Status != constant.StatusPartial {
-		return kernel.New(constant.CodeInvoiceInvalidStatus)
+		return kernel.WrapMsg(constant.CodeInvoiceInvalidStatus, "Invoice tidak dalam status yang dapat menerima pembayaran", nil)
 	}
 	i.PaidAmount += amount
 	i.UpdatedAt = time.Now()
@@ -82,7 +82,7 @@ func (i *Invoice) AddPayment(amount float64) error {
 
 func (i *Invoice) Expire() error {
 	if i.Status != constant.StatusIssued && i.Status != constant.StatusPartial {
-		return kernel.New(constant.CodeInvoiceInvalidStatus)
+		return kernel.WrapMsg(constant.CodeInvoiceInvalidStatus, "Hanya invoice yang diterbitkan yang dapat kedaluwarsa", nil)
 	}
 	i.Status = constant.StatusExpired
 	i.UpdatedAt = time.Now()
@@ -91,7 +91,7 @@ func (i *Invoice) Expire() error {
 
 func (i *Invoice) Cancel() error {
 	if i.PaidAmount > 0 || i.Status == constant.StatusCancelled {
-		return kernel.New(constant.CodeInvoiceInvalidStatus)
+		return kernel.WrapMsg(constant.CodeInvoiceInvalidStatus, "Invoice dengan pembayaran atau yang sudah dibatalkan tidak dapat dibatalkan", nil)
 	}
 	i.Status = constant.StatusCancelled
 	i.UpdatedAt = time.Now()

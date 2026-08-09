@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,10 +17,10 @@ import (
 	bbRepo "sipon-be/internal/modules/keuangan/domain/billingbatch/repository"
 	bpConst "sipon-be/internal/modules/keuangan/domain/billingperiod/constant"
 	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
+	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsEntity "sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
-	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invEntity "sipon-be/internal/modules/keuangan/domain/invoice/entity"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
@@ -81,28 +82,42 @@ type eligibleBatchTarget struct {
 func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvoiceBatchCmd) (*dto.CreateInvoiceBatchResponse, error) {
 	scheme, err := uc.schemeRepo.FindByID(ctx, cmd.BillingSchemeID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeBillingSchemeNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if !scheme.IsActive {
-		return nil, kernel.New(invConst.CodeInvoiceInvalidStatus)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Skema tagihan tidak aktif", nil)
 	}
 
 	period, err := uc.billingPeriodRepo.FindByID(ctx, cmd.BillingPeriodID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bpConst.CodeBillingPeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if !period.IsOpen() {
-		return nil, kernel.New(bpConst.CodeBillingPeriodInvalidStatus)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Status periode tagihan tidak valid", nil)
 	}
 
 	dueDate, err := time.Parse("2006-01-02", cmd.DueDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 
 	santriInfos, err := uc.kesantrianReader.ListActiveSantriWithUserID(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	// Step 1: batch header, status processing.
@@ -111,10 +126,17 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 		cmd.BillingSchemeID, cmd.BillingPeriodID, cmd.CreatedBy,
 	)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bbConst.CodeBillingBatchNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if err := uc.batchRepo.Save(ctx, batch); err != nil {
-		return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	// Step 2: snapshot every active santri as a target, up front.
@@ -141,7 +163,7 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 	}
 	if len(targets) > 0 {
 		if err := uc.targetRepo.SaveMany(ctx, targets); err != nil {
-			return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 	}
 
@@ -162,14 +184,28 @@ func (uc *CreateInvoiceBatchUseCase) Execute(ctx context.Context, cmd CreateInvo
 
 		et.target.MarkProcessed(finalStatus, invoiceID, reason)
 		if err := uc.targetRepo.UpdateTarget(ctx, et.target); err != nil {
-			return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case bbConst.CodeBillingBatchNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 	}
 
 	// Step 4: close out the batch header with totals.
 	batch.Complete(created, skipped, errored)
 	if err := uc.batchRepo.Update(ctx, batch); err != nil {
-		return nil, application.WrapRepoErr(err, bbConst.CodeBillingBatchNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bbConst.CodeBillingBatchNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return &dto.CreateInvoiceBatchResponse{BatchID: batch.ID, Status: string(batch.Status)}, nil

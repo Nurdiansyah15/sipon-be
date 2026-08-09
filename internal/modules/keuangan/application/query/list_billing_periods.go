@@ -5,8 +5,8 @@ import (
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
-	bpConst "sipon-be/internal/modules/keuangan/domain/billingperiod/constant"
 	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListBillingPeriodsUseCase struct {
@@ -32,7 +32,7 @@ func (uc *ListBillingPeriodsUseCase) Execute(ctx context.Context, query dto.Bill
 
 	result, err := uc.billingPeriodRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, bpConst.CodeBillingPeriodQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.BillingPeriodResponse, len(result.Items))

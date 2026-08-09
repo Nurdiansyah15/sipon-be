@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 
@@ -10,6 +11,7 @@ import (
 	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsEntity "sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type CreateBillingSchemeUseCase struct {
@@ -23,12 +25,26 @@ func NewCreateBillingSchemeUseCase(billingSchemeRepo bsRepo.BillingSchemeReposit
 func (uc *CreateBillingSchemeUseCase) Execute(ctx context.Context, req dto.CreateBillingSchemeRequest, createdBy string) (*dto.BillingSchemeResponse, error) {
 	scheme, err := bsEntity.NewBillingScheme(uuid.New().String(), req.Name, createdBy)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeBillingSchemeNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	scheme.Description = req.Description
 
 	if err := uc.billingSchemeRepo.Save(ctx, scheme); err != nil {
-		return nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeBillingSchemeDuplicate:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toBillingSchemeResponse(scheme), nil

@@ -69,7 +69,7 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 
 	revCode, ok := feeTypeRevenueAccount[feeType]
 	if !ok {
-		return kernel.New(journalConst.CodeJournalAccountMappingNotFound)
+		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
 	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
@@ -185,7 +185,7 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 
 	revCode, ok := feeTypeRevenueAccount[feeType]
 	if !ok {
-		return kernel.New(journalConst.CodeJournalAccountMappingNotFound)
+		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
 	}
 
 	piutang, err := s.accountRepo.FindByCode(ctx, "1103")

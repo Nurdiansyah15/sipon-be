@@ -2,16 +2,19 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
-	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
-	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
+	"sipon-be/internal/shared/kernel"
 )
 
 type VerifyPaymentUseCase struct {
@@ -28,20 +31,48 @@ func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo 
 func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string) (*dto.PaymentResponse, error) {
 	payment, err := uc.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case payConst.CodePaymentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	inv, err := uc.invoiceRepo.FindByID(ctx, payment.InvoiceID)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := payment.Verify(verifiedBy); err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentInvalidStatus)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case payConst.CodePaymentInvalidStatus:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := inv.AddPayment(payment.Amount); err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceInvalidStatus)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceInvalidStatus:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
@@ -57,13 +88,37 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 				payment.PaymentDate, payment.Amount,
 				accountID(payment.DebitAccountID), verifiedBy,
 			); err != nil {
-				return application.WrapConflictErr(err, journalConst.CodeJournalAccountMappingNotFound)
+				var ke *kernel.AppError
+				if errors.As(err, &ke) {
+					switch ke.Code {
+					case accConst.CodeAccountNotFound:
+						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					case periodConst.CodePeriodNotFound:
+						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+					}
+				}
+				return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case payConst.CodePaymentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case invConst.CodeInvoiceInvalidStatus:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			case application.ErrCodeNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			case application.ErrCodeConflict:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toPaymentResponse(payment), nil

@@ -2,15 +2,16 @@ package command
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
 	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
 	periodEntity "sipon-be/internal/modules/keuangan/domain/period/entity"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -25,28 +26,39 @@ func NewCreatePeriodUseCase(periodRepo periodRepo.AccountingPeriodRepository) *C
 func (uc *CreatePeriodUseCase) Execute(ctx context.Context, req dto.CreatePeriodRequest, createdBy string) (*dto.PeriodResponse, error) {
 	startDate, err := time.Parse("2006-01-02", req.StartDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 	endDate, err := time.Parse("2006-01-02", req.EndDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 
 	hasOverlap, err := uc.periodRepo.HasOverlap(ctx, startDate, endDate, "")
 	if err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if hasOverlap {
-		return nil, kernel.New(periodConst.CodePeriodOverlap)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Periode akuntansi saling tumpang tindih", nil)
 	}
 
 	period, err := periodEntity.NewAccountingPeriod(uuid.New().String(), req.Name, startDate, endDate, createdBy)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.periodRepo.Save(ctx, period); err != nil {
-		return nil, application.WrapRepoErr(err, periodConst.CodePeriodNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case periodConst.CodePeriodOverlap:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toPeriodResponse(period), nil

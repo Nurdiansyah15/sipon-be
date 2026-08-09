@@ -27,7 +27,7 @@ func (uc *ListAssignmentsUseCase) Execute(ctx context.Context) ([]dto.Assignment
 
 	rows, err := uc.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -38,7 +38,7 @@ func (uc *ListAssignmentsUseCase) Execute(ctx context.Context) ([]dto.Assignment
 		var effectiveUntil sql.NullTime
 
 		if err := rows.Scan(&a.ID, &a.SantriID, &a.BillingSchemeID, &effectiveFrom, &effectiveUntil, &a.AssignedBy, &a.CreatedAt); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 
 		if effectiveFrom.Valid {
@@ -53,7 +53,7 @@ func (uc *ListAssignmentsUseCase) Execute(ctx context.Context) ([]dto.Assignment
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if results == nil {

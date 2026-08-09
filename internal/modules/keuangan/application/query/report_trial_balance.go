@@ -4,15 +4,15 @@ import (
 	"context"
 	"database/sql"
 
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
-	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type ReportTrialBalanceUseCase struct {
-	db         *sql.DB
+	db          *sql.DB
 	accountRepo accRepo.AccountRepository
 	periodRepo  periodRepo.AccountingPeriodRepository
 }
@@ -24,7 +24,7 @@ func NewReportTrialBalanceUseCase(db *sql.DB, accountRepo accRepo.AccountReposit
 func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.TrialBalanceQuery) (*dto.TrialBalanceResponse, error) {
 	period, err := uc.periodRepo.FindByID(ctx, query.PeriodID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "data tidak ditemukan", err)
 	}
 
 	sqlQuery := `SELECT 
@@ -40,7 +40,7 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, query.PeriodID)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -53,18 +53,18 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 	for rows.Next() {
 		var br balanceRow
 		if err := rows.Scan(&br.AccountID, &br.TotalDebit, &br.TotalCredit); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		balances = append(balances, br)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	accountMap := make(map[string]string)
 	allAccounts, err := uc.accountRepo.ListAll(ctx)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	for _, acc := range allAccounts {
 		accountMap[acc.ID] = acc.Code + "|" + acc.Name + "|" + string(acc.Type)
@@ -83,8 +83,8 @@ func (uc *ReportTrialBalanceUseCase) Execute(ctx context.Context, query dto.Tria
 			AccountCode: parts[0],
 			AccountName: parts[1],
 			AccountType: parts[2],
-			Debit:      br.TotalDebit,
-			Credit:     br.TotalCredit,
+			Debit:       br.TotalDebit,
+			Credit:      br.TotalCredit,
 		}
 		totalDebit += br.TotalDebit
 		totalCredit += br.TotalCredit

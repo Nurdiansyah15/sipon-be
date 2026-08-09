@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"sipon-be/internal/modules/keuangan/domain/adjustment/constant"
@@ -36,7 +35,7 @@ func (r *PostgresAdjustmentRepository) Save(ctx context.Context, adj *entity.Inv
 		nullFloat64(adj.Percentage), nullStr(adj.Description), adj.AppliedBy, adj.AppliedAt,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeAdjustmentPersistenceFailed, fmt.Errorf("save adjustment: %w", err))
+		return kernel.WrapMsg(constant.CodeAdjustmentPersistenceFailed, "gagal menyimpan penyesuaian", err)
 	}
 	return nil
 }
@@ -49,7 +48,7 @@ func (r *PostgresAdjustmentRepository) FindByInvoiceID(ctx context.Context, invo
 		invoiceID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeAdjustmentQueryFailed, fmt.Errorf("find adjustments by invoice id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAdjustmentQueryFailed, "gagal mencari penyesuaian invoice", err)
 	}
 	defer rows.Close()
 
@@ -62,7 +61,7 @@ func (r *PostgresAdjustmentRepository) FindByInvoiceID(ctx context.Context, invo
 		items = append(items, adj)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeAdjustmentQueryFailed, fmt.Errorf("iterate adjustments: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAdjustmentQueryFailed, "gagal membaca data penyesuaian", err)
 	}
 	return items, nil
 }
@@ -79,9 +78,9 @@ func (r *PostgresAdjustmentRepository) scan(sc scanner) (*entity.InvoiceAdjustme
 	err := sc.Scan(&id, &invoiceID, &adjType, &amount, &percentage, &description, &appliedBy, &appliedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeAdjustmentNotFound)
+			return nil, kernel.WrapMsg(constant.CodeAdjustmentNotFound, "Penyesuaian tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeAdjustmentQueryFailed, fmt.Errorf("scan adjustment: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeAdjustmentQueryFailed, "gagal membaca data penyesuaian", err)
 	}
 
 	return &entity.InvoiceAdjustment{

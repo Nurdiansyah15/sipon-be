@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
-	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
-	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
-	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListPaymentsUseCase struct {
@@ -37,7 +37,7 @@ func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentLis
 
 	result, err := uc.paymentRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, payConst.CodePaymentQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.PaymentResponse, len(result.Items))

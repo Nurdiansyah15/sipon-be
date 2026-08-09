@@ -35,7 +35,7 @@ func (r *PostgresInvoiceRepository) NextInvoiceNumber(ctx context.Context) (invV
 
 	seq, err := nextNumberSeq(ctx, execer, "invoice", year)
 	if err != nil {
-		return invVO.InvoiceNumber{}, kernel.Wrap(constant.CodeInvoicePersistenceFailed, err)
+		return invVO.InvoiceNumber{}, kernel.WrapMsg(constant.CodeInvoicePersistenceFailed, "gagal membuat nomor invoice", err)
 	}
 
 	return invVO.NewInvoiceNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
@@ -59,9 +59,9 @@ func (r *PostgresInvoiceRepository) Save(ctx context.Context, inv *entity.Invoic
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeInvoiceDuplicate, err)
+			return kernel.WrapMsg(constant.CodeInvoiceDuplicate, "Invoice duplikat", err)
 		}
-		return kernel.Wrap(constant.CodeInvoicePersistenceFailed, fmt.Errorf("save invoice: %w", err))
+		return kernel.WrapMsg(constant.CodeInvoicePersistenceFailed, "gagal menyimpan invoice", err)
 	}
 	return nil
 }
@@ -85,13 +85,13 @@ func (r *PostgresInvoiceRepository) Update(ctx context.Context, inv *entity.Invo
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeInvoiceDuplicate, err)
+			return kernel.WrapMsg(constant.CodeInvoiceDuplicate, "Invoice duplikat", err)
 		}
-		return kernel.Wrap(constant.CodeInvoicePersistenceFailed, fmt.Errorf("update invoice: %w", err))
+		return kernel.WrapMsg(constant.CodeInvoicePersistenceFailed, "gagal memperbarui invoice", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeInvoiceNotFound)
+		return kernel.WrapMsg(constant.CodeInvoiceNotFound, "Invoice tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM invoices `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("count invoices: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal menghitung jumlah invoice", err)
 	}
 
 	limit := q.Limit
@@ -150,7 +150,7 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("list invoices: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal mendaftar invoice", err)
 	}
 	defer rows.Close()
 
@@ -163,7 +163,7 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 		items = append(items, inv)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("iterate invoice rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal membaca data invoice", err)
 	}
 
 	return &repository.InvoiceListResult{Items: items, Total: total}, nil
@@ -186,7 +186,7 @@ func (r *PostgresInvoiceRepository) FindOutstandingBySantriID(ctx context.Contex
 		santriID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("find outstanding by santri id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal mencari invoice outstanding santri", err)
 	}
 	defer rows.Close()
 
@@ -199,7 +199,7 @@ func (r *PostgresInvoiceRepository) FindOutstandingBySantriID(ctx context.Contex
 		items = append(items, inv)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("iterate outstanding invoices: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal membaca data invoice outstanding", err)
 	}
 	return items, nil
 }
@@ -213,7 +213,7 @@ func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santri
 		santriID, componentCode, billingPeriodID,
 	).Scan(&exists)
 	if err != nil {
-		return false, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("has paid component: %w", err))
+		return false, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal memeriksa komponen yang telah dibayar", err)
 	}
 	return exists, nil
 }
@@ -238,9 +238,9 @@ func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeInvoiceNotFound)
+			return nil, kernel.WrapMsg(constant.CodeInvoiceNotFound, "Invoice tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeInvoiceQueryFailed, fmt.Errorf("scan invoice: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal membaca data invoice", err)
 	}
 
 	return &entity.Invoice{

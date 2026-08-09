@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
-	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
-	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
-	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type MyPaymentsUseCase struct {
@@ -38,7 +38,7 @@ func (uc *MyPaymentsUseCase) Execute(ctx context.Context, userID string, query d
 	}
 	invResult, err := uc.invoiceRepo.List(ctx, invListQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, payConst.CodePaymentQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if len(invResult.Items) == 0 {
@@ -61,7 +61,7 @@ func (uc *MyPaymentsUseCase) Execute(ctx context.Context, userID string, query d
 		}
 		payResult, err := uc.paymentRepo.List(ctx, repoQuery)
 		if err != nil {
-			return nil, nil, application.WrapRepoErr(err, payConst.CodePaymentQueryFailed)
+			return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		invResp := buildInvoiceResponse(ctx, inv, nil, nil)
 		for _, p := range payResult.Items {

@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
@@ -9,6 +10,7 @@ import (
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetPaymentUseCase struct {
@@ -24,7 +26,14 @@ func NewGetPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo inv
 func (uc *GetPaymentUseCase) Execute(ctx context.Context, id string) (*dto.PaymentResponse, error) {
 	p, err := uc.paymentRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, payConst.CodePaymentNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case payConst.CodePaymentNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := buildPaymentResponse(p)

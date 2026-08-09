@@ -38,9 +38,9 @@ func (r *PostgresBillingSchemeRepository) Save(ctx context.Context, scheme *enti
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeBillingSchemeDuplicate, err)
+			return kernel.WrapMsg(constant.CodeBillingSchemeDuplicate, "Skema tagihan dengan nama yang sama sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("save billing scheme: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal menyimpan skema tagihan", err)
 	}
 	return nil
 }
@@ -58,13 +58,13 @@ func (r *PostgresBillingSchemeRepository) Update(ctx context.Context, scheme *en
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeBillingSchemeDuplicate, err)
+			return kernel.WrapMsg(constant.CodeBillingSchemeDuplicate, "Skema tagihan dengan nama yang sama sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("update billing scheme: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal memperbarui skema tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeBillingSchemeNotFound)
+		return kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -100,7 +100,7 @@ func (r *PostgresBillingSchemeRepository) List(ctx context.Context, q repository
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM billing_schemes `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("count billing schemes: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal menghitung jumlah skema tagihan", err)
 	}
 
 	limit := q.Limit
@@ -112,7 +112,7 @@ func (r *PostgresBillingSchemeRepository) List(ctx context.Context, q repository
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("list billing schemes: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal mendaftar skema tagihan", err)
 	}
 	defer rows.Close()
 
@@ -125,7 +125,7 @@ func (r *PostgresBillingSchemeRepository) List(ctx context.Context, q repository
 		items = append(items, scheme)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("iterate billing scheme rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca data skema tagihan", err)
 	}
 
 	for _, scheme := range items {
@@ -151,9 +151,9 @@ func (r *PostgresBillingSchemeRepository) AddItems(ctx context.Context, schemeID
 		)
 		if err != nil {
 			if isUniqueViolation(err) {
-				return kernel.Wrap(constant.CodeSchemeItemDuplicate, err)
+				return kernel.WrapMsg(constant.CodeSchemeItemDuplicate, "Item skema tagihan duplikat", err)
 			}
-			return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("add scheme item: %w", err))
+			return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal menambahkan item skema tagihan", err)
 		}
 	}
 	return nil
@@ -164,11 +164,11 @@ func (r *PostgresBillingSchemeRepository) RemoveItem(ctx context.Context, scheme
 
 	res, err := execer.ExecContext(ctx, `DELETE FROM billing_scheme_items WHERE id=$1 AND billing_scheme_id=$2`, itemID, schemeID)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("remove scheme item: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal menghapus item skema tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeSchemeItemNotFound)
+		return kernel.WrapMsg(constant.CodeSchemeItemNotFound, "Item skema tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -181,7 +181,7 @@ func (r *PostgresBillingSchemeRepository) findItemsBySchemeID(ctx context.Contex
 		schemeID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("find items by scheme id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal mencari item skema tagihan", err)
 	}
 	defer rows.Close()
 
@@ -195,7 +195,7 @@ func (r *PostgresBillingSchemeRepository) findItemsBySchemeID(ctx context.Contex
 			createdAt         time.Time
 		)
 		if err := rows.Scan(&id, &bsID, &fcID, &amountOverride, &isRequired, &sortOrder, &createdAt); err != nil {
-			return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("scan scheme item: %w", err))
+			return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca data item skema tagihan", err)
 		}
 		items = append(items, &entity.BillingSchemeItem{
 			ID:              id,
@@ -208,7 +208,7 @@ func (r *PostgresBillingSchemeRepository) findItemsBySchemeID(ctx context.Contex
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("iterate scheme items: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca data item skema tagihan", err)
 	}
 	return items, nil
 }
@@ -224,9 +224,9 @@ func (r *PostgresBillingSchemeRepository) scan(sc scanner) (*entity.BillingSchem
 	err := sc.Scan(&id, &name, &description, &isActive, &createdBy, &createdAt, &updatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeBillingSchemeNotFound)
+			return nil, kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("scan billing scheme: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca data skema tagihan", err)
 	}
 
 	return &entity.BillingScheme{
@@ -267,9 +267,9 @@ func (r *PostgresSantriBillingAssignmentRepository) Save(ctx context.Context, a 
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeSchemeAssignmentExists, err)
+			return kernel.WrapMsg(constant.CodeSchemeAssignmentExists, "Penugasan skema tagihan sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("save assignment: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal menyimpan penugasan skema tagihan", err)
 	}
 	return nil
 }
@@ -289,11 +289,11 @@ func (r *PostgresSantriBillingAssignmentRepository) EndAssignment(ctx context.Co
 
 	res, err := execer.ExecContext(ctx, `UPDATE santri_billing_assignments SET effective_until=$1 WHERE id=$2`, effectiveUntil, id)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingSchemePersistenceFailed, fmt.Errorf("end assignment: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal mengakhiri penugasan skema tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeBillingSchemeNotFound)
+		return kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -309,9 +309,9 @@ func (r *PostgresSantriBillingAssignmentRepository) scanAssignment(sc scanner) (
 	err := sc.Scan(&id, &santriID, &billingSchemeID, &effectiveFrom, &effectiveUntil, &assignedBy, &createdAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeBillingSchemeNotFound)
+			return nil, kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeBillingSchemeQueryFailed, fmt.Errorf("scan assignment: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca data penugasan skema tagihan", err)
 	}
 
 	return &entity.SantriBillingAssignment{

@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 
-	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -23,15 +23,15 @@ func NewReportBalanceSheetUseCase(db *sql.DB, accountRepo accRepo.AccountReposit
 func (uc *ReportBalanceSheetUseCase) Execute(ctx context.Context, query dto.BalanceSheetQuery) (*dto.BalanceSheetResponse, error) {
 	allAccounts, err := uc.accountRepo.ListAll(ctx)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	accountMap := make(map[string]*accountInfo)
 	for _, acc := range allAccounts {
 		accountMap[acc.ID] = &accountInfo{
-			Code:     acc.Code,
-			Name:     acc.Name,
-			Type:     acc.Type,
+			Code:          acc.Code,
+			Name:          acc.Name,
+			Type:          acc.Type,
 			IsDebitNormal: acc.NormalBalance == accConst.BalanceDebit,
 		}
 	}
@@ -126,7 +126,7 @@ func (uc *ReportBalanceSheetUseCase) computeBalancesToDate(ctx context.Context, 
 func (uc *ReportBalanceSheetUseCase) queryBalances(ctx context.Context, sqlQuery string, args ...interface{}) (map[string]float64, error) {
 	rows, err := uc.db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	defer rows.Close()
 
@@ -135,12 +135,12 @@ func (uc *ReportBalanceSheetUseCase) queryBalances(ctx context.Context, sqlQuery
 		var accountID string
 		var totalDebit, totalCredit float64
 		if err := rows.Scan(&accountID, &totalDebit, &totalCredit); err != nil {
-			return nil, kernel.Wrap(application.ErrCodeInternal, err)
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		balances[accountID] = totalDebit - totalCredit
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	return balances, nil
 }

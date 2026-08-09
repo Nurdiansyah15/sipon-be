@@ -2,18 +2,22 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalEntity "sipon-be/internal/modules/keuangan/domain/journal/entity"
 	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
 	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/shared/kernel"
 )
 
 type CreateManualJournalUseCase struct {
@@ -29,21 +33,35 @@ func NewCreateManualJournalUseCase(journalRepo journalRepo.JournalRepository, ac
 func (uc *CreateManualJournalUseCase) Execute(ctx context.Context, req dto.CreateJournalEntryRequest, postedBy string) (*dto.JournalEntryResponse, error) {
 	period, err := uc.periodRepo.FindActive(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case periodConst.CodePeriodNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	if req.PeriodID != "" {
 		period, err = uc.periodRepo.FindByID(ctx, req.PeriodID)
 		if err != nil {
-			return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case periodConst.CodePeriodNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 	}
 	if !period.CanPost() {
-		return nil, application.WrapRepoErr(fmt.Errorf("period is not open"), journalConst.CodeJournalPeriodClosed)
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Periode akuntansi sudah ditutup", nil)
 	}
 
 	entryDate, err := time.Parse("2006-01-02", req.EntryDate)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "format tanggal tidak valid", err)
 	}
 
 	jn := fmt.Sprintf("JRN/%d/%02d/%06d", time.Now().Year(), time.Now().Month(), 1)
@@ -52,17 +70,38 @@ func (uc *CreateManualJournalUseCase) Execute(ctx context.Context, req dto.Creat
 		req.Description, period.ID, postedBy,
 	)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case journalConst.CodeJournalNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 	entry.SetSource(journalConst.SourceManual, entry.ID)
 
 	for _, line := range req.Lines {
 		acc, err := uc.accountRepo.FindByID(ctx, line.AccountID)
 		if err != nil {
-			return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case accConst.CodeAccountNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 		if err := acc.EnsurePostable(); err != nil {
-			return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotBalanced)
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case accConst.CodeAccountNotPostable:
+					return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
+				}
+			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
 
 		entryLine := journalEntity.NewJournalEntryLine(
@@ -74,11 +113,21 @@ func (uc *CreateManualJournalUseCase) Execute(ctx context.Context, req dto.Creat
 	}
 
 	if err := entry.Post(); err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalInvalidStatus)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case journalConst.CodeJournalNotBalanced,
+				journalConst.CodeJournalMinLines:
+				return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
+			case journalConst.CodeJournalInvalidStatus:
+				return nil, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	if err := uc.journalRepo.Save(ctx, entry); err != nil {
-		return nil, application.WrapRepoErr(err, journalConst.CodeJournalNotFound)
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return toJournalEntryResponse(entry), nil

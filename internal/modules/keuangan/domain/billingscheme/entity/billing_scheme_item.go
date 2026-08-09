@@ -19,7 +19,7 @@ type BillingSchemeItem struct {
 
 func NewBillingSchemeItem(id, billingSchemeID, feeComponentID string, amountOverride *float64, isRequired bool, sortOrder int) (*BillingSchemeItem, error) {
 	if id == "" || billingSchemeID == "" || feeComponentID == "" {
-		return nil, kernel.New(constant.CodeSchemeItemNotFound)
+		return nil, kernel.WrapMsg(constant.CodeSchemeItemNotFound, "Data item skema tagihan tidak lengkap", nil)
 	}
 	return &BillingSchemeItem{
 		ID:              id,

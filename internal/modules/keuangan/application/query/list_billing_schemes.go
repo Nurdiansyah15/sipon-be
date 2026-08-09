@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
-	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListBillingSchemesUseCase struct {
@@ -32,7 +32,7 @@ func (uc *ListBillingSchemesUseCase) Execute(ctx context.Context, query dto.Bill
 
 	result, err := uc.billingSchemeRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, bsConst.CodeBillingSchemeQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.BillingSchemeResponse, len(result.Items))

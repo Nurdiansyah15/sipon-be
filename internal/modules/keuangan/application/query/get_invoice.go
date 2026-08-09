@@ -2,15 +2,17 @@ package query
 
 import (
 	"context"
+	"errors"
 
+	"sipon-be/internal/modules/keuangan/application"
+	"sipon-be/internal/modules/keuangan/application/dto"
 	adjRepo "sipon-be/internal/modules/keuangan/domain/adjustment/repository"
 	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payRepo "sipon-be/internal/modules/keuangan/domain/payment/repository"
-	"sipon-be/internal/modules/keuangan/application"
-	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetInvoiceUseCase struct {
@@ -40,7 +42,14 @@ func NewGetInvoiceUseCase(
 func (uc *GetInvoiceUseCase) Execute(ctx context.Context, id string) (*dto.InvoiceResponse, error) {
 	inv, err := uc.invoiceRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, invConst.CodeInvoiceNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	resp := buildInvoiceResponse(ctx, inv, uc.feeComponentRepo, uc.billingPeriodRepo)

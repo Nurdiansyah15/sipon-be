@@ -45,7 +45,7 @@ func (r *PostgresJournalRepository) Save(ctx context.Context, entry *entity.Jour
 		entry.CreatedAt, entry.UpdatedAt,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeJournalPersistenceFailed, fmt.Errorf("save journal entry: %w", err))
+		return kernel.WrapMsg(constant.CodeJournalPersistenceFailed, "gagal menyimpan jurnal", err)
 	}
 	return nil
 }
@@ -64,11 +64,11 @@ func (r *PostgresJournalRepository) Update(ctx context.Context, entry *entity.Jo
 		entry.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeJournalPersistenceFailed, fmt.Errorf("update journal entry: %w", err))
+		return kernel.WrapMsg(constant.CodeJournalPersistenceFailed, "gagal memperbarui jurnal", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeJournalNotFound)
+		return kernel.WrapMsg(constant.CodeJournalNotFound, "Jurnal tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func (r *PostgresJournalRepository) NextJournalNumber(ctx context.Context) (jour
 
 	seq, err := nextNumberSeq(ctx, execer, "journal", year)
 	if err != nil {
-		return journalVO.JournalNumber{}, kernel.Wrap(constant.CodeJournalPersistenceFailed, err)
+		return journalVO.JournalNumber{}, kernel.WrapMsg(constant.CodeJournalPersistenceFailed, "gagal membuat nomor jurnal", err)
 	}
 
 	return journalVO.NewJournalNumber(fmt.Sprintf("%d", year), fmt.Sprintf("%02d", int(now.Month())), seq), nil
@@ -143,7 +143,7 @@ func (r *PostgresJournalRepository) List(ctx context.Context, q repository.Journ
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM journal_entries `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("count journal entries: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal menghitung jumlah jurnal", err)
 	}
 
 	limit := q.Limit
@@ -155,7 +155,7 @@ func (r *PostgresJournalRepository) List(ctx context.Context, q repository.Journ
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("list journal entries: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal mendaftar jurnal", err)
 	}
 	defer rows.Close()
 
@@ -168,7 +168,7 @@ func (r *PostgresJournalRepository) List(ctx context.Context, q repository.Journ
 		items = append(items, entry)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("iterate journal entry rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data jurnal", err)
 	}
 
 	return &repository.JournalListResult{Items: items, Total: total}, nil
@@ -204,7 +204,7 @@ func (r *PostgresJournalRepository) SaveLines(ctx context.Context, entryID strin
 			nullStr(line.Description), line.Debit, line.Credit,
 		)
 		if err != nil {
-			return kernel.Wrap(constant.CodeJournalPersistenceFailed, fmt.Errorf("save journal line: %w", err))
+			return kernel.WrapMsg(constant.CodeJournalPersistenceFailed, "gagal menyimpan baris jurnal", err)
 		}
 	}
 	return nil
@@ -218,7 +218,7 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 		entryID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("find lines by entry id: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal mencari baris jurnal", err)
 	}
 	defer rows.Close()
 
@@ -230,7 +230,7 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 			debit, credit                    float64
 		)
 		if err := rows.Scan(&id, &jeID, &accountID, &accountCode, &description, &debit, &credit); err != nil {
-			return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("scan journal line: %w", err))
+			return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data baris jurnal", err)
 		}
 		items = append(items, &entity.JournalEntryLine{
 			ID:             id,
@@ -243,7 +243,7 @@ func (r *PostgresJournalRepository) FindLinesByEntryID(ctx context.Context, entr
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("iterate journal lines: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data baris jurnal", err)
 	}
 	return items, nil
 }
@@ -265,9 +265,9 @@ func (r *PostgresJournalRepository) scan(sc scanner) (*entity.JournalEntry, erro
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeJournalNotFound)
+			return nil, kernel.WrapMsg(constant.CodeJournalNotFound, "Jurnal tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeJournalQueryFailed, fmt.Errorf("scan journal entry: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeJournalQueryFailed, "gagal membaca data jurnal", err)
 	}
 
 	var st *constant.SourceType

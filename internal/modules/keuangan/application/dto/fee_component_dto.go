@@ -1,21 +1,21 @@
 package dto
 
 type CreateFeeComponentRequest struct {
-	Code        string   `json:"code" binding:"required"`
-	Name        string   `json:"name" binding:"required"`
-	Type        string   `json:"type" binding:"required"`
-	Amount      float64  `json:"amount" binding:"required"`
-	IsPeriodic  bool     `json:"is_periodic"`
-	PeriodType  *string  `json:"period_type,omitempty"`
-	Description *string  `json:"description,omitempty"`
+	Code        string  `json:"code" binding:"required"`
+	Name        string  `json:"name" binding:"required"`
+	Type        string  `json:"type" binding:"required"`
+	Amount      float64 `json:"amount" binding:"required"`
+	IsPeriodic  bool    `json:"is_periodic"`
+	PeriodType  *string `json:"period_type,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 type UpdateFeeComponentRequest struct {
-	Name        string   `json:"name" binding:"required"`
-	Amount      float64  `json:"amount" binding:"required"`
-	IsPeriodic  bool     `json:"is_periodic"`
-	PeriodType  *string  `json:"period_type,omitempty"`
-	Description *string  `json:"description,omitempty"`
+	Name        string  `json:"name" binding:"required"`
+	Amount      float64 `json:"amount" binding:"required"`
+	IsPeriodic  bool    `json:"is_periodic"`
+	PeriodType  *string `json:"period_type,omitempty"`
+	Description *string `json:"description,omitempty"`
 }
 
 type FeeComponentListQuery struct {

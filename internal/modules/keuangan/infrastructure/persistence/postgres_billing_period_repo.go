@@ -38,7 +38,7 @@ func (r *PostgresBillingPeriodRepository) Save(ctx context.Context, period *enti
 		string(period.Status), period.CreatedBy, period.CreatedAt, period.UpdatedAt,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingPeriodPersistenceFailed, fmt.Errorf("save billing period: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingPeriodPersistenceFailed, "gagal menyimpan periode tagihan", err)
 	}
 	return nil
 }
@@ -55,11 +55,11 @@ func (r *PostgresBillingPeriodRepository) Update(ctx context.Context, period *en
 		string(period.Status), period.UpdatedAt, period.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingPeriodPersistenceFailed, fmt.Errorf("update billing period: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingPeriodPersistenceFailed, "gagal memperbarui periode tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeBillingPeriodNotFound)
+		return kernel.WrapMsg(constant.CodeBillingPeriodNotFound, "Periode tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -85,7 +85,7 @@ func (r *PostgresBillingPeriodRepository) List(ctx context.Context, q repository
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM billing_periods `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingPeriodQueryFailed, fmt.Errorf("count billing periods: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodQueryFailed, "gagal menghitung jumlah periode tagihan", err)
 	}
 
 	limit := q.Limit
@@ -97,7 +97,7 @@ func (r *PostgresBillingPeriodRepository) List(ctx context.Context, q repository
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingPeriodQueryFailed, fmt.Errorf("list billing periods: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodQueryFailed, "gagal mendaftar periode tagihan", err)
 	}
 	defer rows.Close()
 
@@ -110,7 +110,7 @@ func (r *PostgresBillingPeriodRepository) List(ctx context.Context, q repository
 		items = append(items, period)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingPeriodQueryFailed, fmt.Errorf("iterate billing periods: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodQueryFailed, "gagal membaca data periode tagihan", err)
 	}
 
 	return &repository.BillingPeriodListResult{Items: items, Total: total}, nil
@@ -126,9 +126,9 @@ func (r *PostgresBillingPeriodRepository) scan(sc scanner) (*entity.BillingPerio
 	err := sc.Scan(&id, &name, &periodType, &startDate, &endDate, &status, &createdBy, &createdAt, &updatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeBillingPeriodNotFound)
+			return nil, kernel.WrapMsg(constant.CodeBillingPeriodNotFound, "Periode tagihan tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeBillingPeriodQueryFailed, fmt.Errorf("scan billing period: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodQueryFailed, "gagal membaca data periode tagihan", err)
 	}
 
 	return &entity.BillingPeriod{

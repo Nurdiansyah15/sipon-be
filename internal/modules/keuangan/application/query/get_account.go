@@ -2,11 +2,13 @@ package query
 
 import (
 	"context"
+	"errors"
 
-	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
-	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type GetAccountUseCase struct {
@@ -20,7 +22,14 @@ func NewGetAccountUseCase(accountRepo accRepo.AccountRepository) *GetAccountUseC
 func (uc *GetAccountUseCase) Execute(ctx context.Context, id string) (*dto.AccountResponse, error) {
 	acc, err := uc.accountRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, accConst.CodeAccountNotFound)
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	return &dto.AccountResponse{

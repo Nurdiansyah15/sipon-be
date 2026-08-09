@@ -41,9 +41,9 @@ func (r *PostgresFeeComponentRepository) Save(ctx context.Context, fc *entity.Fe
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeFeeComponentDuplicate, err)
+			return kernel.WrapMsg(constant.CodeFeeComponentDuplicate, "Komponen biaya dengan kode yang sama sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeFeeComponentPersistenceFailed, fmt.Errorf("save fee component: %w", err))
+		return kernel.WrapMsg(constant.CodeFeeComponentPersistenceFailed, "gagal menyimpan komponen biaya", err)
 	}
 	return nil
 }
@@ -64,13 +64,13 @@ func (r *PostgresFeeComponentRepository) Update(ctx context.Context, fc *entity.
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodeFeeComponentDuplicate, err)
+			return kernel.WrapMsg(constant.CodeFeeComponentDuplicate, "Komponen biaya dengan kode yang sama sudah ada", err)
 		}
-		return kernel.Wrap(constant.CodeFeeComponentPersistenceFailed, fmt.Errorf("update fee component: %w", err))
+		return kernel.WrapMsg(constant.CodeFeeComponentPersistenceFailed, "gagal memperbarui komponen biaya", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeFeeComponentNotFound)
+		return kernel.WrapMsg(constant.CodeFeeComponentNotFound, "Komponen biaya tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -107,7 +107,7 @@ func (r *PostgresFeeComponentRepository) List(ctx context.Context, q repository.
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM fee_components `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("count fee components: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentQueryFailed, "gagal menghitung jumlah komponen biaya", err)
 	}
 
 	limit := q.Limit
@@ -119,7 +119,7 @@ func (r *PostgresFeeComponentRepository) List(ctx context.Context, q repository.
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("list fee components: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentQueryFailed, "gagal mendaftar komponen biaya", err)
 	}
 	defer rows.Close()
 
@@ -132,7 +132,7 @@ func (r *PostgresFeeComponentRepository) List(ctx context.Context, q repository.
 		items = append(items, fc)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("iterate fee component rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentQueryFailed, "gagal membaca data komponen biaya", err)
 	}
 
 	return &repository.FeeComponentListResult{Items: items, Total: total}, nil
@@ -151,7 +151,7 @@ func (r *PostgresFeeComponentRepository) ExistsByCode(ctx context.Context, code 
 		err = execer.QueryRowContext(ctx, query, code, excludeID).Scan(&exists)
 	}
 	if err != nil {
-		return false, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("exists by code: %w", err))
+		return false, kernel.WrapMsg(constant.CodeFeeComponentQueryFailed, "gagal memeriksa ketersediaan kode", err)
 	}
 	return exists, nil
 }
@@ -173,9 +173,9 @@ func (r *PostgresFeeComponentRepository) scan(sc scanner) (*entity.FeeComponent,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeFeeComponentNotFound)
+			return nil, kernel.WrapMsg(constant.CodeFeeComponentNotFound, "Komponen biaya tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeFeeComponentQueryFailed, fmt.Errorf("scan fee component: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeFeeComponentQueryFailed, "gagal membaca data komponen biaya", err)
 	}
 
 	var pt *constant.PeriodType

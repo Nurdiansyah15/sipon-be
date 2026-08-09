@@ -1,6 +1,7 @@
 package http
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/gin-gonic/gin"
@@ -10,11 +11,13 @@ import (
 	"sipon-be/internal/modules/keuangan/application/command"
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/query"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
 	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
 	bsConst "sipon-be/internal/modules/keuangan/domain/billingscheme/constant"
 	bsEntity "sipon-be/internal/modules/keuangan/domain/billingscheme/entity"
 	bsRepo "sipon-be/internal/modules/keuangan/domain/billingscheme/repository"
+	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	"sipon-be/internal/modules/keuangan/infrastructure/external"
@@ -257,7 +260,15 @@ func (h *KeuanganHandler) DeleteFeeComponent(c *gin.Context) {
 	id := c.Param("id")
 	fc, err := h.feeComponentRepo.FindByID(c.Request.Context(), id)
 	if err != nil {
-		httperror.Handle(c, kernel.New("ERR_NOT_FOUND"))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case feeConst.CodeFeeComponentNotFound:
+				httperror.Handle(c, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke))
+				return
+			}
+		}
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err))
 		return
 	}
 	fc.Deactivate()
@@ -316,7 +327,15 @@ func (h *KeuanganHandler) DeleteBillingScheme(c *gin.Context) {
 	id := c.Param("id")
 	scheme, err := h.billingSchemeRepo.FindByID(c.Request.Context(), id)
 	if err != nil {
-		httperror.Handle(c, kernel.New("ERR_NOT_FOUND"))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeBillingSchemeNotFound:
+				httperror.Handle(c, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke))
+				return
+			}
+		}
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err))
 		return
 	}
 	scheme.Deactivate()
@@ -353,7 +372,15 @@ func (h *KeuanganHandler) AddSchemeItem(c *gin.Context) {
 		return
 	}
 	if err := h.billingSchemeRepo.AddItems(c.Request.Context(), schemeID, []*bsEntity.BillingSchemeItem{item}); err != nil {
-		httperror.Handle(c, application.WrapConflictErr(err, bsConst.CodeSchemeItemDuplicate))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeSchemeItemDuplicate:
+				httperror.Handle(c, kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke))
+				return
+			}
+		}
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err))
 		return
 	}
 	resp, err := h.getBillingSchemeUC.Execute(c.Request.Context(), schemeID)
@@ -368,7 +395,15 @@ func (h *KeuanganHandler) RemoveSchemeItem(c *gin.Context) {
 	schemeID := c.Param("id")
 	itemID := c.Param("itemId")
 	if err := h.billingSchemeRepo.RemoveItem(c.Request.Context(), schemeID, itemID); err != nil {
-		httperror.Handle(c, application.WrapRepoErr(err, bsConst.CodeSchemeItemNotFound))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case bsConst.CodeSchemeItemNotFound:
+				httperror.Handle(c, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke))
+				return
+			}
+		}
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err))
 		return
 	}
 	resp, err := h.getBillingSchemeUC.Execute(c.Request.Context(), schemeID)
@@ -646,7 +681,15 @@ func (h *KeuanganHandler) DeleteAccount(c *gin.Context) {
 	id := c.Param("id")
 	acc, err := h.accountRepo.FindByID(c.Request.Context(), id)
 	if err != nil {
-		httperror.Handle(c, kernel.New("ERR_NOT_FOUND"))
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotFound:
+				httperror.Handle(c, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke))
+				return
+			}
+		}
+		httperror.Handle(c, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err))
 		return
 	}
 	if err := acc.Deactivate(); err != nil {

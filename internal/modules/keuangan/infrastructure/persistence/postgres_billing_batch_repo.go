@@ -39,7 +39,7 @@ func (r *PostgresBillingBatchRepository) Save(ctx context.Context, batch *entity
 		batch.TotalCreated, batch.TotalSkipped, batch.TotalError,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingBatchPersistenceFailed, fmt.Errorf("save billing batch: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingBatchPersistenceFailed, "gagal menyimpan batch tagihan", err)
 	}
 	return nil
 }
@@ -56,11 +56,11 @@ func (r *PostgresBillingBatchRepository) Update(ctx context.Context, batch *enti
 		batch.TotalCreated, batch.TotalSkipped, batch.TotalError, batch.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingBatchPersistenceFailed, fmt.Errorf("update billing batch: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingBatchPersistenceFailed, "gagal memperbarui batch tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeBillingBatchNotFound)
+		return kernel.WrapMsg(constant.CodeBillingBatchNotFound, "Batch tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -86,7 +86,7 @@ func (r *PostgresBillingBatchRepository) List(ctx context.Context, q repository.
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM billing_batches `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("count billing batches: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal menghitung jumlah batch tagihan", err)
 	}
 
 	limit := q.Limit
@@ -98,7 +98,7 @@ func (r *PostgresBillingBatchRepository) List(ctx context.Context, q repository.
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("list billing batches: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal mendaftar batch tagihan", err)
 	}
 	defer rows.Close()
 
@@ -111,7 +111,7 @@ func (r *PostgresBillingBatchRepository) List(ctx context.Context, q repository.
 		items = append(items, batch)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("iterate billing batches: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal membaca data batch tagihan", err)
 	}
 
 	return &repository.BillingBatchListResult{Items: items, Total: total}, nil
@@ -129,9 +129,9 @@ func (r *PostgresBillingBatchRepository) scan(sc scanner) (*entity.BillingBatch,
 		&completedAt, &totalCreated, &totalSkipped, &totalError)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodeBillingBatchNotFound)
+			return nil, kernel.WrapMsg(constant.CodeBillingBatchNotFound, "Batch tagihan tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("scan billing batch: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal membaca data batch tagihan", err)
 	}
 
 	return &entity.BillingBatch{
@@ -173,7 +173,7 @@ func (r *PostgresBillingBatchTargetRepository) SaveMany(ctx context.Context, tar
 			t.ID, t.BatchID, t.SantriID, string(t.Status), nullStr(t.InvoiceID), nullStr(t.Reason), nullTimeVal(t.ProcessedAt),
 		)
 		if err != nil {
-			return kernel.Wrap(constant.CodeBillingBatchPersistenceFailed, fmt.Errorf("save batch target: %w", err))
+			return kernel.WrapMsg(constant.CodeBillingBatchPersistenceFailed, "gagal menyimpan target batch tagihan", err)
 		}
 	}
 	return nil
@@ -188,11 +188,11 @@ func (r *PostgresBillingBatchTargetRepository) UpdateTarget(ctx context.Context,
 		string(target.Status), nullStr(target.InvoiceID), nullStr(target.Reason), nullTimeVal(target.ProcessedAt), target.ID,
 	)
 	if err != nil {
-		return kernel.Wrap(constant.CodeBillingBatchPersistenceFailed, fmt.Errorf("update batch target: %w", err))
+		return kernel.WrapMsg(constant.CodeBillingBatchPersistenceFailed, "gagal memperbarui target batch tagihan", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodeBillingBatchNotFound)
+		return kernel.WrapMsg(constant.CodeBillingBatchNotFound, "Batch tagihan tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -205,7 +205,7 @@ func (r *PostgresBillingBatchTargetRepository) FindByBatchID(ctx context.Context
 		batchID,
 	)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("find batch targets: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal mencari target batch tagihan", err)
 	}
 	defer rows.Close()
 
@@ -217,7 +217,7 @@ func (r *PostgresBillingBatchTargetRepository) FindByBatchID(ctx context.Context
 			processedAt                   sql.NullTime
 		)
 		if err := rows.Scan(&id, &batchID, &santriID, &status, &invoiceID, &reason, &processedAt); err != nil {
-			return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("scan batch target: %w", err))
+			return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal membaca data target batch tagihan", err)
 		}
 		items = append(items, &entity.BillingBatchTarget{
 			ID:          id,
@@ -230,7 +230,7 @@ func (r *PostgresBillingBatchTargetRepository) FindByBatchID(ctx context.Context
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodeBillingBatchQueryFailed, fmt.Errorf("iterate batch targets: %w", err))
+		return nil, kernel.WrapMsg(constant.CodeBillingBatchQueryFailed, "gagal membaca data target batch tagihan", err)
 	}
 	return items, nil
 }

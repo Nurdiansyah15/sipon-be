@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
-	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListJournalEntriesUseCase struct {
@@ -34,7 +34,7 @@ func (uc *ListJournalEntriesUseCase) Execute(ctx context.Context, query dto.Jour
 
 	result, err := uc.journalRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, journalConst.CodeJournalQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.JournalEntryResponse, len(result.Items))

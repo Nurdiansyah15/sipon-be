@@ -19,7 +19,7 @@ type SantriBillingAssignment struct {
 
 func NewSantriBillingAssignment(id, santriID, billingSchemeID, assignedBy string, effectiveFrom time.Time, effectiveUntil *time.Time) (*SantriBillingAssignment, error) {
 	if id == "" || santriID == "" || billingSchemeID == "" || assignedBy == "" {
-		return nil, kernel.New(constant.CodeBillingSchemeNotFound)
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Data penugasan skema tagihan tidak lengkap", nil)
 	}
 	return &SantriBillingAssignment{
 		ID:              id,

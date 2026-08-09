@@ -28,10 +28,10 @@ type Payment struct {
 
 func NewPayment(id, paymentNumber, invoiceID string, amount float64, method constant.PaymentMethod, paymentDate time.Time, debitAccountID *string, referenceNumber *string, notes *string, proofKey *string, createdBy string) (*Payment, error) {
 	if id == "" || paymentNumber == "" || invoiceID == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodePaymentNotFound)
+		return nil, kernel.WrapMsg(constant.CodePaymentNotFound, "Data pembayaran tidak lengkap", nil)
 	}
 	if amount <= 0 {
-		return nil, kernel.New(constant.CodePaymentNotFound)
+		return nil, kernel.WrapMsg(constant.CodePaymentNotFound, "Nominal pembayaran harus lebih dari nol", nil)
 	}
 	now := time.Now()
 	return &Payment{
@@ -54,7 +54,7 @@ func NewPayment(id, paymentNumber, invoiceID string, amount float64, method cons
 
 func (p *Payment) Verify(verifierID string) error {
 	if p.Status != constant.PaymentPending {
-		return kernel.New(constant.CodePaymentInvalidStatus)
+		return kernel.WrapMsg(constant.CodePaymentInvalidStatus, "Hanya pembayaran berstatus pending yang dapat diverifikasi", nil)
 	}
 	now := time.Now()
 	p.Status = constant.PaymentVerified
@@ -66,7 +66,7 @@ func (p *Payment) Verify(verifierID string) error {
 
 func (p *Payment) Reject() error {
 	if p.Status != constant.PaymentPending {
-		return kernel.New(constant.CodePaymentInvalidStatus)
+		return kernel.WrapMsg(constant.CodePaymentInvalidStatus, "Hanya pembayaran berstatus pending yang dapat ditolak", nil)
 	}
 	p.Status = constant.PaymentRejected
 	p.UpdatedAt = time.Now()

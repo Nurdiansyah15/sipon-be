@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
-	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListFeeComponentsUseCase struct {
@@ -33,7 +33,7 @@ func (uc *ListFeeComponentsUseCase) Execute(ctx context.Context, query dto.FeeCo
 
 	result, err := uc.feeComponentRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, feeConst.CodeFeeComponentQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.FeeComponentResponse, len(result.Items))

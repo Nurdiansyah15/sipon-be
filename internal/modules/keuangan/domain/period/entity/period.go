@@ -22,10 +22,10 @@ type AccountingPeriod struct {
 
 func NewAccountingPeriod(id, name string, startDate, endDate time.Time, createdBy string) (*AccountingPeriod, error) {
 	if id == "" || name == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodePeriodNotFound)
+		return nil, kernel.WrapMsg(constant.CodePeriodNotFound, "Data periode akuntansi tidak lengkap", nil)
 	}
 	if endDate.Before(startDate) {
-		return nil, kernel.New(constant.CodePeriodNotFound)
+		return nil, kernel.WrapMsg(constant.CodePeriodNotFound, "Tanggal akhir tidak boleh sebelum tanggal mulai", nil)
 	}
 	now := time.Now()
 	return &AccountingPeriod{
@@ -42,7 +42,7 @@ func NewAccountingPeriod(id, name string, startDate, endDate time.Time, createdB
 
 func (p *AccountingPeriod) Close(closedBy string) error {
 	if p.Status != constant.PeriodOpen {
-		return kernel.New(constant.CodePeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodePeriodInvalidStatus, "Hanya periode berstatus open yang dapat ditutup", nil)
 	}
 	now := time.Now()
 	p.Status = constant.PeriodClosed
@@ -54,7 +54,7 @@ func (p *AccountingPeriod) Close(closedBy string) error {
 
 func (p *AccountingPeriod) Reopen() error {
 	if p.Status != constant.PeriodClosed {
-		return kernel.New(constant.CodePeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodePeriodInvalidStatus, "Hanya periode berstatus closed yang dapat dibuka kembali", nil)
 	}
 	p.Status = constant.PeriodOpen
 	p.ClosedBy = nil
@@ -65,7 +65,7 @@ func (p *AccountingPeriod) Reopen() error {
 
 func (p *AccountingPeriod) Lock(closedBy string) error {
 	if p.Status != constant.PeriodClosed {
-		return kernel.New(constant.CodePeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodePeriodInvalidStatus, "Hanya periode berstatus closed yang dapat dikunci", nil)
 	}
 	now := time.Now()
 	p.Status = constant.PeriodLocked
@@ -77,7 +77,7 @@ func (p *AccountingPeriod) Lock(closedBy string) error {
 
 func (p *AccountingPeriod) StartClosing() error {
 	if p.Status != constant.PeriodOpen {
-		return kernel.New(constant.CodePeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodePeriodInvalidStatus, "Hanya periode berstatus open yang dapat memulai penutupan", nil)
 	}
 	p.Status = constant.PeriodClosing
 	p.UpdatedAt = time.Now()

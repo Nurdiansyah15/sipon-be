@@ -17,22 +17,22 @@ type BillingSchemeListQuery struct {
 }
 
 type BillingSchemeResponse struct {
-	ID          string                     `json:"id"`
-	Name        string                     `json:"name"`
-	Description *string                    `json:"description,omitempty"`
-	IsActive    bool                       `json:"is_active"`
+	ID          string                      `json:"id"`
+	Name        string                      `json:"name"`
+	Description *string                     `json:"description,omitempty"`
+	IsActive    bool                        `json:"is_active"`
 	Items       []BillingSchemeItemResponse `json:"items,omitempty"`
-	CreatedAt   string                     `json:"created_at"`
-	UpdatedAt   string                     `json:"updated_at"`
+	CreatedAt   string                      `json:"created_at"`
+	UpdatedAt   string                      `json:"updated_at"`
 }
 
 type BillingSchemeItemResponse struct {
-	ID              string                    `json:"id"`
-	FeeComponentID  string                    `json:"fee_component_id"`
-	FeeComponent    *FeeComponentBriefResponse `json:"fee_component,omitempty"`
-	AmountOverride  *float64                  `json:"amount_override,omitempty"`
-	IsRequired      bool                      `json:"is_required"`
-	SortOrder       int                       `json:"sort_order"`
+	ID             string                     `json:"id"`
+	FeeComponentID string                     `json:"fee_component_id"`
+	FeeComponent   *FeeComponentBriefResponse `json:"fee_component,omitempty"`
+	AmountOverride *float64                   `json:"amount_override,omitempty"`
+	IsRequired     bool                       `json:"is_required"`
+	SortOrder      int                        `json:"sort_order"`
 }
 
 type FeeComponentBriefResponse struct {
@@ -44,10 +44,10 @@ type FeeComponentBriefResponse struct {
 }
 
 type AddSchemeItemRequest struct {
-	FeeComponentID  string   `json:"fee_component_id" binding:"required"`
-	AmountOverride  *float64 `json:"amount_override,omitempty"`
-	IsRequired      bool     `json:"is_required"`
-	SortOrder       int      `json:"sort_order"`
+	FeeComponentID string   `json:"fee_component_id" binding:"required"`
+	AmountOverride *float64 `json:"amount_override,omitempty"`
+	IsRequired     bool     `json:"is_required"`
+	SortOrder      int      `json:"sort_order"`
 }
 
 type AssignSchemeRequest struct {

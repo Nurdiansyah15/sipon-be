@@ -22,10 +22,10 @@ type BillingPeriod struct {
 
 func NewBillingPeriod(id, name string, periodType feeConst.PeriodType, startDate, endDate time.Time, createdBy string) (*BillingPeriod, error) {
 	if id == "" || name == "" || createdBy == "" {
-		return nil, kernel.New(constant.CodeBillingPeriodNotFound)
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodNotFound, "Data periode tagihan tidak lengkap", nil)
 	}
 	if endDate.Before(startDate) {
-		return nil, kernel.New(constant.CodeBillingPeriodNotFound)
+		return nil, kernel.WrapMsg(constant.CodeBillingPeriodNotFound, "Tanggal akhir tidak boleh sebelum tanggal mulai", nil)
 	}
 	now := time.Now()
 	return &BillingPeriod{
@@ -43,7 +43,7 @@ func NewBillingPeriod(id, name string, periodType feeConst.PeriodType, startDate
 
 func (p *BillingPeriod) Open() error {
 	if p.Status != constant.BillingPeriodDraft {
-		return kernel.New(constant.CodeBillingPeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodeBillingPeriodInvalidStatus, "Status periode tagihan tidak memungkinkan dibuka", nil)
 	}
 	p.Status = constant.BillingPeriodOpen
 	p.UpdatedAt = time.Now()
@@ -52,7 +52,7 @@ func (p *BillingPeriod) Open() error {
 
 func (p *BillingPeriod) Close() error {
 	if p.Status != constant.BillingPeriodOpen {
-		return kernel.New(constant.CodeBillingPeriodInvalidStatus)
+		return kernel.WrapMsg(constant.CodeBillingPeriodInvalidStatus, "Status periode tagihan tidak memungkinkan ditutup", nil)
 	}
 	p.Status = constant.BillingPeriodClosed
 	p.UpdatedAt = time.Now()

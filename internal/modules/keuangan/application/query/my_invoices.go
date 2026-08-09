@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 
-	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
-	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
-	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
-	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	bpRepo "sipon-be/internal/modules/keuangan/domain/billingperiod/repository"
+	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
+	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type MyInvoicesUseCase struct {
@@ -38,7 +38,7 @@ func (uc *MyInvoicesUseCase) Execute(ctx context.Context, userID string, query d
 
 	result, err := uc.invoiceRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, invConst.CodeInvoiceQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.InvoiceResponse, len(result.Items))

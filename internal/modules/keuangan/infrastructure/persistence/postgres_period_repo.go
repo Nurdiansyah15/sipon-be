@@ -41,9 +41,9 @@ func (r *PostgresAccountingPeriodRepository) Save(ctx context.Context, period *e
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodePeriodOverlap, err)
+			return kernel.WrapMsg(constant.CodePeriodOverlap, "Periode akuntansi saling tumpang tindih", err)
 		}
-		return kernel.Wrap(constant.CodePeriodPersistenceFailed, fmt.Errorf("save period: %w", err))
+		return kernel.WrapMsg(constant.CodePeriodPersistenceFailed, "gagal menyimpan periode akuntansi", err)
 	}
 	return nil
 }
@@ -63,13 +63,13 @@ func (r *PostgresAccountingPeriodRepository) Update(ctx context.Context, period 
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
-			return kernel.Wrap(constant.CodePeriodOverlap, err)
+			return kernel.WrapMsg(constant.CodePeriodOverlap, "Periode akuntansi saling tumpang tindih", err)
 		}
-		return kernel.Wrap(constant.CodePeriodPersistenceFailed, fmt.Errorf("update period: %w", err))
+		return kernel.WrapMsg(constant.CodePeriodPersistenceFailed, "gagal memperbarui periode akuntansi", err)
 	}
 	n, _ := res.RowsAffected()
 	if n == 0 {
-		return kernel.New(constant.CodePeriodNotFound)
+		return kernel.WrapMsg(constant.CodePeriodNotFound, "Periode akuntansi tidak ditemukan", nil)
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func (r *PostgresAccountingPeriodRepository) List(ctx context.Context, q reposit
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM accounting_periods `+where, args...)
 	if err := countRow.Scan(&total); err != nil {
-		return nil, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("count periods: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePeriodQueryFailed, "gagal menghitung jumlah periode akuntansi", err)
 	}
 
 	limit := q.Limit
@@ -113,7 +113,7 @@ func (r *PostgresAccountingPeriodRepository) List(ctx context.Context, q reposit
 
 	rows, err := execer.QueryContext(ctx, query, listArgs...)
 	if err != nil {
-		return nil, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("list periods: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePeriodQueryFailed, "gagal mendaftar periode akuntansi", err)
 	}
 	defer rows.Close()
 
@@ -126,7 +126,7 @@ func (r *PostgresAccountingPeriodRepository) List(ctx context.Context, q reposit
 		items = append(items, p)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("iterate period rows: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePeriodQueryFailed, "gagal membaca data periode akuntansi", err)
 	}
 
 	return &repository.PeriodListResult{Items: items, Total: total}, nil
@@ -158,7 +158,7 @@ func (r *PostgresAccountingPeriodRepository) HasOverlap(ctx context.Context, sta
 		).Scan(&exists)
 	}
 	if err != nil {
-		return false, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("has overlap: %w", err))
+		return false, kernel.WrapMsg(constant.CodePeriodQueryFailed, "gagal memeriksa tumpang tindih periode", err)
 	}
 	return exists, nil
 }
@@ -178,9 +178,9 @@ func (r *PostgresAccountingPeriodRepository) scan(sc scanner) (*entity.Accountin
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, kernel.New(constant.CodePeriodNotFound)
+			return nil, kernel.WrapMsg(constant.CodePeriodNotFound, "Periode akuntansi tidak ditemukan", nil)
 		}
-		return nil, kernel.Wrap(constant.CodePeriodQueryFailed, fmt.Errorf("scan period: %w", err))
+		return nil, kernel.WrapMsg(constant.CodePeriodQueryFailed, "gagal membaca data periode akuntansi", err)
 	}
 
 	return &entity.AccountingPeriod{

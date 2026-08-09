@@ -3,10 +3,10 @@ package query
 import (
 	"context"
 
-	periodConst "sipon-be/internal/modules/keuangan/domain/period/constant"
-	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	periodRepo "sipon-be/internal/modules/keuangan/domain/period/repository"
+	"sipon-be/internal/shared/kernel"
 )
 
 type ListPeriodsUseCase struct {
@@ -32,7 +32,7 @@ func (uc *ListPeriodsUseCase) Execute(ctx context.Context, query dto.PeriodListQ
 
 	result, err := uc.periodRepo.List(ctx, repoQuery)
 	if err != nil {
-		return nil, nil, application.WrapRepoErr(err, periodConst.CodePeriodQueryFailed)
+		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
 	items := make([]dto.PeriodResponse, len(result.Items))
