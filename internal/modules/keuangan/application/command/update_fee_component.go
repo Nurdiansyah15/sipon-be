@@ -6,6 +6,7 @@ import (
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	"sipon-be/internal/shared/kernel"
@@ -13,10 +14,11 @@ import (
 
 type UpdateFeeComponentUseCase struct {
 	feeComponentRepo feeRepo.FeeComponentRepository
+	accountRepo      accRepo.AccountRepository
 }
 
-func NewUpdateFeeComponentUseCase(feeComponentRepo feeRepo.FeeComponentRepository) *UpdateFeeComponentUseCase {
-	return &UpdateFeeComponentUseCase{feeComponentRepo: feeComponentRepo}
+func NewUpdateFeeComponentUseCase(feeComponentRepo feeRepo.FeeComponentRepository, accountRepo accRepo.AccountRepository) *UpdateFeeComponentUseCase {
+	return &UpdateFeeComponentUseCase{feeComponentRepo: feeComponentRepo, accountRepo: accountRepo}
 }
 
 func (uc *UpdateFeeComponentUseCase) Execute(ctx context.Context, id string, req dto.UpdateFeeComponentRequest) (*dto.FeeComponentResponse, error) {
@@ -32,13 +34,22 @@ func (uc *UpdateFeeComponentUseCase) Execute(ctx context.Context, id string, req
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	revenue, err := resolveFeeRevenueAccount(ctx, uc.accountRepo, req.RevenueAccountID)
+	if err != nil {
+		return nil, err
+	}
+	receivable, err := resolveFeeReceivableAccount(ctx, uc.accountRepo, req.ReceivableAccountID)
+	if err != nil {
+		return nil, err
+	}
+
 	var periodType *feeConst.PeriodType
 	if req.PeriodType != nil {
 		pt := feeConst.PeriodType(*req.PeriodType)
 		periodType = &pt
 	}
 
-	fc.Update(req.Name, req.Amount, req.IsPeriodic, periodType, req.Description)
+	fc.Update(req.RevenueAccountID, req.ReceivableAccountID, req.Name, req.Amount, req.IsPeriodic, periodType, req.Description)
 
 	if err := uc.feeComponentRepo.Update(ctx, fc); err != nil {
 		var ke *kernel.AppError
@@ -51,5 +62,5 @@ func (uc *UpdateFeeComponentUseCase) Execute(ctx context.Context, id string, req
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	return toFeeComponentResponse(fc), nil
+	return toFeeComponentResponse(fc, revenue, receivable), nil
 }

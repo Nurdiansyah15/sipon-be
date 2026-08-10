@@ -67,7 +67,6 @@ func (uc *GetBillingSchemeUseCase) Execute(ctx context.Context, id string) (*dto
 					ID:     fc.ID,
 					Code:   fc.Code,
 					Name:   fc.Name,
-					Type:   string(fc.Type),
 					Amount: fc.Amount,
 				}
 			}

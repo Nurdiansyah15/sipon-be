@@ -72,7 +72,7 @@ func (uc *ApplyAdjustmentUseCase) Execute(ctx context.Context, invoiceID string,
 			}
 			if err := uc.autoPosting.PostAdjustment(
 				txCtx, adj.ID, inv.InvoiceNumber, "",
-				*inv.IssuedAt, adjustmentAmount, fee.Type, appliedBy,
+				*inv.IssuedAt, adjustmentAmount, fee.RevenueAccountID, fee.ReceivableAccountID, appliedBy,
 			); err != nil {
 				return err
 			}

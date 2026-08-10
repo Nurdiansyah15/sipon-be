@@ -40,7 +40,6 @@ func buildInvoiceResponse(ctx context.Context, inv *invEntity.Invoice, feeCompon
 				ID:     fc.ID,
 				Code:   fc.Code,
 				Name:   fc.Name,
-				Type:   string(fc.Type),
 				Amount: fc.Amount,
 			}
 		}

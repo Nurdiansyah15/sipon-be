@@ -281,7 +281,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 			if uc.autoPosting != nil && inv.IssuedAt != nil {
 				if err := uc.autoPosting.PostInvoiceIssued(
 					txCtx, inv.ID, inv.InvoiceNumber, "",
-					*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
+					*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.RevenueAccountID, fee.ReceivableAccountID, cmd.CreatedBy,
 				); err != nil {
 					return err
 				}

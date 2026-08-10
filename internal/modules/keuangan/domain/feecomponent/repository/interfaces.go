@@ -7,7 +7,6 @@ import (
 )
 
 type FeeComponentListQuery struct {
-	Type   *string
 	Active *bool
 	Page   int
 	Limit  int

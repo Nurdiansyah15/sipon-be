@@ -8,43 +8,44 @@ import (
 )
 
 type FeeComponent struct {
-	ID          string
-	Code        string
-	Name        string
-	Type        constant.FeeComponentType
-	Amount      float64
-	IsPeriodic  bool
-	PeriodType  *constant.PeriodType
-	Description *string
-	IsActive    bool
-	CreatedBy   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   *time.Time
+	ID                  string
+	Code                string
+	Name                string
+	RevenueAccountID    string
+	ReceivableAccountID string
+	Amount              float64
+	IsPeriodic          bool
+	PeriodType          *constant.PeriodType
+	Description         *string
+	IsActive            bool
+	CreatedBy           string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           *time.Time
 }
 
-func NewFeeComponent(id, code, name string, feeType constant.FeeComponentType, amount float64, createdBy string) (*FeeComponent, error) {
-	if id == "" || code == "" || name == "" || createdBy == "" {
+func NewFeeComponent(id, code, name string, revenueAccountID, receivableAccountID string, amount float64, createdBy string) (*FeeComponent, error) {
+	if id == "" || code == "" || name == "" || createdBy == "" || revenueAccountID == "" || receivableAccountID == "" {
 		return nil, kernel.WrapMsg(constant.CodeFeeComponentNotFound, "Data komponen biaya tidak lengkap", nil)
-	}
-	if !constant.IsValidFeeType(feeType) {
-		return nil, kernel.WrapMsg(constant.CodeFeeComponentInvalidType, "Jenis komponen biaya tidak valid", nil)
 	}
 	now := time.Now()
 	return &FeeComponent{
-		ID:        id,
-		Code:      code,
-		Name:      name,
-		Type:      feeType,
-		Amount:    amount,
-		IsActive:  true,
-		CreatedBy: createdBy,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:                  id,
+		Code:                code,
+		Name:                name,
+		RevenueAccountID:    revenueAccountID,
+		ReceivableAccountID: receivableAccountID,
+		Amount:              amount,
+		IsActive:            true,
+		CreatedBy:           createdBy,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}, nil
 }
 
-func (f *FeeComponent) Update(name string, amount float64, isPeriodic bool, periodType *constant.PeriodType, description *string) {
+func (f *FeeComponent) Update(revenueAccountID, receivableAccountID, name string, amount float64, isPeriodic bool, periodType *constant.PeriodType, description *string) {
+	f.RevenueAccountID = revenueAccountID
+	f.ReceivableAccountID = receivableAccountID
 	f.Name = name
 	f.Amount = amount
 	f.IsPeriodic = isPeriodic

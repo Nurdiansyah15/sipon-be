@@ -8,6 +8,9 @@ import (
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accEntity "sipon-be/internal/modules/keuangan/domain/account/entity"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeEntity "sipon-be/internal/modules/keuangan/domain/feecomponent/entity"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
@@ -16,10 +19,11 @@ import (
 
 type CreateFeeComponentUseCase struct {
 	feeComponentRepo feeRepo.FeeComponentRepository
+	accountRepo      accRepo.AccountRepository
 }
 
-func NewCreateFeeComponentUseCase(feeComponentRepo feeRepo.FeeComponentRepository) *CreateFeeComponentUseCase {
-	return &CreateFeeComponentUseCase{feeComponentRepo: feeComponentRepo}
+func NewCreateFeeComponentUseCase(feeComponentRepo feeRepo.FeeComponentRepository, accountRepo accRepo.AccountRepository) *CreateFeeComponentUseCase {
+	return &CreateFeeComponentUseCase{feeComponentRepo: feeComponentRepo, accountRepo: accountRepo}
 }
 
 func (uc *CreateFeeComponentUseCase) Execute(ctx context.Context, req dto.CreateFeeComponentRequest, createdBy string) (*dto.FeeComponentResponse, error) {
@@ -31,9 +35,13 @@ func (uc *CreateFeeComponentUseCase) Execute(ctx context.Context, req dto.Create
 		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Komponen biaya dengan kode yang sama sudah ada", nil)
 	}
 
-	feeType := feeConst.FeeComponentType(req.Type)
-	if !feeConst.IsValidFeeType(feeType) {
-		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Jenis komponen biaya tidak valid", nil)
+	revenue, err := resolveFeeRevenueAccount(ctx, uc.accountRepo, req.RevenueAccountID)
+	if err != nil {
+		return nil, err
+	}
+	receivable, err := resolveFeeReceivableAccount(ctx, uc.accountRepo, req.ReceivableAccountID)
+	if err != nil {
+		return nil, err
 	}
 
 	var periodType *feeConst.PeriodType
@@ -42,15 +50,13 @@ func (uc *CreateFeeComponentUseCase) Execute(ctx context.Context, req dto.Create
 		periodType = &pt
 	}
 
-	fc, err := feeEntity.NewFeeComponent(uuid.New().String(), req.Code, req.Name, feeType, req.Amount, createdBy)
+	fc, err := feeEntity.NewFeeComponent(uuid.New().String(), req.Code, req.Name, req.RevenueAccountID, req.ReceivableAccountID, req.Amount, createdBy)
 	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case feeConst.CodeFeeComponentNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
-			case feeConst.CodeFeeComponentInvalidType:
-				return nil, kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
 			}
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
@@ -70,15 +76,69 @@ func (uc *CreateFeeComponentUseCase) Execute(ctx context.Context, req dto.Create
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
-	return toFeeComponentResponse(fc), nil
+	return toFeeComponentResponse(fc, revenue, receivable), nil
 }
 
-func toFeeComponentResponse(fc *feeEntity.FeeComponent) *dto.FeeComponentResponse {
+// resolveFeeRevenueAccount memvalidasi akun pendapatan yang dipilih untuk
+// komponen biaya: harus bertipe revenue, postable, dan aktif.
+func resolveFeeRevenueAccount(ctx context.Context, repo accRepo.AccountRepository, accountID string) (*accEntity.Account, error) {
+	acc, err := repo.FindByID(ctx, accountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == accConst.CodeAccountNotFound {
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun pendapatan tidak ditemukan", ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if acc.Type != accConst.TypeRevenue {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun pendapatan harus merupakan akun bertipe revenue", nil)
+	}
+	if err := acc.EnsurePostable(); err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun pendapatan harus postable dan aktif", err)
+	}
+	return acc, nil
+}
+
+// resolveFeeReceivableAccount memvalidasi akun piutang yang dipilih untuk
+// komponen biaya: harus bertipe asset dengan sub-tipe receivable, postable,
+// dan aktif.
+func resolveFeeReceivableAccount(ctx context.Context, repo accRepo.AccountRepository, accountID string) (*accEntity.Account, error) {
+	acc, err := repo.FindByID(ctx, accountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == accConst.CodeAccountNotFound {
+			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun piutang tidak ditemukan", ke)
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if acc.SubType == nil || *acc.SubType != accConst.SubTypeReceivable {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun piutang harus merupakan akun dengan sub-tipe receivable", nil)
+	}
+	if err := acc.EnsurePostable(); err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun piutang harus postable dan aktif", err)
+	}
+	return acc, nil
+}
+
+func toFeeComponentResponse(fc *feeEntity.FeeComponent, revenue, receivable *accEntity.Account) *dto.FeeComponentResponse {
 	resp := &dto.FeeComponentResponse{
 		ID:         fc.ID,
 		Code:       fc.Code,
 		Name:       fc.Name,
-		Type:       string(fc.Type),
+		RevenueAccount: &dto.AccountBriefResponse{
+			ID:      revenue.ID,
+			Code:    revenue.Code,
+			Name:    revenue.Name,
+			Type:    string(revenue.Type),
+			SubType: subTypeStr(revenue.SubType),
+		},
+		ReceivableAccount: &dto.AccountBriefResponse{
+			ID:      receivable.ID,
+			Code:    receivable.Code,
+			Name:    receivable.Name,
+			Type:    string(receivable.Type),
+			SubType: subTypeStr(receivable.SubType),
+		},
 		Amount:     fc.Amount,
 		IsPeriodic: fc.IsPeriodic,
 		IsActive:   fc.IsActive,

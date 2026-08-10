@@ -50,8 +50,8 @@ func NewModule(
 
 	autoPostingService := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)
 
-	createFeeComponentUC := command.NewCreateFeeComponentUseCase(feeComponentRepo)
-	updateFeeComponentUC := command.NewUpdateFeeComponentUseCase(feeComponentRepo)
+	createFeeComponentUC := command.NewCreateFeeComponentUseCase(feeComponentRepo, accountRepo)
+	updateFeeComponentUC := command.NewUpdateFeeComponentUseCase(feeComponentRepo, accountRepo)
 	createBillingSchemeUC := command.NewCreateBillingSchemeUseCase(billingSchemeRepo)
 	updateBillingSchemeUC := command.NewUpdateBillingSchemeUseCase(billingSchemeRepo)
 	assignSchemeToSantriUC := command.NewAssignSchemeToSantriUseCase(assignmentRepo, billingSchemeRepo)
@@ -60,7 +60,7 @@ func NewModule(
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
-	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, transactor, autoPostingService)
+	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
 	createAccountUC := command.NewCreateAccountUseCase(accountRepo)
 	updateAccountUC := command.NewUpdateAccountUseCase(accountRepo)
@@ -74,7 +74,7 @@ func NewModule(
 	openBillingPeriodUC := command.NewOpenBillingPeriodUseCase(billingPeriodRepo)
 	closeBillingPeriodUC := command.NewCloseBillingPeriodUseCase(billingPeriodRepo)
 
-	listFeeComponentsUC := query.NewListFeeComponentsUseCase(feeComponentRepo)
+	listFeeComponentsUC := query.NewListFeeComponentsUseCase(feeComponentRepo, accountRepo)
 	listBillingSchemesUC := query.NewListBillingSchemesUseCase(billingSchemeRepo)
 	getBillingSchemeUC := query.NewGetBillingSchemeUseCase(billingSchemeRepo, feeComponentRepo)
 	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)

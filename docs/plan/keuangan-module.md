@@ -331,24 +331,17 @@ Semua auto-posting terjadi dalam **satu transaksi database** dengan operasi bill
 ### Rule 1: Invoice ISSUED → Pengakuan Piutang & Pendapatan
 
 ```
-Dr. Piutang Santri (1103)            = (amount - discount_amount)
-  Cr. Pendapatan [type-mapped]       = (amount - discount_amount)
+Dr. Piutang [receivable_account_id komponen]  = (amount - discount_amount)
+  Cr. Pendapatan [revenue_account_id komponen] = (amount - discount_amount)
 ```
 
-Mapping `fee_component.type` → `account.code`:
-
-| Type | Account Code |
-|---|---|
-| `spp` | `4100` |
-| `ukt` | `4200` |
-| `daftar_ulang` | `4300` |
-| `insidental` | `4400` |
+> ✅ **Selesai / digantikan `docs/plan/fee-component-account-id.md`** (rencana "Fase 2" di bawah tentang mapping yang bisa disunting dari COA): `fee_components` kini menyimpan `revenue_account_id` dan `receivable_account_id` langsung (bukan enum `type`), dipilih & divalidasi dari COA saat create/update. Mapping hardcoded lama `type → account.code` (SPP→4100, UKT→4200, Daftar Ulang→4300, Insidental→4400) TIDAK dipakai lagi.
 
 ### Rule 2: Payment VERIFIED → Penerimaan Kas
 
 ```
-Dr. {debit_account_id} (pilihan bendahara)    = amount
-  Cr. Piutang Santri (1103)                   = amount
+Dr. {debit_account_id} (pilihan bendahara)     = amount
+  Cr. Piutang [receivable_account_id komponen] = amount
 ```
 
 Bendahara memilih akun debit saat create/verify payment dari daftar akun asset yang postable (Kas, Bank, dll).
@@ -356,8 +349,8 @@ Bendahara memilih akun debit saat create/verify payment dari daftar akun asset y
 ### Rule 3: Invoice CANCELLED → Reversal
 
 ```
-Dr. Pendapatan [type-mapped]       = original amount
-  Cr. Piutang Santri (1103)        = original amount
+Dr. Pendapatan [revenue_account_id komponen]  = original amount
+  Cr. Piutang [receivable_account_id komponen] = original amount
 ```
 
 Hanya jika invoice sudah pernah issued (sudah ada jurnal sebelumnya).

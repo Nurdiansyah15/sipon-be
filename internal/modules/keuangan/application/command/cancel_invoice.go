@@ -52,7 +52,7 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string, cancelle
 			}
 			if err := uc.autoPosting.PostInvoiceCancelled(
 				txCtx, inv.ID, inv.InvoiceNumber, "",
-				*inv.IssuedAt, inv.Amount, fee.Type, cancelledBy,
+				*inv.IssuedAt, inv.Amount, fee.RevenueAccountID, fee.ReceivableAccountID, cancelledBy,
 			); err != nil {
 				return err
 			}

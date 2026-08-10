@@ -29,14 +29,14 @@ Lihat juga: [`docs/schemas/keuangan-akuntansi.md`](../schemas/keuangan-akuntansi
 ⚠️ **Ada kodenya (`AutoPostingService.PostInvoiceIssued`), tidak pernah dipanggil.** Lihat [bug: auto-posting tidak terpasang](../bugs/akuntansi-auto-posting-tidak-terpasang.md).
 
 ```
-Dr. Piutang Santri (1103)                 = amount - discount_amount
-    Cr. Pendapatan [sesuai tipe komponen] = amount - discount_amount
+Dr. Piutang [receivable_account_id komponen]    = amount - discount_amount
+    Cr. Pendapatan [revenue_account_id komponen] = amount - discount_amount
 ```
 
 Aturan:
 - Dipicu saat invoice pindah status `draft → issued` (bukan saat dibuat sebagai draft — kalau ke depan ada alur draft, jangan posting sebelum `Issue()` dipanggil). Saat ini `create_invoice.go`/`create_invoice_batch.go` langsung membuat invoice berstatus `issued` (tidak lewat `draft` dulu secara terpisah), jadi titik posting = titik pembuatan invoice.
 - **Tanggal terbit (`issued_date`) kini input eksplisit** — bendahara mengisi tanggal terbit invoice (`POST /admin/invoices` & `/batch`), dan `Invoice.Issue(issuedDate)` memakainya sebagai `IssuedAt` (bukan `time.Now()` implisit). Titik penentuan periode akuntansi = `issued_date` ini; auto-posting menolak kalau periode akuntansi untuk tanggal itu sudah ditutup. `issued_date` harus dalam rentang periode tagihan yang dipilih (kalau ada). Periode tagihan **opsional untuk komponen non-periodik** (`is_periodic = false`, mis. insidental) — invoice non-periodik bisa dibuat tanpa `billing_period_id`; untuk komponen periodik, `billing_period_id` wajib.
-- Mapping `fee_component.type → account.code` (SPP→4100, UKT→4200, Daftar Ulang→4300, Insidental→4400) sudah cukup untuk kebutuhan sekarang; ini seharusnya bisa disunting dari UI COA nanti (Fase 2 pada `docs/plan/keuangan-module.md`), tidak hardcode selamanya.
+- **Akun pendapatan & piutang dipilih langsung dari COA per komponen biaya** — `fee_components.revenue_account_id` dan `fee_components.receivable_account_id` (bukan hardcode `type→code` seperti dulu, lihat `docs/plan/fee-component-account-id.md`). Saat create/update komponen biaya, validasi: `revenue_account_id` harus `type='revenue'` (sub-tipe `operating_revenue` maupun `non_operating_revenue`), `receivable_account_id` harus `sub_type='receivable'`; keduanya wajib `is_postable = true` dan `is_active = true`. Auto-posting memakai kedua akun ini di semua titik posting (issued/cancelled/adjustment/verified) — tidak ada lagi akun piutang universal `1103`.
 - **Wajib idempoten**: satu invoice hanya boleh menghasilkan satu jurnal `invoice_issued`. Sebelum posting, cek dulu apakah `journal_entries` sudah punya baris dengan `(source_type='invoice_issued', source_id=<invoice_id>)` — kalau sudah ada, jangan posting ulang (mis. request di-retry, atau batch generate dijalankan dua kali). Idealnya ditegakkan juga di level DB lewat unique index (lihat schema doc).
 - Diskon/adjustment yang diterapkan **setelah** invoice issued (`ApplyAdjustment`) idealnya juga menghasilkan jurnal penyesuaian sendiri (`source_type='adjustment'`) agar piutang & pendapatan tetap sinkron dengan jurnal — saat ini `apply_adjustment.go` hanya mengubah `discount_amount` di tabel `invoices`, tidak menyentuh jurnal sama sekali. Untuk skala pesantren, cukup: jurnal balik sebagian dengan pola yang sama seperti pembatalan (lihat 2.3) tapi sebesar nilai adjustment saja.
 - ❌ **Belum ada**: `issued_date` (tanggal terbit invoice, yang jadi `entry_date` jurnal) harus jadi input eksplisit dari bendahara di semua cara membuat invoice — bukan `time.Now()` implisit seperti sekarang. Kalau komponen biayanya periodik, `issued_date` wajib berada dalam rentang `billing_period` yang dipilih; kalau non-periodik (`fee_component.is_periodic = false`, mis. insidental), `billing_period_id` boleh dikosongkan. Rencana lengkap & alasan di [`docs/plan/invoice-issued-date-dan-periode-opsional.md`](../plan/invoice-issued-date-dan-periode-opsional.md).
@@ -46,8 +46,8 @@ Aturan:
 ⚠️ **Ada kodenya (`AutoPostingService.PostPaymentVerified`), tidak pernah dipanggil.**
 
 ```
-Dr. {akun kas/bank pilihan bendahara}   = amount
-    Cr. Piutang Santri (1103)          = amount
+Dr. {akun kas/bank pilihan bendahara}     = amount
+    Cr. Piutang [receivable_account_id komponen] = amount
 ```
 
 Aturan:
@@ -62,8 +62,8 @@ Aturan:
 ⚠️ **Ada kodenya (`AutoPostingService.PostInvoiceCancelled`), tidak pernah dipanggil.**
 
 ```
-Dr. Pendapatan [sesuai tipe komponen] = amount yang pernah diakui saat issued
-    Cr. Piutang Santri (1103)        = amount yang sama
+Dr. Pendapatan [revenue_account_id komponen]  = amount yang pernah diakui saat issued
+    Cr. Piutang [receivable_account_id komponen] = amount yang sama
 ```
 
 Aturan:

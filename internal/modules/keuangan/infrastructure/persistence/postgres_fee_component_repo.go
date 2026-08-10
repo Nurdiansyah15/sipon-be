@@ -14,7 +14,7 @@ import (
 )
 
 const feeComponentColumns = `
-	id, code, name, type, amount, is_periodic, period_type, description, is_active,
+	id, code, name, revenue_account_id, receivable_account_id, amount, is_periodic, period_type, description, is_active,
 	created_by, created_at, updated_at, deleted_at
 `
 
@@ -31,11 +31,11 @@ func (r *PostgresFeeComponentRepository) Save(ctx context.Context, fc *entity.Fe
 
 	query := `INSERT INTO fee_components (` + feeComponentColumns + `) VALUES (
 		$1,$2,$3,$4,$5,$6,$7,$8,$9,
-		$10,$11,$12,$13
+		$10,$11,$12,$13,$14
 	)`
 
 	_, err := execer.ExecContext(ctx, query,
-		fc.ID, fc.Code, fc.Name, string(fc.Type), fc.Amount, fc.IsPeriodic,
+		fc.ID, fc.Code, fc.Name, fc.RevenueAccountID, fc.ReceivableAccountID, fc.Amount, fc.IsPeriodic,
 		nullStr((*string)(fc.PeriodType)), nullStr(fc.Description), fc.IsActive,
 		fc.CreatedBy, fc.CreatedAt, fc.UpdatedAt, nullTimeVal(fc.DeletedAt),
 	)
@@ -52,12 +52,12 @@ func (r *PostgresFeeComponentRepository) Update(ctx context.Context, fc *entity.
 	execer := execerFromContext(ctx, r.db)
 
 	query := `UPDATE fee_components SET
-		code=$1, name=$2, type=$3, amount=$4, is_periodic=$5, period_type=$6,
-		description=$7, is_active=$8, updated_at=$9, deleted_at=$10
-		WHERE id=$11 AND deleted_at IS NULL`
+		code=$1, name=$2, revenue_account_id=$3, receivable_account_id=$4, amount=$5, is_periodic=$6, period_type=$7,
+		description=$8, is_active=$9, updated_at=$10, deleted_at=$11
+		WHERE id=$12 AND deleted_at IS NULL`
 
 	res, err := execer.ExecContext(ctx, query,
-		fc.Code, fc.Name, string(fc.Type), fc.Amount, fc.IsPeriodic,
+		fc.Code, fc.Name, fc.RevenueAccountID, fc.ReceivableAccountID, fc.Amount, fc.IsPeriodic,
 		nullStr((*string)(fc.PeriodType)), nullStr(fc.Description), fc.IsActive,
 		fc.UpdatedAt, nullTimeVal(fc.DeletedAt),
 		fc.ID,
@@ -93,11 +93,6 @@ func (r *PostgresFeeComponentRepository) List(ctx context.Context, q repository.
 	where := `WHERE deleted_at IS NULL`
 	args := []interface{}{}
 	argIdx := 1
-	if q.Type != nil && *q.Type != "" {
-		where += fmt.Sprintf(` AND type=$%d`, argIdx)
-		args = append(args, *q.Type)
-		argIdx++
-	}
 	if q.Active != nil {
 		where += fmt.Sprintf(` AND is_active=$%d`, argIdx)
 		args = append(args, *q.Active)
@@ -158,7 +153,7 @@ func (r *PostgresFeeComponentRepository) ExistsByCode(ctx context.Context, code 
 
 func (r *PostgresFeeComponentRepository) scan(sc scanner) (*entity.FeeComponent, error) {
 	var (
-		id, code, name, feeType, createdBy                               string
+		id, code, name, revenueAccountID, receivableAccountID, createdBy string
 		amount                                                           float64
 		isPeriodic                                                       bool
 		periodType, description                                          sql.NullString
@@ -168,7 +163,7 @@ func (r *PostgresFeeComponentRepository) scan(sc scanner) (*entity.FeeComponent,
 	)
 
 	err := sc.Scan(
-		&id, &code, &name, &feeType, &amount, &isPeriodic, &periodType, &description, &isActive,
+		&id, &code, &name, &revenueAccountID, &receivableAccountID, &amount, &isPeriodic, &periodType, &description, &isActive,
 		&createdBy, &createdAt, &updatedAt, &deletedAt,
 	)
 	if err != nil {
@@ -185,18 +180,19 @@ func (r *PostgresFeeComponentRepository) scan(sc scanner) (*entity.FeeComponent,
 	}
 
 	return &entity.FeeComponent{
-		ID:          id,
-		Code:        code,
-		Name:        name,
-		Type:        constant.FeeComponentType(feeType),
-		Amount:      amount,
-		IsPeriodic:  isPeriodic,
-		PeriodType:  pt,
-		Description: strFromNull(description),
-		IsActive:    isActive,
-		CreatedBy:   createdBy,
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
-		DeletedAt:   timeFromNull(deletedAt),
+		ID:                  id,
+		Code:                code,
+		Name:                name,
+		RevenueAccountID:    revenueAccountID,
+		ReceivableAccountID: receivableAccountID,
+		Amount:              amount,
+		IsPeriodic:          isPeriodic,
+		PeriodType:          pt,
+		Description:         strFromNull(description),
+		IsActive:            isActive,
+		CreatedBy:           createdBy,
+		CreatedAt:           createdAt,
+		UpdatedAt:           updatedAt,
+		DeletedAt:           timeFromNull(deletedAt),
 	}, nil
 }

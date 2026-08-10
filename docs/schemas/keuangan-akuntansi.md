@@ -14,7 +14,8 @@ Catatan penomoran migrasi: nama file migrasi di repo ini memakai prefix timestam
 | id | UUID PK | |
 | code | VARCHAR(20) UNIQUE | `SPP`, `UKT`, dst |
 | name | VARCHAR(200) | |
-| type | VARCHAR(30) CHECK | `ukt`, `spp`, `daftar_ulang`, `insidental` |
+| revenue_account_id | UUID FK → accounts | akun pendapatan (dikredit saat invoice terbit; di-debit saat cancel/adjustment) — `type='revenue'`, postable & aktif |
+| receivable_account_id | UUID FK → accounts | akun piutang (di-debit saat invoice terbit; di-kredit saat payment verified / cancel / adjustment) — `sub_type='receivable'`, postable & aktif |
 | amount | NUMERIC(14,2) | nominal default |
 | is_periodic | BOOLEAN | |
 | period_type | VARCHAR(20) CHECK nullable | `monthly`, `semesterly`, `yearly`, `once` |

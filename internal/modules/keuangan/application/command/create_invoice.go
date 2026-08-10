@@ -180,7 +180,7 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 		if cmd.Issue && uc.autoPosting != nil && inv.IssuedAt != nil {
 			if err := uc.autoPosting.PostInvoiceIssued(
 				txCtx, inv.ID, inv.InvoiceNumber, "",
-				*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.Type, cmd.CreatedBy,
+				*inv.IssuedAt, inv.Amount, inv.DiscountAmount, fee.RevenueAccountID, fee.ReceivableAccountID, cmd.CreatedBy,
 			); err != nil {
 				var ke *kernel.AppError
 				if errors.As(err, &ke) {

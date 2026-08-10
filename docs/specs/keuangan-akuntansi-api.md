@@ -77,7 +77,7 @@ Response `InvoiceResponse` **tidak perlu** ditambah field jurnal (jurnal bisa di
 | Error | Kapan | Kode domain | HTTP (setelah di-`WrapConflictErr`) |
 |---|---|---|---|
 | Periode akuntansi untuk tanggal invoice tidak ditemukan/tidak `open` | Tidak ada `accounting_periods` yang mencakup tanggal invoice (`FindByDate` return not-found), atau ada tapi sudah `closed`/`locked` | `JOURNAL_PERIOD_CLOSED` (existing, `journal_constant.go`) | 409 |
-| Mapping akun pendapatan untuk tipe komponen tidak ditemukan | `fee_component.type` baru yang belum ada di `feeTypeRevenueAccount` (`auto_posting.go:37-42`) | `JOURNAL_ACCOUNT_MAPPING_NOT_FOUND` (kode baru, tambahkan ke `journal_constant.go` — lihat `docs/bugs/akuntansi-auto-posting-tidak-terpasang.md` langkah 1) | 409 |
+| Akun pendapatan/piutang komponen biaya tidak valid | `fee_components.revenue_account_id`/`receivable_account_id` menunjuk akun yang tidak ditemukan, tidak `postable`/`active`, atau bukan tipe yang sesuai (`type='revenue'` / `sub_type='receivable'` — seharusnya sudah dicegah saat create/update komponen biaya, lihat `docs/plan/fee-component-account-id.md`) | `JOURNAL_ACCOUNT_MAPPING_NOT_FOUND` (existing, `journal_constant.go`) | 409 |
 
 Generate massal (`/invoices/batch`) memposting satu jurnal `invoice_issued` **per invoice yang berhasil dibuat** (bukan satu jurnal gabungan) — konsisten dengan billing_batch_targets yang juga mencatat granular per santri.
 

@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 
 	accountConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accountEntity "sipon-be/internal/modules/keuangan/domain/account/entity"
 	accountRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
-	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
 	journalEntity "sipon-be/internal/modules/keuangan/domain/journal/entity"
 	journalRepo "sipon-be/internal/modules/keuangan/domain/journal/repository"
@@ -38,11 +38,54 @@ func NewAutoPostingService(
 	}
 }
 
-var feeTypeRevenueAccount = map[feeConst.FeeComponentType]string{
-	feeConst.FeeTypeSPP:         "4100",
-	feeConst.FeeTypeUKT:         "4200",
-	feeConst.FeeTypeDaftarUlang: "4300",
-	feeConst.FeeTypeInsidental:  "4400",
+// accountMappingError menyatukan skenario "akun pendapatan/piutang tidak
+// ditemukan, tidak aktif, atau bukan tipe yang sesuai" menjadi satu kode error
+// (CodeJournalAccountMappingNotFound) supaya konsumen API yang sudah memeriksa
+// kode ini tidak berubah perilakunya.
+func accountMappingError(msg string, err error) error {
+	return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, msg, err)
+}
+
+// resolveRevenueAccount mengambil akun pendapatan dari COA dan memastikan akun
+// tersebut valid untuk dipakai sebagai akun pendapatan komponen biaya
+// (type = revenue, postable, aktif).
+func (s *AutoPostingService) resolveRevenueAccount(ctx context.Context, accountID string) (*accountEntity.Account, error) {
+	acc, err := s.accountRepo.FindByID(ctx, accountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == accountConst.CodeAccountNotFound {
+			return nil, accountMappingError("Akun pendapatan tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", ke)
+		}
+		return nil, fmt.Errorf("find revenue account: %w", err)
+	}
+	if acc.Type != accountConst.TypeRevenue {
+		return nil, accountMappingError("Akun pendapatan tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", nil)
+	}
+	if err := acc.EnsurePostable(); err != nil {
+		return nil, accountMappingError("Akun pendapatan tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", err)
+	}
+	return acc, nil
+}
+
+// resolveReceivableAccount mengambil akun piutang dari COA dan memastikan akun
+// tersebut valid untuk dipakai sebagai akun piutang komponen biaya
+// (sub_type = receivable, postable, aktif).
+func (s *AutoPostingService) resolveReceivableAccount(ctx context.Context, accountID string) (*accountEntity.Account, error) {
+	acc, err := s.accountRepo.FindByID(ctx, accountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == accountConst.CodeAccountNotFound {
+			return nil, accountMappingError("Akun piutang tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", ke)
+		}
+		return nil, fmt.Errorf("find receivable account: %w", err)
+	}
+	if acc.SubType == nil || *acc.SubType != accountConst.SubTypeReceivable {
+		return nil, accountMappingError("Akun piutang tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", nil)
+	}
+	if err := acc.EnsurePostable(); err != nil {
+		return nil, accountMappingError("Akun piutang tidak ditemukan, tidak aktif, atau bukan tipe yang sesuai", err)
+	}
+	return acc, nil
 }
 
 // alreadyPosted reports whether a journal entry already exists for the given
@@ -78,7 +121,7 @@ func (s *AutoPostingService) findPostablePeriod(ctx context.Context, entryDate t
 	return period, nil
 }
 
-func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, amount, discountAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, amount, discountAmount float64, revenueAccountID, receivableAccountID string, postedBy string) error {
 	posted, err := s.alreadyPosted(ctx, journalConst.SourceInvoiceIssued, invoiceID)
 	if err != nil {
 		return err
@@ -87,18 +130,13 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 		return nil
 	}
 
-	revCode, ok := feeTypeRevenueAccount[feeType]
-	if !ok {
-		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
-	}
-
-	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
+	piutang, err := s.resolveReceivableAccount(ctx, receivableAccountID)
 	if err != nil {
-		return fmt.Errorf("find piutang account: %w", err)
+		return err
 	}
-	revenue, err := s.accountRepo.FindByCode(ctx, revCode)
+	revenue, err := s.resolveRevenueAccount(ctx, revenueAccountID)
 	if err != nil {
-		return fmt.Errorf("find revenue account %s: %w", revCode, err)
+		return err
 	}
 
 	period, err := s.findPostablePeriod(ctx, entryDate)
@@ -140,7 +178,7 @@ func (s *AutoPostingService) PostInvoiceIssued(ctx context.Context, invoiceID, i
 	return s.journalRepo.Save(ctx, entry)
 }
 
-func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID, paymentNumber, description string, entryDate time.Time, amount float64, debitAccountID string, postedBy string) error {
+func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID, paymentNumber, description string, entryDate time.Time, amount float64, debitAccountID, receivableAccountID string, postedBy string) error {
 	posted, err := s.alreadyPosted(ctx, journalConst.SourcePaymentVerified, paymentID)
 	if err != nil {
 		return err
@@ -160,9 +198,9 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 		return kernel.WrapMsg(accountConst.CodeAccountInvalidSubType, "Akun debit pembayaran harus merupakan akun kas atau bank", nil)
 	}
 
-	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
+	piutang, err := s.resolveReceivableAccount(ctx, receivableAccountID)
 	if err != nil {
-		return fmt.Errorf("find piutang account: %w", err)
+		return err
 	}
 
 	period, err := s.findPostablePeriod(ctx, entryDate)
@@ -202,7 +240,7 @@ func (s *AutoPostingService) PostPaymentVerified(ctx context.Context, paymentID,
 	return s.journalRepo.Save(ctx, entry)
 }
 
-func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, originalAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID, invoiceNumber, description string, entryDate time.Time, originalAmount float64, revenueAccountID, receivableAccountID string, postedBy string) error {
 	posted, err := s.alreadyPosted(ctx, journalConst.SourceInvoiceCancelled, invoiceID)
 	if err != nil {
 		return err
@@ -211,18 +249,13 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 		return nil
 	}
 
-	revCode, ok := feeTypeRevenueAccount[feeType]
-	if !ok {
-		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
-	}
-
-	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
+	revenue, err := s.resolveRevenueAccount(ctx, revenueAccountID)
 	if err != nil {
-		return fmt.Errorf("find piutang account: %w", err)
+		return err
 	}
-	revenue, err := s.accountRepo.FindByCode(ctx, revCode)
+	piutang, err := s.resolveReceivableAccount(ctx, receivableAccountID)
 	if err != nil {
-		return fmt.Errorf("find revenue account %s: %w", revCode, err)
+		return err
 	}
 
 	period, err := s.findPostablePeriod(ctx, entryDate)
@@ -262,7 +295,7 @@ func (s *AutoPostingService) PostInvoiceCancelled(ctx context.Context, invoiceID
 	return s.journalRepo.Save(ctx, entry)
 }
 
-func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, invoiceNumber, description string, entryDate time.Time, adjustmentAmount float64, feeType feeConst.FeeComponentType, postedBy string) error {
+func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, invoiceNumber, description string, entryDate time.Time, adjustmentAmount float64, revenueAccountID, receivableAccountID string, postedBy string) error {
 	posted, err := s.alreadyPosted(ctx, journalConst.SourceAdjustment, adjustmentID)
 	if err != nil {
 		return err
@@ -271,18 +304,13 @@ func (s *AutoPostingService) PostAdjustment(ctx context.Context, adjustmentID, i
 		return nil
 	}
 
-	revCode, ok := feeTypeRevenueAccount[feeType]
-	if !ok {
-		return kernel.WrapMsg(journalConst.CodeJournalAccountMappingNotFound, "Akun pendapatan untuk jenis biaya ini belum dipetakan", nil)
-	}
-
-	piutang, err := s.accountRepo.FindByCode(ctx, "1103")
+	revenue, err := s.resolveRevenueAccount(ctx, revenueAccountID)
 	if err != nil {
-		return fmt.Errorf("find piutang account: %w", err)
+		return err
 	}
-	revenue, err := s.accountRepo.FindByCode(ctx, revCode)
+	piutang, err := s.resolveReceivableAccount(ctx, receivableAccountID)
 	if err != nil {
-		return fmt.Errorf("find revenue account %s: %w", revCode, err)
+		return err
 	}
 
 	period, err := s.findPostablePeriod(ctx, entryDate)

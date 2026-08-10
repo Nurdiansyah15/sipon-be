@@ -8,6 +8,8 @@ import (
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
+	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	journalConst "sipon-be/internal/modules/keuangan/domain/journal/constant"
@@ -21,12 +23,13 @@ import (
 type VerifyPaymentUseCase struct {
 	paymentRepo payRepo.PaymentRepository
 	invoiceRepo invRepo.InvoiceRepository
+	feeRepo     feeRepo.FeeComponentRepository
 	transactor  ports.Transactor
 	autoPosting *journalService.AutoPostingService
 }
 
-func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
-	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, transactor: transactor, autoPosting: autoPosting}
+func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
+	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, feeRepo: feeRepo, transactor: transactor, autoPosting: autoPosting}
 }
 
 func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string) (*dto.PaymentResponse, error) {
@@ -48,6 +51,18 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 		if errors.As(err, &ke) {
 			switch ke.Code {
 			case invConst.CodeInvoiceNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+
+	fee, err := uc.feeRepo.FindByID(ctx, inv.FeeComponentID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case feeConst.CodeFeeComponentNotFound:
 				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 			}
 		}
@@ -87,7 +102,7 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 			if err := uc.autoPosting.PostPaymentVerified(
 				txCtx, payment.ID, payment.PaymentNumber, "",
 				payment.PaymentDate, payment.Amount,
-				accountID(payment.DebitAccountID), verifiedBy,
+				accountID(payment.DebitAccountID), fee.ReceivableAccountID, verifiedBy,
 			); err != nil {
 				var ke *kernel.AppError
 				if errors.As(err, &ke) {
@@ -96,6 +111,8 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 					case accConst.CodeAccountNotPostable, accConst.CodeAccountInvalidSubType:
 						return kernel.WrapMsg(application.ErrCodeBadRequest, ke.Message, ke)
+					case journalConst.CodeJournalAccountMappingNotFound:
+						return kernel.WrapMsg(application.ErrCodeConflict, ke.Message, ke)
 					case periodConst.CodePeriodNotFound:
 						return kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
 					case journalConst.CodeJournalPeriodClosed:
