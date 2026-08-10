@@ -10,6 +10,7 @@ import (
 	"sipon-be/internal/modules/keuangan/application/query"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	"sipon-be/internal/modules/keuangan/infrastructure/kesantriangateway"
+	"sipon-be/internal/modules/keuangan/infrastructure/external"
 	"sipon-be/internal/modules/keuangan/infrastructure/persistence"
 	keuanganHTTP "sipon-be/internal/modules/keuangan/interfaces/http"
 	"sipon-be/internal/modules/kesantrian"
@@ -40,6 +41,7 @@ func NewModule(
 	assignmentRepo := persistence.NewPostgresSantriBillingAssignmentRepository(db)
 	invoiceRepo := persistence.NewPostgresInvoiceRepository(db)
 	paymentRepo := persistence.NewPostgresPaymentRepository(db)
+	paymentGatewayRepo := persistence.NewPostgresPaymentGatewayRepository(db)
 	adjustmentRepo := persistence.NewPostgresAdjustmentRepository(db)
 	accountRepo := persistence.NewPostgresAccountRepository(db)
 	journalRepo := persistence.NewPostgresJournalRepository(db)
@@ -63,6 +65,9 @@ func NewModule(
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
 	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
+	midtransGateway := external.NewMidtransGateway(cfg.Midtrans)
+	createMidtransPaymentUC := command.NewCreateMidtransPaymentUseCase(paymentGatewayRepo, invoiceRepo, feeComponentRepo, midtransGateway, cfg.Midtrans.SnapExpiryMinutes)
+	processMidtransWebhookUC := command.NewProcessMidtransWebhookUseCase(paymentGatewayRepo, paymentRepo, invoiceRepo, feeComponentRepo, midtransGateway, transactor, autoPostingService, cfg.Midtrans.SettlementAccountID)
 	createAccountUC := command.NewCreateAccountUseCase(accountRepo)
 	updateAccountUC := command.NewUpdateAccountUseCase(accountRepo)
 	createManualJournalUC := command.NewCreateManualJournalUseCase(journalRepo, accountRepo, periodRepo, transactor)
@@ -82,6 +87,7 @@ func NewModule(
 	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo, paymentRepo, adjustmentRepo)
 	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
 	mySummaryUC := query.NewMyInvoiceSummaryUseCase(invoiceRepo)
+	getPaymentGatewayStatusUC := query.NewGetPaymentGatewayStatusUseCase(paymentGatewayRepo, invoiceRepo)
 	listBillingPeriodsUC := query.NewListBillingPeriodsUseCase(billingPeriodRepo)
 	getBillingPeriodUC := query.NewGetBillingPeriodUseCase(billingPeriodRepo)
 	listBillingBatchesUC := query.NewListBillingBatchesUseCase(billingBatchRepo)
@@ -118,6 +124,8 @@ func NewModule(
 		createManualPaymentUC,
 		verifyPaymentUC,
 		rejectPaymentUC,
+		createMidtransPaymentUC,
+		processMidtransWebhookUC,
 		createAccountUC,
 		updateAccountUC,
 		createManualJournalUC,
@@ -136,6 +144,7 @@ func NewModule(
 		getInvoiceUC,
 		myInvoicesUC,
 		mySummaryUC,
+		getPaymentGatewayStatusUC,
 		listPaymentsUC,
 		getPaymentUC,
 		myPaymentsUC,

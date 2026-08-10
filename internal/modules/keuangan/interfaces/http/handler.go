@@ -41,6 +41,8 @@ type KeuanganHandler struct {
 	createManualPaymentUC  *command.CreateManualPaymentUseCase
 	verifyPaymentUC        *command.VerifyPaymentUseCase
 	rejectPaymentUC        *command.RejectPaymentUseCase
+	createMidtransPaymentUC *command.CreateMidtransPaymentUseCase
+	processMidtransWebhookUC *command.ProcessMidtransWebhookUseCase
 
 	createAccountUC       *command.CreateAccountUseCase
 	updateAccountUC       *command.UpdateAccountUseCase
@@ -62,6 +64,7 @@ type KeuanganHandler struct {
 	getInvoiceUC              *query.GetInvoiceUseCase
 	myInvoicesUC              *query.MyInvoicesUseCase
 	mySummaryUC               *query.MyInvoiceSummaryUseCase
+	getPaymentGatewayStatusUC *query.GetPaymentGatewayStatusUseCase
 	listPaymentsUC            *query.ListPaymentsUseCase
 	getPaymentUC              *query.GetPaymentUseCase
 	myPaymentsUC              *query.MyPaymentsUseCase
@@ -106,6 +109,8 @@ func NewKeuanganHandler(
 	createManualPaymentUC *command.CreateManualPaymentUseCase,
 	verifyPaymentUC *command.VerifyPaymentUseCase,
 	rejectPaymentUC *command.RejectPaymentUseCase,
+	createMidtransPaymentUC *command.CreateMidtransPaymentUseCase,
+	processMidtransWebhookUC *command.ProcessMidtransWebhookUseCase,
 	createAccountUC *command.CreateAccountUseCase,
 	updateAccountUC *command.UpdateAccountUseCase,
 	createManualJournalUC *command.CreateManualJournalUseCase,
@@ -124,6 +129,7 @@ func NewKeuanganHandler(
 	getInvoiceUC *query.GetInvoiceUseCase,
 	myInvoicesUC *query.MyInvoicesUseCase,
 	mySummaryUC *query.MyInvoiceSummaryUseCase,
+	getPaymentGatewayStatusUC *query.GetPaymentGatewayStatusUseCase,
 	listPaymentsUC *query.ListPaymentsUseCase,
 	getPaymentUC *query.GetPaymentUseCase,
 	myPaymentsUC *query.MyPaymentsUseCase,
@@ -165,6 +171,8 @@ func NewKeuanganHandler(
 		createManualPaymentUC:     createManualPaymentUC,
 		verifyPaymentUC:           verifyPaymentUC,
 		rejectPaymentUC:           rejectPaymentUC,
+		createMidtransPaymentUC:   createMidtransPaymentUC,
+		processMidtransWebhookUC:  processMidtransWebhookUC,
 		createAccountUC:           createAccountUC,
 		updateAccountUC:           updateAccountUC,
 		createManualJournalUC:     createManualJournalUC,
@@ -183,6 +191,7 @@ func NewKeuanganHandler(
 		getInvoiceUC:              getInvoiceUC,
 		myInvoicesUC:              myInvoicesUC,
 		mySummaryUC:               mySummaryUC,
+		getPaymentGatewayStatusUC: getPaymentGatewayStatusUC,
 		listPaymentsUC:            listPaymentsUC,
 		getPaymentUC:              getPaymentUC,
 		myPaymentsUC:              myPaymentsUC,
@@ -662,6 +671,48 @@ func (h *KeuanganHandler) MySummary(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "ringkasan tagihan berhasil diambil", resp)
+}
+
+func (h *KeuanganHandler) CreateMidtransPayment(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req dto.CreateMidtransPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.createMidtransPaymentUC.Execute(c.Request.Context(), req, userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "transaksi pembayaran online berhasil dibuat", resp)
+}
+
+func (h *KeuanganHandler) GetPaymentGatewayStatus(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	invoiceID := c.Param("id")
+	resp, err := h.getPaymentGatewayStatusUC.Execute(c.Request.Context(), invoiceID, userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "status pembayaran online berhasil diambil", resp)
+}
+
+// MidtransWebhook adalah endpoint publik (tanpa JWT) yang menerima notifikasi
+// pembayaran dari Midtrans. Keamanan ditangani oleh verifikasi signature key
+// di dalam use case.
+func (h *KeuanganHandler) MidtransWebhook(c *gin.Context) {
+	var notif dto.MidtransWebhookNotification
+	if err := c.ShouldBindJSON(&notif); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	if err := h.processMidtransWebhookUC.Execute(c.Request.Context(), notif); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "notification berhasil diproses", nil)
 }
 
 func (h *KeuanganHandler) ListAccounts(c *gin.Context) {

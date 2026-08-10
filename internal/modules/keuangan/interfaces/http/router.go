@@ -12,8 +12,17 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 	{
 		santri.GET("/invoices", h.MyInvoices)
 		santri.GET("/invoices/:id", h.GetInvoice)
+		santri.GET("/invoices/:id/payment-status", h.GetPaymentGatewayStatus)
+		santri.POST("/payments/midtrans", h.CreateMidtransPayment)
 		santri.GET("/payments", h.MyPayments)
 		santri.GET("/summary", h.MySummary)
+	}
+
+	// Webhook Midtrans bersifat publik (tanpa JWT); keamanan dijamin oleh
+	// verifikasi signature key di dalam use case.
+	webhook := router.Group("/api/v1/web/keuangan/webhooks")
+	{
+		webhook.POST("/midtrans", h.MidtransWebhook)
 	}
 
 	admin := router.Group("/api/v1/web/keuangan/admin")

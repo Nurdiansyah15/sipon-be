@@ -18,6 +18,7 @@ type Config struct {
 	Redis     RedisConfig
 	RateLimit RateLimitConfig
 	Minio     MinioConfig
+	Midtrans  MidtransConfig
 }
 
 type AppConfig struct {
@@ -86,6 +87,29 @@ type MinioConfig struct {
 	UseSSL         bool
 }
 
+type MidtransConfig struct {
+	// Environment menentukan endpoint Snap & API yang dipakai:
+	// "sandbox" -> app.sandbox.midtrans.com, "production" -> app.midtrans.com.
+	Environment string
+	// ServerKey dipakai untuk otentikasi API dan verifikasi signature webhook.
+	ServerKey string
+	// ClientKey dipakai frontend untuk inisialisasi Snap popup.
+	ClientKey string
+	// SnapBaseURL adalah base URL Snap (diakhiri "/"). Di-override otomatis
+	// berdasarkan Environment bila dikosongkan.
+	SnapBaseURL string
+	// APIBaseURL adalah base URL Core API Midtrans. Di-override otomatis
+	// berdasarkan Environment bila dikosongkan.
+	APIBaseURL string
+	// SnapExpiryMinutes adalah durasi validity transaksi Snap (default 1440).
+	SnapExpiryMinutes int
+	// SettlementAccountID adalah ID akun kas/bank yang dipakai sebagai akun
+	// debit saat pembayaran online otomatis diverifikasi lewat webhook.
+	// Bila kosong, pembayaran yang dibuat webhook tetap berstatus pending dan
+	// harus diverifikasi manual oleh admin.
+	SettlementAccountID string
+}
+
 func Load() (*Config, error) {
 	_ = godotenv.Load(".env")
 
@@ -147,6 +171,15 @@ func Load() (*Config, error) {
 			Bucket:         getEnv("MINIO_BUCKET", "sipon-public"),
 			PrivateBucket:  getEnv("MINIO_PRIVATE_BUCKET", "sipon-private"),
 			UseSSL:         getEnv("MINIO_USE_SSL", "false") == "true",
+		},
+		Midtrans: MidtransConfig{
+			Environment:         getEnv("MIDTRANS_ENV", "sandbox"),
+			ServerKey:           getEnv("MIDTRANS_SERVER_KEY", ""),
+			ClientKey:           getEnv("MIDTRANS_CLIENT_KEY", ""),
+			SnapBaseURL:         getEnv("MIDTRANS_SNAP_BASE_URL", ""),
+			APIBaseURL:          getEnv("MIDTRANS_API_BASE_URL", ""),
+			SnapExpiryMinutes:   parseInt("MIDTRANS_SNAP_EXPIRY_MINUTES", 1440),
+			SettlementAccountID: getEnv("MIDTRANS_SETTLEMENT_ACCOUNT_ID", ""),
 		},
 	}
 	return cfg, nil
