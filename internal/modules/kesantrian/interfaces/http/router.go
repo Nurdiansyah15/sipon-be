@@ -13,7 +13,7 @@ import (
 // SessionStore/PrincipalBuilder to wrap, so a builder struct here would
 // just carry 2 fields for no behavioral gain. See
 // docs/architecture/module-boundaries.md and the kesantrian port plan §0.6.
-func RegisterRoutes(router *gin.RouterGroup, h *SantriHandler, jwtAuth, principalLoad gin.HandlerFunc) {
+func RegisterRoutes(router *gin.RouterGroup, h *SantriHandler, ph *PersuratanHandler, jwtAuth, principalLoad gin.HandlerFunc) {
 	santri := router.Group("/api/v1/web/santri")
 	santri.Use(jwtAuth, principalLoad)
 	{
@@ -42,5 +42,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *SantriHandler, jwtAuth, principa
 			admin.POST("/reject/:id", h.DokumenReject)
 			admin.POST("/:id/status", h.ChangeSantriStatus)
 		}
+
+		RegisterPersuratanRoutes(admin, ph)
 	}
 }

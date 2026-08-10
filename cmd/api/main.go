@@ -53,9 +53,16 @@ func main() {
 	defer redisClient.Close()
 
 	identity := identityModule.NewModule(db, redisClient, cfg)
+	dokumenAset := dokumenAsetModule.NewModule(
+		db, cfg,
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	kesantrian := kesantrianModule.NewModule(
 		db, redisClient, cfg,
-		identity, // *identity.Module satisfies identity.Contract
+		identity,     // identity.Contract
+		dokumenAset,  // dokumen_aset.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -64,12 +71,6 @@ func main() {
 		db, cfg,
 		identity,   // identity.Contract
 		kesantrian, // kesantrian.Contract (needs CreateSantriFromPendaftaran)
-		identity.AuthMiddleware(),
-		identity.PrincipalMiddleware(),
-	)
-
-	dokumenAset := dokumenAsetModule.NewModule(
-		db, cfg,
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)

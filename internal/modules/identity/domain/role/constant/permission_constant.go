@@ -32,6 +32,7 @@ const (
 	PermissionManageJournal         PermissionKey = "manage_journal"
 	PermissionClosePeriod           PermissionKey = "close_period"
 	PermissionManageFeedback        PermissionKey = "manage_feedback"
+	PermissionManagePersuratan      PermissionKey = "manage_persuratan"
 )
 
 type PermissionDefinition struct {
@@ -64,6 +65,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManageJournal, DisplayName: "Manage Journal", Description: "Allows creating and cancelling manual journal entries"},
 	{Key: PermissionClosePeriod, DisplayName: "Close Period", Description: "Allows creating, closing, reopening, and locking accounting periods"},
 	{Key: PermissionManageFeedback, DisplayName: "Manage Feedback", Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate"},
+	{Key: PermissionManagePersuratan, DisplayName: "Manage Persuratan", Description: "Allows managing correspondence: letter types, outgoing letters, and linked documents"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -108,6 +110,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageJournal,
 		PermissionClosePeriod,
 		PermissionManageFeedback,
+		PermissionManagePersuratan,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -132,6 +135,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageJournal,
 		PermissionClosePeriod,
 		PermissionManageFeedback,
+		PermissionManagePersuratan,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -153,6 +157,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageJournal,
 		PermissionClosePeriod,
 		PermissionManageFeedback,
+		PermissionManagePersuratan,
 	},
 	MemberRoleName: {},
 }
@@ -285,5 +290,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageFeedback,
 		DisplayName: "Manage Feedback",
 		Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate",
+	},
+	PermissionManagePersuratan: {
+		Key:         PermissionManagePersuratan,
+		DisplayName: "Manage Persuratan",
+		Description: "Allows managing correspondence: letter types, outgoing letters, and linked documents",
 	},
 }

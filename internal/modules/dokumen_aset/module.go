@@ -17,6 +17,7 @@ import (
 
 type Module struct {
 	handler       *dokumenAsetHTTP.DokumenAsetHandler
+	downloadUC    *query.DownloadDokumenAsetUseCase
 	fileUploader  ports.FileUploader
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
@@ -54,7 +55,7 @@ func NewModule(
 		listUC, getUC, downloadUC,
 	)
 
-	return &Module{handler: handler, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, downloadUC: downloadUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -64,4 +65,15 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+func (m *Module) GetDownloadURL(ctx context.Context, id string, isAuthenticated bool) (*DokumenAsetDownloadResult, error) {
+	result, err := m.downloadUC.Execute(ctx, id, isAuthenticated)
+	if err != nil {
+		return nil, err
+	}
+	return &DokumenAsetDownloadResult{
+		AccessURL: result.AccessURL,
+		ExpiresIn: result.ExpiresIn,
+	}, nil
 }

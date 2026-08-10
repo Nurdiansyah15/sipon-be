@@ -7,10 +7,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 
+	dokumenAset "sipon-be/internal/modules/dokumen_aset"
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/modules/kesantrian/application/command"
 	ports "sipon-be/internal/modules/kesantrian/application/ports"
 	"sipon-be/internal/modules/kesantrian/application/query"
+	"sipon-be/internal/modules/kesantrian/domain/surat/service"
+	"sipon-be/internal/modules/kesantrian/infrastructure/dokumenasetgateway"
 	"sipon-be/internal/modules/kesantrian/infrastructure/external"
 	"sipon-be/internal/modules/kesantrian/infrastructure/identitygateway"
 	"sipon-be/internal/modules/kesantrian/infrastructure/persistence"
@@ -24,6 +27,7 @@ import (
 // calls into it — YAGNI, see docs/architecture/module-boundaries.md).
 type Module struct {
 	handler                            *kesantrianHTTP.SantriHandler
+	persuratanHandler                  *kesantrianHTTP.PersuratanHandler
 	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
 	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
 	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
@@ -45,6 +49,7 @@ func NewModule(
 	redisClient *redis.Client,
 	cfg *config.Config,
 	identityContract identity.Contract,
+	dokumenAsetContract dokumenAset.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
 ) *Module {
@@ -92,6 +97,32 @@ func NewModule(
 	getSantriByIDUC := query.NewGetSantriByIDUseCase(santriRepo)
 	listActiveSantriWithUserIDUC := query.NewListActiveSantriWithUserIDUseCase(santriRepo)
 
+	tipeSuratRepo := persistence.NewPostgresTipeSuratRepository(db)
+	suratRepo := persistence.NewPostgresSuratRepository(db)
+	nomorGenerator := service.NewNomorGenerator(suratRepo)
+	dokumenAsetReader := dokumenasetgateway.New(dokumenAsetContract)
+
+	createTipeSuratUC := command.NewCreateTipeSuratUseCase(tipeSuratRepo)
+	updateTipeSuratUC := command.NewUpdateTipeSuratUseCase(tipeSuratRepo)
+	deleteTipeSuratUC := command.NewDeleteTipeSuratUseCase(tipeSuratRepo)
+	listTipeSuratUC := query.NewListTipeSuratUseCase(tipeSuratRepo)
+	getTipeSuratUC := query.NewGetTipeSuratUseCase(tipeSuratRepo)
+	createSuratUC := command.NewCreateSuratUseCase(suratRepo, tipeSuratRepo, nomorGenerator, transactor)
+	deleteSuratUC := command.NewDeleteSuratUseCase(suratRepo)
+	addSuratDokumenUC := command.NewAddSuratDokumenUseCase(suratRepo)
+	removeSuratDokumenUC := command.NewRemoveSuratDokumenUseCase(suratRepo)
+	listSuratUC := query.NewListSuratUseCase(suratRepo)
+	getSuratUC := query.NewGetSuratUseCase(suratRepo, tipeSuratRepo)
+	getSuratDownloadUC := query.NewGetSuratDownloadUseCase(suratRepo, dokumenAsetReader)
+
+	persuratanHandler := kesantrianHTTP.NewPersuratanHandler(
+		createTipeSuratUC, updateTipeSuratUC, deleteTipeSuratUC,
+		listTipeSuratUC, getTipeSuratUC,
+		createSuratUC, deleteSuratUC,
+		addSuratDokumenUC, removeSuratDokumenUC,
+		listSuratUC, getSuratUC, getSuratDownloadUC,
+	)
+
 	handler := kesantrianHTTP.NewSantriHandler(
 		getSantriUC,
 		updateSantriUC,
@@ -114,12 +145,12 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
-	kesantrianHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+	kesantrianHTTP.RegisterRoutes(grp, m.handler, m.persuratanHandler, m.jwtAuth, m.principalLoad)
 }
 
 func (m *Module) CreateSantriFromPendaftaran(ctx context.Context, in CreateSantriFromPendaftaranInput) (*CreateSantriFromPendaftaranResult, error) {
