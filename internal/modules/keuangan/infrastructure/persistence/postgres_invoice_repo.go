@@ -218,6 +218,28 @@ func (r *PostgresInvoiceRepository) HasPaidComponent(ctx context.Context, santri
 	return exists, nil
 }
 
+func (r *PostgresInvoiceRepository) FindSummaryByUserID(ctx context.Context, userID string) (*repository.InvoiceSummary, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	row := execer.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(CASE WHEN status != 'cancelled' THEN amount ELSE 0 END), 0) AS total_tagihan,
+			COALESCE(SUM(CASE WHEN status != 'cancelled' THEN paid_amount ELSE 0 END), 0) AS total_terbayar,
+			COALESCE(SUM(CASE WHEN status IN ('issued','partial','expired') THEN GREATEST(amount - discount_amount - paid_amount, 0) ELSE 0 END), 0) AS total_tunggakan,
+			COUNT(CASE WHEN status != 'cancelled' THEN 1 END) AS jumlah_invoice,
+			COUNT(CASE WHEN status = 'paid' THEN 1 END) AS jumlah_lunas,
+			COUNT(CASE WHEN status NOT IN ('paid','cancelled') THEN 1 END) AS jumlah_belum
+		FROM invoices
+		WHERE user_id=$1 AND deleted_at IS NULL
+	`, userID)
+
+	var s repository.InvoiceSummary
+	if err := row.Scan(&s.TotalTagihan, &s.TotalTerbayar, &s.TotalTunggakan, &s.JumlahInvoice, &s.JumlahLunas, &s.JumlahBelum); err != nil {
+		return nil, kernel.WrapMsg(constant.CodeInvoiceQueryFailed, "gagal menghitung ringkasan invoice", err)
+	}
+	return &s, nil
+}
+
 func (r *PostgresInvoiceRepository) scan(sc scanner) (*entity.Invoice, error) {
 	var (
 		id, invoiceNumber, santriID, userID, feeComponentID string

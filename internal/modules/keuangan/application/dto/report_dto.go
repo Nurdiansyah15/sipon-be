@@ -113,3 +113,12 @@ type IncomeStatementResponse struct {
 type IncomeStatementQuery struct {
 	PeriodID string `form:"period_id" binding:"required"`
 }
+
+type MyInvoiceSummaryResponse struct {
+	TotalTagihan   float64 `json:"total_tagihan"`
+	TotalTerbayar  float64 `json:"total_terbayar"`
+	TotalTunggakan float64 `json:"total_tunggakan"`
+	JumlahInvoice  int64   `json:"jumlah_invoice"`
+	JumlahLunas    int64   `json:"jumlah_lunas"`
+	JumlahBelum    int64   `json:"jumlah_belum"`
+}

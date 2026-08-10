@@ -81,6 +81,7 @@ func NewModule(
 	listInvoicesUC := query.NewListInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
 	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo, paymentRepo, adjustmentRepo)
 	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
+	mySummaryUC := query.NewMyInvoiceSummaryUseCase(invoiceRepo)
 	listBillingPeriodsUC := query.NewListBillingPeriodsUseCase(billingPeriodRepo)
 	getBillingPeriodUC := query.NewGetBillingPeriodUseCase(billingPeriodRepo)
 	listBillingBatchesUC := query.NewListBillingBatchesUseCase(billingBatchRepo)
@@ -134,6 +135,7 @@ func NewModule(
 		listInvoicesUC,
 		getInvoiceUC,
 		myInvoicesUC,
+		mySummaryUC,
 		listPaymentsUC,
 		getPaymentUC,
 		myPaymentsUC,

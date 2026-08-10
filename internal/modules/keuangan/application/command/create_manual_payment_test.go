@@ -80,6 +80,9 @@ func (f *fakeInvoiceRepo) FindBySantriComponentPeriod(ctx context.Context, santr
 func (f *fakeInvoiceRepo) FindOutstandingBySantriID(ctx context.Context, santriID string) ([]*invEntity.Invoice, error) {
 	return nil, nil
 }
+func (f *fakeInvoiceRepo) FindSummaryByUserID(ctx context.Context, userID string) (*invRepo.InvoiceSummary, error) {
+	return &invRepo.InvoiceSummary{}, nil
+}
 func (f *fakeInvoiceRepo) HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error) {
 	return false, nil
 }

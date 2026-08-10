@@ -154,6 +154,9 @@ func (v *verifyInvoiceRepo) FindBySantriComponentPeriod(ctx context.Context, san
 func (v *verifyInvoiceRepo) FindOutstandingBySantriID(ctx context.Context, santriID string) ([]*invEntity.Invoice, error) {
 	return nil, nil
 }
+func (v *verifyInvoiceRepo) FindSummaryByUserID(ctx context.Context, userID string) (*invRepo.InvoiceSummary, error) {
+	return &invRepo.InvoiceSummary{}, nil
+}
 func (v *verifyInvoiceRepo) HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error) {
 	return false, nil
 }

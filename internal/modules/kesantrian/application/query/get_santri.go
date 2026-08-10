@@ -112,5 +112,7 @@ func mapSantriToResponse(s *santrientity.Santri, username, email string, fullnam
 		nis := s.NIS.String()
 		resp.NIS = &nis
 	}
+	status := string(s.Status)
+	resp.Status = &status
 	return resp
 }

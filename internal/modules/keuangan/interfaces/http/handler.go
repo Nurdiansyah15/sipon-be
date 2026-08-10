@@ -61,6 +61,7 @@ type KeuanganHandler struct {
 	listInvoicesUC            *query.ListInvoicesUseCase
 	getInvoiceUC              *query.GetInvoiceUseCase
 	myInvoicesUC              *query.MyInvoicesUseCase
+	mySummaryUC               *query.MyInvoiceSummaryUseCase
 	listPaymentsUC            *query.ListPaymentsUseCase
 	getPaymentUC              *query.GetPaymentUseCase
 	myPaymentsUC              *query.MyPaymentsUseCase
@@ -122,6 +123,7 @@ func NewKeuanganHandler(
 	listInvoicesUC *query.ListInvoicesUseCase,
 	getInvoiceUC *query.GetInvoiceUseCase,
 	myInvoicesUC *query.MyInvoicesUseCase,
+	mySummaryUC *query.MyInvoiceSummaryUseCase,
 	listPaymentsUC *query.ListPaymentsUseCase,
 	getPaymentUC *query.GetPaymentUseCase,
 	myPaymentsUC *query.MyPaymentsUseCase,
@@ -180,6 +182,7 @@ func NewKeuanganHandler(
 		listInvoicesUC:            listInvoicesUC,
 		getInvoiceUC:              getInvoiceUC,
 		myInvoicesUC:              myInvoicesUC,
+		mySummaryUC:               mySummaryUC,
 		listPaymentsUC:            listPaymentsUC,
 		getPaymentUC:              getPaymentUC,
 		myPaymentsUC:              myPaymentsUC,
@@ -649,6 +652,16 @@ func (h *KeuanganHandler) MyPayments(c *gin.Context) {
 		return
 	}
 	respond.SuccessWithMeta(c, 200, "daftar pembayaran berhasil diambil", items, meta)
+}
+
+func (h *KeuanganHandler) MySummary(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.mySummaryUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "ringkasan tagihan berhasil diambil", resp)
 }
 
 func (h *KeuanganHandler) ListAccounts(c *gin.Context) {

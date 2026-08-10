@@ -13,6 +13,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		santri.GET("/invoices", h.MyInvoices)
 		santri.GET("/invoices/:id", h.GetInvoice)
 		santri.GET("/payments", h.MyPayments)
+		santri.GET("/summary", h.MySummary)
 	}
 
 	admin := router.Group("/api/v1/web/keuangan/admin")

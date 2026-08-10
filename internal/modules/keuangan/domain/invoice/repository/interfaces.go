@@ -29,6 +29,16 @@ type InvoiceRepository interface {
 	List(ctx context.Context, query InvoiceListQuery) (*InvoiceListResult, error)
 	FindBySantriComponentPeriod(ctx context.Context, santriID, feeComponentID, billingPeriodID string) (*entity.Invoice, error)
 	FindOutstandingBySantriID(ctx context.Context, santriID string) ([]*entity.Invoice, error)
+	FindSummaryByUserID(ctx context.Context, userID string) (*InvoiceSummary, error)
 	HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error)
 	NextInvoiceNumber(ctx context.Context) (valueobject.InvoiceNumber, error)
+}
+
+type InvoiceSummary struct {
+	TotalTagihan   float64
+	TotalTerbayar  float64
+	TotalTunggakan float64
+	JumlahInvoice  int64
+	JumlahLunas    int64
+	JumlahBelum    int64
 }

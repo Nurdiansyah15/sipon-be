@@ -24,6 +24,7 @@ type GetSantriResponse struct {
 	ID        string  `json:"id"`
 	UserID    string  `json:"user_id"`
 	NIS       *string `json:"nis,omitempty"`
+	Status    *string `json:"status,omitempty"`
 	Username  string  `json:"username"`
 	Email     string  `json:"email"`
 	Fullname  *string `json:"fullname,omitempty"`
