@@ -16,6 +16,7 @@ import (
 
 	articleModule "sipon-be/internal/modules/article"
 	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
+	feedbackModule "sipon-be/internal/modules/feedback"
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
@@ -61,8 +62,8 @@ func main() {
 
 	psb := psbModule.NewModule(
 		db, cfg,
-		identity,      // identity.Contract
-		kesantrian,    // kesantrian.Contract (needs CreateSantriFromPendaftaran)
+		identity,   // identity.Contract
+		kesantrian, // kesantrian.Contract (needs CreateSantriFromPendaftaran)
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -86,6 +87,13 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	feedback := feedbackModule.NewModule(
+		db, cfg,
+		identity, // identity.Contract
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	const pendingUploadExpireDays = 1
 
 	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
@@ -96,6 +104,9 @@ func main() {
 	}
 	if err := psb.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
 		lg.Warn("gagal set lifecycle pending upload (psb)", slog.Any("error", err))
+	}
+	if err := feedback.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
+		lg.Warn("gagal set lifecycle pending upload (feedback)", slog.Any("error", err))
 	}
 	if err := dokumenAset.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {
 		lg.Warn("gagal set lifecycle pending upload (dokumen_aset)", slog.Any("error", err))
@@ -127,6 +138,7 @@ func main() {
 	dokumenAset.RegisterRoutes(engine)
 	article.RegisterRoutes(engine)
 	keuangan.RegisterRoutes(engine)
+	feedback.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,

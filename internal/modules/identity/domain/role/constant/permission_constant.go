@@ -31,6 +31,7 @@ const (
 	PermissionManageAccounts        PermissionKey = "manage_accounts"
 	PermissionManageJournal         PermissionKey = "manage_journal"
 	PermissionClosePeriod           PermissionKey = "close_period"
+	PermissionManageFeedback        PermissionKey = "manage_feedback"
 )
 
 type PermissionDefinition struct {
@@ -62,6 +63,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManageAccounts, DisplayName: "Manage Accounts", Description: "Allows managing chart of accounts (COA)"},
 	{Key: PermissionManageJournal, DisplayName: "Manage Journal", Description: "Allows creating and cancelling manual journal entries"},
 	{Key: PermissionClosePeriod, DisplayName: "Close Period", Description: "Allows creating, closing, reopening, and locking accounting periods"},
+	{Key: PermissionManageFeedback, DisplayName: "Manage Feedback", Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -105,6 +107,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageAccounts,
 		PermissionManageJournal,
 		PermissionClosePeriod,
+		PermissionManageFeedback,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -128,6 +131,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageAccounts,
 		PermissionManageJournal,
 		PermissionClosePeriod,
+		PermissionManageFeedback,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -148,6 +152,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageAccounts,
 		PermissionManageJournal,
 		PermissionClosePeriod,
+		PermissionManageFeedback,
 	},
 	MemberRoleName: {},
 }
@@ -275,5 +280,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionClosePeriod,
 		DisplayName: "Close Period",
 		Description: "Allows creating, closing, reopening, and locking accounting periods",
+	},
+	PermissionManageFeedback: {
+		Key:         PermissionManageFeedback,
+		DisplayName: "Manage Feedback",
+		Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate",
 	},
 }
