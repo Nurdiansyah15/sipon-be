@@ -271,11 +271,12 @@ func TestVerifyPaymentPostsReceivableFromFeeComponent(t *testing.T) {
 		&verifyPaymentRepo{payment: payment},
 		&verifyInvoiceRepo{inv: inv},
 		&verifyFeeRepo{fee: fee},
+		accountRepo,
 		&verifyTransactor{},
 		autoPosting,
 	)
 
-	if _, err := uc.Execute(context.Background(), "pay-1", "verifier-1"); err != nil {
+	if _, err := uc.Execute(context.Background(), "pay-1", "verifier-1", "cash-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if journalRepo.savedEntry == nil {
@@ -321,11 +322,12 @@ func TestVerifyPaymentFeeComponentNotFound(t *testing.T) {
 		&verifyPaymentRepo{payment: payment},
 		&verifyInvoiceRepo{inv: inv},
 		&verifyFeeRepo{err: kernel.WrapMsg(feeConst.CodeFeeComponentNotFound, "Komponen biaya tidak ditemukan", nil)},
+		&verifyAccountRepo{byID: map[string]*accEntity.Account{"cash-1": {ID: "cash-1", Code: "1101", Name: "Kas", Type: accConst.TypeAsset, SubType: stPtr(accConst.SubTypeCashBank), IsPostable: true, IsActive: true}}},
 		&verifyTransactor{},
 		nil,
 	)
 
-	_, err = uc.Execute(context.Background(), "pay-1", "verifier-1")
+	_, err = uc.Execute(context.Background(), "pay-1", "verifier-1", "cash-1")
 	if err == nil {
 		t.Fatal("expected error when fee component not found")
 	}
@@ -335,5 +337,69 @@ func TestVerifyPaymentFeeComponentNotFound(t *testing.T) {
 	}
 	if ke.Code != application.ErrCodeNotFound {
 		t.Fatalf("expected code %s, got %s (%v)", application.ErrCodeNotFound, ke.Code, err)
+	}
+}
+
+func TestVerifyPaymentRequiresDebitAccount(t *testing.T) {
+	payment, err := payEntity.NewPayment(
+		"pay-1", "PAY-1", "inv-1", 150000, payConst.MethodCash,
+		time.Date(2026, 8, 12, 0, 0, 0, 0, time.UTC),
+		nil, nil, nil, nil, "user-1",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error creating payment: %v", err)
+	}
+	inv, err := invEntity.NewInvoice(
+		"inv-1", "INV-1", "santri-1", "user-1", "fc-1", nil, 150000,
+		time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC), "user-1",
+	)
+	if err != nil {
+		t.Fatalf("unexpected error creating invoice: %v", err)
+	}
+	if err := inv.Issue(time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("unexpected error issuing invoice: %v", err)
+	}
+	fee, err := feeEntity.NewFeeComponent("fc-1", "SPP", "SPP Bulanan", "rev-spp", "recv-spp", 150000, "user-1")
+	if err != nil {
+		t.Fatalf("unexpected error creating fee component: %v", err)
+	}
+	cash := &accEntity.Account{ID: "cash-1", Code: "1101", Name: "Kas", Type: accConst.TypeAsset, SubType: stPtr(accConst.SubTypeCashBank), IsPostable: true, IsActive: true}
+	accountRepo := &verifyAccountRepo{byID: map[string]*accEntity.Account{cash.ID: cash}}
+	journalRepo := &verifyJournalRepo{}
+	periodRepo := &verifyPeriodRepo{
+		period: &periodEntity.AccountingPeriod{
+			ID: "period-1", Name: "Agustus 2026", Status: periodConst.PeriodOpen,
+			StartDate: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC),
+			EndDate:   time.Date(2026, 8, 31, 0, 0, 0, 0, time.UTC),
+		},
+	}
+	autoPosting := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)
+	uc := NewVerifyPaymentUseCase(
+		&verifyPaymentRepo{payment: payment},
+		&verifyInvoiceRepo{inv: inv},
+		&verifyFeeRepo{fee: fee},
+		accountRepo,
+		&verifyTransactor{},
+		autoPosting,
+	)
+
+	// Tanpa debit_account_id → ditolak.
+	if _, err := uc.Execute(context.Background(), "pay-1", "verifier-1", ""); err == nil {
+		t.Fatal("expected error when debit account is empty")
+	}
+
+	// Dengan debit_account_id yang bukan kas/bank → ditolak.
+	nonCash := &accEntity.Account{ID: "acc-noncash", Code: "5101", Name: "Beban", Type: accConst.TypeExpense, SubType: stPtr(accConst.SubTypeOperatingExpense), IsPostable: true, IsActive: true}
+	nonCashRepo := &verifyAccountRepo{byID: map[string]*accEntity.Account{nonCash.ID: nonCash}}
+	ucNonCash := NewVerifyPaymentUseCase(
+		&verifyPaymentRepo{payment: payment},
+		&verifyInvoiceRepo{inv: inv},
+		&verifyFeeRepo{fee: fee},
+		nonCashRepo,
+		&verifyTransactor{},
+		autoPosting,
+	)
+	if _, err := ucNonCash.Execute(context.Background(), "pay-1", "verifier-1", "acc-noncash"); err == nil {
+		t.Fatal("expected error when debit account is not cash/bank")
 	}
 }

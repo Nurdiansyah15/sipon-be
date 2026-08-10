@@ -13,6 +13,8 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		santri.GET("/invoices", h.MyInvoices)
 		santri.GET("/invoices/:id", h.GetInvoice)
 		santri.GET("/payments", h.MyPayments)
+		santri.POST("/payments/proof/presign", h.PaymentProofPresign)
+		santri.POST("/payments", h.SubmitPayment)
 		santri.GET("/summary", h.MySummary)
 	}
 
@@ -23,6 +25,9 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.POST("/components", middleware.RequirePermission("manage_keuangan"), h.CreateFeeComponent)
 		admin.PUT("/components/:id", middleware.RequirePermission("manage_keuangan"), h.UpdateFeeComponent)
 		admin.DELETE("/components/:id", middleware.RequirePermission("manage_keuangan"), h.DeleteFeeComponent)
+
+		admin.GET("/settings", middleware.RequirePermission("manage_keuangan"), h.GetKeuanganSetting)
+		admin.PUT("/settings", middleware.RequirePermission("manage_keuangan"), h.UpdateKeuanganSetting)
 
 		admin.GET("/schemes", middleware.RequirePermission("manage_keuangan"), h.ListBillingSchemes)
 		admin.GET("/schemes/:id", middleware.RequirePermission("manage_keuangan"), h.GetBillingScheme)
@@ -45,6 +50,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 
 		admin.GET("/payments", middleware.RequirePermission("manage_keuangan"), h.ListPayments)
 		admin.GET("/payments/:id", middleware.RequirePermission("manage_keuangan"), h.GetPayment)
+		admin.GET("/payments/:id/proof", middleware.RequirePermission("verify_payment"), h.GetPaymentProofURL)
 		admin.GET("/payments/:id/receipt", middleware.RequirePermission("manage_keuangan"), h.DownloadReceipt)
 		admin.POST("/payments/manual", middleware.RequirePermission("manage_keuangan"), h.CreateManualPayment)
 		admin.POST("/payments/:id/verify", middleware.RequirePermission("verify_payment"), h.VerifyPayment)

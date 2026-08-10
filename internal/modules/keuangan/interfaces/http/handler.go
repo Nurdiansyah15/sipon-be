@@ -41,6 +41,9 @@ type KeuanganHandler struct {
 	createManualPaymentUC  *command.CreateManualPaymentUseCase
 	verifyPaymentUC        *command.VerifyPaymentUseCase
 	rejectPaymentUC        *command.RejectPaymentUseCase
+	updateSettingUC        *command.UpdateKeuanganSettingUseCase
+	submitPaymentUC        *command.SubmitPaymentUseCase
+	presignPaymentProofUC  *command.CreatePaymentProofPresignUseCase
 
 	createAccountUC       *command.CreateAccountUseCase
 	updateAccountUC       *command.UpdateAccountUseCase
@@ -62,8 +65,10 @@ type KeuanganHandler struct {
 	getInvoiceUC              *query.GetInvoiceUseCase
 	myInvoicesUC              *query.MyInvoicesUseCase
 	mySummaryUC               *query.MyInvoiceSummaryUseCase
+	getSettingUC              *query.GetKeuanganSettingUseCase
 	listPaymentsUC            *query.ListPaymentsUseCase
 	getPaymentUC              *query.GetPaymentUseCase
+	getPaymentProofUC         *query.GetPaymentProofUseCase
 	myPaymentsUC              *query.MyPaymentsUseCase
 	listAccountsUC            *query.ListAccountsUseCase
 	getAccountUC              *query.GetAccountUseCase
@@ -106,6 +111,9 @@ func NewKeuanganHandler(
 	createManualPaymentUC *command.CreateManualPaymentUseCase,
 	verifyPaymentUC *command.VerifyPaymentUseCase,
 	rejectPaymentUC *command.RejectPaymentUseCase,
+	updateSettingUC *command.UpdateKeuanganSettingUseCase,
+	submitPaymentUC *command.SubmitPaymentUseCase,
+	presignPaymentProofUC *command.CreatePaymentProofPresignUseCase,
 	createAccountUC *command.CreateAccountUseCase,
 	updateAccountUC *command.UpdateAccountUseCase,
 	createManualJournalUC *command.CreateManualJournalUseCase,
@@ -124,8 +132,10 @@ func NewKeuanganHandler(
 	getInvoiceUC *query.GetInvoiceUseCase,
 	myInvoicesUC *query.MyInvoicesUseCase,
 	mySummaryUC *query.MyInvoiceSummaryUseCase,
+	getSettingUC *query.GetKeuanganSettingUseCase,
 	listPaymentsUC *query.ListPaymentsUseCase,
 	getPaymentUC *query.GetPaymentUseCase,
+	getPaymentProofUC *query.GetPaymentProofUseCase,
 	myPaymentsUC *query.MyPaymentsUseCase,
 	listAccountsUC *query.ListAccountsUseCase,
 	getAccountUC *query.GetAccountUseCase,
@@ -165,6 +175,9 @@ func NewKeuanganHandler(
 		createManualPaymentUC:     createManualPaymentUC,
 		verifyPaymentUC:           verifyPaymentUC,
 		rejectPaymentUC:           rejectPaymentUC,
+		updateSettingUC:           updateSettingUC,
+		submitPaymentUC:           submitPaymentUC,
+		presignPaymentProofUC:     presignPaymentProofUC,
 		createAccountUC:           createAccountUC,
 		updateAccountUC:           updateAccountUC,
 		createManualJournalUC:     createManualJournalUC,
@@ -183,8 +196,10 @@ func NewKeuanganHandler(
 		getInvoiceUC:              getInvoiceUC,
 		myInvoicesUC:              myInvoicesUC,
 		mySummaryUC:               mySummaryUC,
+		getSettingUC:              getSettingUC,
 		listPaymentsUC:            listPaymentsUC,
 		getPaymentUC:              getPaymentUC,
+		getPaymentProofUC:         getPaymentProofUC,
 		myPaymentsUC:              myPaymentsUC,
 		listAccountsUC:            listAccountsUC,
 		getAccountUC:              getAccountUC,
@@ -606,7 +621,12 @@ func (h *KeuanganHandler) CreateManualPayment(c *gin.Context) {
 func (h *KeuanganHandler) VerifyPayment(c *gin.Context) {
 	id := c.Param("id")
 	userID := middleware.GetUserID(c)
-	resp, err := h.verifyPaymentUC.Execute(c.Request.Context(), id, userID)
+	var req dto.VerifyPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.verifyPaymentUC.Execute(c.Request.Context(), id, userID, req.DebitAccountID)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -622,6 +642,46 @@ func (h *KeuanganHandler) RejectPayment(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "pembayaran berhasil ditolak", resp)
+}
+
+func (h *KeuanganHandler) SubmitPayment(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req dto.SubmitPaymentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.submitPaymentUC.Execute(c.Request.Context(), userID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "pembayaran berhasil diajukan, menunggu verifikasi admin", resp)
+}
+
+func (h *KeuanganHandler) PaymentProofPresign(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req dto.PresignPaymentProofRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.presignPaymentProofUC.Execute(c.Request.Context(), userID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "presign url bukti transfer berhasil dibuat", resp)
+}
+
+func (h *KeuanganHandler) GetPaymentProofURL(c *gin.Context) {
+	id := c.Param("id")
+	resp, err := h.getPaymentProofUC.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "url unduhan bukti transfer berhasil dibuat", resp)
 }
 
 func (h *KeuanganHandler) MyInvoices(c *gin.Context) {
@@ -662,6 +722,29 @@ func (h *KeuanganHandler) MySummary(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "ringkasan tagihan berhasil diambil", resp)
+}
+
+func (h *KeuanganHandler) GetKeuanganSetting(c *gin.Context) {
+	resp, err := h.getSettingUC.Execute(c.Request.Context())
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "settings keuangan berhasil diambil", resp)
+}
+
+func (h *KeuanganHandler) UpdateKeuanganSetting(c *gin.Context) {
+	var req dto.UpdateKeuanganSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.updateSettingUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "settings keuangan berhasil diperbarui", resp)
 }
 
 func (h *KeuanganHandler) ListAccounts(c *gin.Context) {

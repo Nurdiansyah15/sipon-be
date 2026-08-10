@@ -11,6 +11,36 @@ type CreateManualPaymentRequest struct {
 	ProofKey        *string `json:"proof_key,omitempty"`
 }
 
+type PresignPaymentProofRequest struct {
+	Filename    string `json:"filename" binding:"required"`
+	ContentType string `json:"content_type" binding:"required"`
+}
+
+type PresignPaymentProofResponse struct {
+	PresignURL string `json:"presign_url"`
+	Key        string `json:"key"`
+	ExpiresIn  int    `json:"expires_in"`
+}
+
+type SubmitPaymentRequest struct {
+	InvoiceID       string  `json:"invoice_id" binding:"required"`
+	Amount          float64 `json:"amount" binding:"required,gt=0"`
+	Method          string  `json:"method" binding:"required,oneof=transfer"`
+	ReferenceNumber *string `json:"reference_number,omitempty"`
+	PaymentDate     string  `json:"payment_date" binding:"required"`
+	ProofKey        string  `json:"proof_key" binding:"required"`
+	Notes           *string `json:"notes,omitempty"`
+}
+
+type VerifyPaymentRequest struct {
+	DebitAccountID string `json:"debit_account_id" binding:"required"`
+}
+
+type PaymentProofResponse struct {
+	URL       string `json:"url"`
+	ExpiresIn int    `json:"expires_in"`
+}
+
 type PaymentListQuery struct {
 	InvoiceID *string `form:"invoice_id"`
 	Status    *string `form:"status"`

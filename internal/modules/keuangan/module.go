@@ -10,6 +10,7 @@ import (
 	"sipon-be/internal/modules/keuangan/application/query"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	"sipon-be/internal/modules/keuangan/infrastructure/kesantriangateway"
+	"sipon-be/internal/modules/keuangan/infrastructure/external"
 	"sipon-be/internal/modules/keuangan/infrastructure/persistence"
 	keuanganHTTP "sipon-be/internal/modules/keuangan/interfaces/http"
 	"sipon-be/internal/modules/kesantrian"
@@ -42,11 +43,22 @@ func NewModule(
 	paymentRepo := persistence.NewPostgresPaymentRepository(db)
 	adjustmentRepo := persistence.NewPostgresAdjustmentRepository(db)
 	accountRepo := persistence.NewPostgresAccountRepository(db)
+	keuanganSettingRepo := persistence.NewPostgresKeuanganSettingRepository(db)
 	journalRepo := persistence.NewPostgresJournalRepository(db)
 	periodRepo := persistence.NewPostgresAccountingPeriodRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
 	assignmentReader := persistence.NewPostgresAssignmentReader(db)
 	reportReader := persistence.NewPostgresReportReader(db)
+
+	fileUploader, _ := external.NewMinioFileUploader(
+		cfg.Minio.Endpoint,
+		cfg.Minio.PublicEndpoint,
+		cfg.Minio.AccessKey,
+		cfg.Minio.SecretKey,
+		cfg.Minio.Bucket,
+		cfg.Minio.PrivateBucket,
+		cfg.Minio.UseSSL,
+	)
 
 	autoPostingService := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)
 
@@ -61,8 +73,11 @@ func NewModule(
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
-	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
+	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, feeComponentRepo, accountRepo, transactor, autoPostingService)
 	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
+	updateSettingUC := command.NewUpdateKeuanganSettingUseCase(keuanganSettingRepo, accountRepo)
+	submitPaymentUC := command.NewSubmitPaymentUseCase(paymentRepo, invoiceRepo)
+	presignPaymentProofUC := command.NewCreatePaymentProofPresignUseCase(fileUploader)
 	createAccountUC := command.NewCreateAccountUseCase(accountRepo)
 	updateAccountUC := command.NewUpdateAccountUseCase(accountRepo)
 	createManualJournalUC := command.NewCreateManualJournalUseCase(journalRepo, accountRepo, periodRepo, transactor)
@@ -82,12 +97,14 @@ func NewModule(
 	getInvoiceUC := query.NewGetInvoiceUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo, paymentRepo, adjustmentRepo)
 	myInvoicesUC := query.NewMyInvoicesUseCase(invoiceRepo, feeComponentRepo, billingPeriodRepo)
 	mySummaryUC := query.NewMyInvoiceSummaryUseCase(invoiceRepo)
+	getSettingUC := query.NewGetKeuanganSettingUseCase(keuanganSettingRepo, accountRepo)
 	listBillingPeriodsUC := query.NewListBillingPeriodsUseCase(billingPeriodRepo)
 	getBillingPeriodUC := query.NewGetBillingPeriodUseCase(billingPeriodRepo)
 	listBillingBatchesUC := query.NewListBillingBatchesUseCase(billingBatchRepo)
 	getBillingBatchUC := query.NewGetBillingBatchUseCase(billingBatchRepo, billingBatchTargetRepo)
 	listPaymentsUC := query.NewListPaymentsUseCase(paymentRepo, invoiceRepo, accountRepo)
 	getPaymentUC := query.NewGetPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
+	getPaymentProofUC := query.NewGetPaymentProofUseCase(paymentRepo, fileUploader)
 	myPaymentsUC := query.NewMyPaymentsUseCase(paymentRepo, invoiceRepo, accountRepo)
 	listAccountsUC := query.NewListAccountsUseCase(accountRepo)
 	getAccountUC := query.NewGetAccountUseCase(accountRepo)
@@ -118,6 +135,9 @@ func NewModule(
 		createManualPaymentUC,
 		verifyPaymentUC,
 		rejectPaymentUC,
+		updateSettingUC,
+		submitPaymentUC,
+		presignPaymentProofUC,
 		createAccountUC,
 		updateAccountUC,
 		createManualJournalUC,
@@ -136,8 +156,10 @@ func NewModule(
 		getInvoiceUC,
 		myInvoicesUC,
 		mySummaryUC,
+		getSettingUC,
 		listPaymentsUC,
 		getPaymentUC,
+		getPaymentProofUC,
 		myPaymentsUC,
 		listAccountsUC,
 		getAccountUC,

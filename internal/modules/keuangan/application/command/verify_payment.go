@@ -8,6 +8,7 @@ import (
 	"sipon-be/internal/modules/keuangan/application/dto"
 	"sipon-be/internal/modules/keuangan/application/ports"
 	accConst "sipon-be/internal/modules/keuangan/domain/account/constant"
+	accRepo "sipon-be/internal/modules/keuangan/domain/account/repository"
 	feeConst "sipon-be/internal/modules/keuangan/domain/feecomponent/constant"
 	feeRepo "sipon-be/internal/modules/keuangan/domain/feecomponent/repository"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
@@ -24,15 +25,16 @@ type VerifyPaymentUseCase struct {
 	paymentRepo payRepo.PaymentRepository
 	invoiceRepo invRepo.InvoiceRepository
 	feeRepo     feeRepo.FeeComponentRepository
+	accountRepo accRepo.AccountRepository
 	transactor  ports.Transactor
 	autoPosting *journalService.AutoPostingService
 }
 
-func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
-	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, feeRepo: feeRepo, transactor: transactor, autoPosting: autoPosting}
+func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, accountRepo accRepo.AccountRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
+	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, feeRepo: feeRepo, accountRepo: accountRepo, transactor: transactor, autoPosting: autoPosting}
 }
 
-func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string) (*dto.PaymentResponse, error) {
+func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string, debitAccountID string) (*dto.PaymentResponse, error) {
 	payment, err := uc.paymentRepo.FindByID(ctx, paymentID)
 	if err != nil {
 		var ke *kernel.AppError
@@ -44,6 +46,30 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	if debitAccountID == "" {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun debit wajib diisi saat verifikasi", nil)
+	}
+
+	debitAcc, err := uc.accountRepo.FindByID(ctx, debitAccountID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) {
+			switch ke.Code {
+			case accConst.CodeAccountNotFound:
+				return nil, kernel.WrapMsg(application.ErrCodeNotFound, ke.Message, ke)
+			}
+		}
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if err := debitAcc.EnsurePostable(); err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun debit harus postable dan aktif", err)
+	}
+	if debitAcc.SubType == nil || *debitAcc.SubType != accConst.SubTypeCashBank {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "Akun debit pembayaran harus merupakan akun kas atau bank", nil)
+	}
+
+	payment.DebitAccountID = &debitAccountID
 
 	inv, err := uc.invoiceRepo.FindByID(ctx, payment.InvoiceID)
 	if err != nil {
