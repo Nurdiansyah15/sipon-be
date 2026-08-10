@@ -58,12 +58,28 @@ func (uc *AssignSchemeToSantriUseCase) Execute(ctx context.Context, cmd AssignSc
 		}
 		effectiveUntil = &t
 	}
+	if effectiveUntil != nil && !effectiveUntil.After(effectiveFrom) {
+		return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "tanggal berakhir harus setelah tanggal berlaku", nil)
+	}
 
 	existing, _ := uc.assignmentRepo.FindActiveBySantriID(ctx, cmd.SantriID)
+	excludeID := ""
 	if existing != nil {
 		if !existing.EffectiveFrom.Before(effectiveFrom) {
 			return nil, kernel.WrapMsg(application.ErrCodeBadRequest, "tanggal berlaku skema baru harus setelah tanggal mulai skema yang sedang aktif", nil)
 		}
+		excludeID = existing.ID
+	}
+
+	overlap, err := uc.assignmentRepo.HasOverlappingAssignment(ctx, cmd.SantriID, effectiveFrom, effectiveUntil, excludeID)
+	if err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if overlap {
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "Santri sudah memiliki skema aktif pada rentang tanggal ini", nil)
+	}
+
+	if existing != nil {
 		if err := uc.assignmentRepo.EndAssignment(ctx, existing.ID, effectiveFrom.AddDate(0, 0, -1)); err != nil {
 			var ke *kernel.AppError
 			if errors.As(err, &ke) {

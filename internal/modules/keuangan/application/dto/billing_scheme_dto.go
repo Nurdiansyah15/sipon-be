@@ -26,6 +26,11 @@ type BillingSchemeResponse struct {
 	UpdatedAt   string                      `json:"updated_at"`
 }
 
+type BillingSchemeBriefResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type BillingSchemeItemResponse struct {
 	ID             string                     `json:"id"`
 	FeeComponentID string                     `json:"fee_component_id"`

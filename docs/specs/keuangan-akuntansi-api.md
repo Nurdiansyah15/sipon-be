@@ -23,7 +23,8 @@ Dokumen ini memuat **(A)** endpoint yang sudah berjalan (referensi cepat, sinkro
 | GET/POST | `/admin/schemes` | List/buat skema tagihan |
 | GET/PUT/DELETE | `/admin/schemes/:id` | Detail/update/nonaktifkan skema |
 | POST/DELETE | `/admin/schemes/:id/items[/:itemId]` | Tambah/hapus komponen dari skema |
-| POST/GET | `/admin/assignments` | Assign skema ke santri / list assignment |
+| POST/GET | `/admin/assignments` | Tetapkan skema ke santri / list assignment (aktif + riwayat, filter opsional `?santri_id=`) |
+| PUT | `/admin/assignments/:id` | Edit assignment yang sudah ada (skema/tanggal) |
 | GET/POST | `/admin/invoices` | List / buat invoice individual |
 | POST | `/admin/invoices/batch` | Generate tagihan massal |
 | GET | `/admin/invoices/:id` | Detail invoice |

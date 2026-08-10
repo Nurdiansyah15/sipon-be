@@ -16,5 +16,7 @@ type AssignmentReadModel struct {
 }
 
 type AssignmentReader interface {
-	ListActive(ctx context.Context) ([]AssignmentReadModel, error)
+	// ListAll mengembalikan seluruh penugasan (aktif maupun riwayat). Bila
+	// santriID tidak nil, hasil difilter ke satu santri.
+	ListAll(ctx context.Context, santriID *string) ([]AssignmentReadModel, error)
 }

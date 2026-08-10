@@ -55,6 +55,7 @@ func NewModule(
 	createBillingSchemeUC := command.NewCreateBillingSchemeUseCase(billingSchemeRepo)
 	updateBillingSchemeUC := command.NewUpdateBillingSchemeUseCase(billingSchemeRepo)
 	assignSchemeToSantriUC := command.NewAssignSchemeToSantriUseCase(assignmentRepo, billingSchemeRepo)
+	updateAssignmentUC := command.NewUpdateAssignmentUseCase(assignmentRepo, billingSchemeRepo)
 	createInvoiceUC := command.NewCreateInvoiceUseCase(invoiceRepo, feeComponentRepo, assignmentRepo, billingPeriodRepo, kesantrianReader, transactor, autoPostingService)
 	createInvoiceBatchUC := command.NewCreateInvoiceBatchUseCase(invoiceRepo, feeComponentRepo, billingSchemeRepo, assignmentRepo, billingPeriodRepo, billingBatchRepo, billingBatchTargetRepo, kesantrianReader, transactor, autoPostingService)
 	cancelInvoiceUC := command.NewCancelInvoiceUseCase(invoiceRepo, feeComponentRepo, transactor, autoPostingService)
@@ -94,7 +95,7 @@ func NewModule(
 	getJournalEntryBySourceUC := query.NewGetJournalEntryBySourceUseCase(journalRepo)
 	listPeriodsUC := query.NewListPeriodsUseCase(periodRepo)
 	getActivePeriodUC := query.NewGetActivePeriodUseCase(periodRepo)
-	listAssignmentsUC := query.NewListAssignmentsUseCase(assignmentReader)
+	listAssignmentsUC := query.NewListAssignmentsUseCase(assignmentReader, billingSchemeRepo)
 	reportSummaryUC := query.NewReportSummaryUseCase(reportReader)
 	reportOutstandingUC := query.NewReportOutstandingUseCase(reportReader)
 	reportLedgerUC := query.NewReportLedgerUseCase(reportReader, accountRepo, periodRepo)
@@ -108,6 +109,7 @@ func NewModule(
 		createBillingSchemeUC,
 		updateBillingSchemeUC,
 		assignSchemeToSantriUC,
+		updateAssignmentUC,
 		createInvoiceUC,
 		createInvoiceBatchUC,
 		cancelInvoiceUC,

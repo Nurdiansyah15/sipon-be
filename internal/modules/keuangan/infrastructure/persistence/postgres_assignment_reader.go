@@ -18,15 +18,21 @@ func NewPostgresAssignmentReader(db *sql.DB) *PostgresAssignmentReader {
 	return &PostgresAssignmentReader{db: db}
 }
 
-func (r *PostgresAssignmentReader) ListActive(ctx context.Context) ([]ports.AssignmentReadModel, error) {
+func (r *PostgresAssignmentReader) ListAll(ctx context.Context, santriID *string) ([]ports.AssignmentReadModel, error) {
 	execer := execerFromContext(ctx, r.db)
+
+	where := ""
+	args := []interface{}{}
+	if santriID != nil {
+		where = ` WHERE santri_id=$1`
+		args = append(args, *santriID)
+	}
 
 	rows, err := execer.QueryContext(ctx, `
 		SELECT id, santri_id, billing_scheme_id, effective_from, effective_until, assigned_by, created_at
-		FROM santri_billing_assignments
-		WHERE effective_until IS NULL OR effective_until >= CURRENT_DATE
+		FROM santri_billing_assignments`+where+`
 		ORDER BY created_at DESC
-	`)
+	`, args...)
 	if err != nil {
 		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal mendaftar penugasan skema tagihan", err)
 	}

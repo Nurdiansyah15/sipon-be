@@ -294,6 +294,35 @@ func (r *PostgresSantriBillingAssignmentRepository) FindActiveBySantriIDAt(ctx c
 	return r.scanAssignment(row)
 }
 
+func (r *PostgresSantriBillingAssignmentRepository) FindByID(ctx context.Context, id string) (*entity.SantriBillingAssignment, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	row := execer.QueryRowContext(ctx,
+		`SELECT `+assignmentColumns+` FROM santri_billing_assignments WHERE id=$1`,
+		id,
+	)
+	return r.scanAssignment(row)
+}
+
+func (r *PostgresSantriBillingAssignmentRepository) Update(ctx context.Context, a *entity.SantriBillingAssignment) error {
+	execer := execerFromContext(ctx, r.db)
+
+	res, err := execer.ExecContext(ctx,
+		`UPDATE santri_billing_assignments
+		 SET billing_scheme_id=$2, effective_from=$3, effective_until=$4
+		 WHERE id=$1`,
+		a.ID, a.BillingSchemeID, a.EffectiveFrom, nullTimeVal(a.EffectiveUntil),
+	)
+	if err != nil {
+		return kernel.WrapMsg(constant.CodeBillingSchemePersistenceFailed, "gagal memperbarui penugasan skema tagihan", err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
+	}
+	return nil
+}
+
 func (r *PostgresSantriBillingAssignmentRepository) EndAssignment(ctx context.Context, id string, effectiveUntil time.Time) error {
 	execer := execerFromContext(ctx, r.db)
 
@@ -306,6 +335,59 @@ func (r *PostgresSantriBillingAssignmentRepository) EndAssignment(ctx context.Co
 		return kernel.WrapMsg(constant.CodeBillingSchemeNotFound, "Skema tagihan tidak ditemukan", nil)
 	}
 	return nil
+}
+
+// ListBySantriID mengambil seluruh penugasan (aktif maupun riwayat) milik satu
+// santri, diurutkan dari tanggal berlaku terbaru ke terlama.
+func (r *PostgresSantriBillingAssignmentRepository) ListBySantriID(ctx context.Context, santriID string) ([]*entity.SantriBillingAssignment, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+assignmentColumns+` FROM santri_billing_assignments
+		 WHERE santri_id=$1
+		 ORDER BY effective_from DESC`,
+		santriID,
+	)
+	if err != nil {
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca riwayat penugasan skema tagihan", err)
+	}
+	defer rows.Close()
+
+	results := make([]*entity.SantriBillingAssignment, 0)
+	for rows.Next() {
+		a, err := r.scanAssignment(rows)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal membaca riwayat penugasan skema tagihan", err)
+	}
+	return results, nil
+}
+
+// HasOverlappingAssignment melaporkan apakah sudah ada penugasan lain untuk
+// santri yang sama yang rentang berlakunya tumpang-tindih dengan rentang
+// [from, until) yang diberikan. excludeID dipakai untuk mengecualikan
+// assignment itu sendiri saat edit. until nil berarti rentang terbuka.
+func (r *PostgresSantriBillingAssignmentRepository) HasOverlappingAssignment(ctx context.Context, santriID string, from time.Time, until *time.Time, excludeID string) (bool, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	var exists bool
+	err := execer.QueryRowContext(ctx,
+		`SELECT EXISTS(
+			SELECT 1 FROM santri_billing_assignments
+			WHERE santri_id=$1 AND id != $4
+			  AND effective_from < COALESCE($3::date, 'infinity'::date)
+			  AND (effective_until IS NULL OR effective_until > $2)
+		)`,
+		santriID, from, nullTimeVal(until), excludeID,
+	).Scan(&exists)
+	if err != nil {
+		return false, kernel.WrapMsg(constant.CodeBillingSchemeQueryFailed, "gagal memeriksa tumpang-tindih penugasan skema tagihan", err)
+	}
+	return exists, nil
 }
 
 func (r *PostgresSantriBillingAssignmentRepository) scanAssignment(sc scanner) (*entity.SantriBillingAssignment, error) {

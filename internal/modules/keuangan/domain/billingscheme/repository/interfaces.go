@@ -29,7 +29,11 @@ type BillingSchemeRepository interface {
 
 type SantriBillingAssignmentRepository interface {
 	Save(ctx context.Context, assignment *entity.SantriBillingAssignment) error
+	Update(ctx context.Context, assignment *entity.SantriBillingAssignment) error
+	FindByID(ctx context.Context, id string) (*entity.SantriBillingAssignment, error)
 	FindActiveBySantriID(ctx context.Context, santriID string) (*entity.SantriBillingAssignment, error)
 	FindActiveBySantriIDAt(ctx context.Context, santriID string, atDate time.Time) (*entity.SantriBillingAssignment, error)
 	EndAssignment(ctx context.Context, id string, effectiveUntil time.Time) error
+	ListBySantriID(ctx context.Context, santriID string) ([]*entity.SantriBillingAssignment, error)
+	HasOverlappingAssignment(ctx context.Context, santriID string, from time.Time, until *time.Time, excludeID string) (bool, error)
 }

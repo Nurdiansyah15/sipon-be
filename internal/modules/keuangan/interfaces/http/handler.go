@@ -33,6 +33,7 @@ type KeuanganHandler struct {
 	createBillingSchemeUC  *command.CreateBillingSchemeUseCase
 	updateBillingSchemeUC  *command.UpdateBillingSchemeUseCase
 	assignSchemeToSantriUC *command.AssignSchemeToSantriUseCase
+	updateAssignmentUC     *command.UpdateAssignmentUseCase
 	createInvoiceUC        *command.CreateInvoiceUseCase
 	createInvoiceBatchUC   *command.CreateInvoiceBatchUseCase
 	cancelInvoiceUC        *command.CancelInvoiceUseCase
@@ -96,6 +97,7 @@ func NewKeuanganHandler(
 	createBillingSchemeUC *command.CreateBillingSchemeUseCase,
 	updateBillingSchemeUC *command.UpdateBillingSchemeUseCase,
 	assignSchemeToSantriUC *command.AssignSchemeToSantriUseCase,
+	updateAssignmentUC *command.UpdateAssignmentUseCase,
 	createInvoiceUC *command.CreateInvoiceUseCase,
 	createInvoiceBatchUC *command.CreateInvoiceBatchUseCase,
 	cancelInvoiceUC *command.CancelInvoiceUseCase,
@@ -153,6 +155,7 @@ func NewKeuanganHandler(
 		createBillingSchemeUC:     createBillingSchemeUC,
 		updateBillingSchemeUC:     updateBillingSchemeUC,
 		assignSchemeToSantriUC:    assignSchemeToSantriUC,
+		updateAssignmentUC:        updateAssignmentUC,
 		createInvoiceUC:           createInvoiceUC,
 		createInvoiceBatchUC:      createInvoiceBatchUC,
 		cancelInvoiceUC:           cancelInvoiceUC,
@@ -221,7 +224,12 @@ func (h *KeuanganHandler) ListFeeComponents(c *gin.Context) {
 }
 
 func (h *KeuanganHandler) ListAssignments(c *gin.Context) {
-	items, err := h.listAssignmentsUC.Execute(c.Request.Context())
+	var req dto.AssignmentListQuery
+	if err := c.ShouldBindQuery(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, err := h.listAssignmentsUC.Execute(c.Request.Context(), req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -437,6 +445,21 @@ func (h *KeuanganHandler) AssignSchemeToSantri(c *gin.Context) {
 		return
 	}
 	respond.Created(c, resp.Message, resp)
+}
+
+func (h *KeuanganHandler) UpdateAssignmentToSantri(c *gin.Context) {
+	id := c.Param("id")
+	var req dto.UpdateAssignmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.updateAssignmentUC.Execute(c.Request.Context(), id, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, resp.Message, resp)
 }
 
 func (h *KeuanganHandler) ListInvoices(c *gin.Context) {

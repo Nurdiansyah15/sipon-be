@@ -33,6 +33,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 
 		admin.POST("/assignments", middleware.RequirePermission("manage_keuangan"), h.AssignSchemeToSantri)
 		admin.GET("/assignments", middleware.RequirePermission("manage_keuangan"), h.ListAssignments)
+		admin.PUT("/assignments/:id", middleware.RequirePermission("manage_keuangan"), h.UpdateAssignmentToSantri)
 
 		admin.GET("/invoices", middleware.RequirePermission("manage_keuangan"), h.ListInvoices)
 		admin.POST("/invoices", middleware.RequirePermission("manage_keuangan"), h.CreateInvoice)
