@@ -378,7 +378,8 @@ func (r *PostgresSantriBillingAssignmentRepository) HasOverlappingAssignment(ctx
 	err := execer.QueryRowContext(ctx,
 		`SELECT EXISTS(
 			SELECT 1 FROM santri_billing_assignments
-			WHERE santri_id=$1 AND id != $4
+			WHERE santri_id=$1
+			  AND ($4::text = '' OR id != $4::uuid)
 			  AND effective_from < COALESCE($3::date, 'infinity'::date)
 			  AND (effective_until IS NULL OR effective_until > $2)
 		)`,
