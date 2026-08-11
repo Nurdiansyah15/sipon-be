@@ -92,6 +92,7 @@ type SantriBasicInfo struct {
 	UserID   string
 	NIS      *string
 	Status   string
+	Fullname *string
 }
 
 type Contract interface {

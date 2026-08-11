@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"log/slog"
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
@@ -64,7 +65,21 @@ func (uc *ListSantriRegistrationsUseCase) Execute(ctx context.Context, q dto.San
 	for i, r := range result.Items {
 		resp := command.MapSantriRegistrationToResponse(r)
 		resp.PeriodName = periodMap[r.AcademicPeriodID]
+		uc.enrichSantri(ctx, r.SantriID, resp)
 		items[i] = *resp
 	}
 	return items, dto.NewMeta(q.Page, q.Limit, result.Total), nil
+}
+
+// enrichSantri best-effort attaches the santri's NIS and fullname to the
+// response. Enrichment failure is logged, not fatal — the registration is still
+// returned without the extra display fields.
+func (uc *ListSantriRegistrationsUseCase) enrichSantri(ctx context.Context, santriID string, resp *dto.SantriRegistrationResponse) {
+	info, err := uc.kesantrianReader.GetSantriByID(ctx, santriID)
+	if err != nil {
+		slog.Warn("akademik: santri enrichment failed", "santri_id", santriID, "error", err)
+		return
+	}
+	resp.SantriNIS = info.NIS
+	resp.SantriName = info.Fullname
 }

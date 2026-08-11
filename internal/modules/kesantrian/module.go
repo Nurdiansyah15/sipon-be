@@ -3,6 +3,7 @@ package kesantrian
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -36,6 +37,7 @@ type Module struct {
 	getSantriByIDUC                    *query.GetSantriByIDUseCase
 	listActiveSantriWithUserIDUC       *query.ListActiveSantriWithUserIDUseCase
 	fileUploader                       ports.FileUploader
+	provisioner                        ports.AccountProvisioner
 	jwtAuth                            gin.HandlerFunc
 	principalLoad                      gin.HandlerFunc
 }
@@ -147,7 +149,7 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, createSantriUC: createSantriUC, approveSantriRequestUC: approveSantriRequestUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, createSantriUC: createSantriUC, approveSantriRequestUC: approveSantriRequestUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, provisioner: provisioner, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 // SetAkademikProvisioner late-binds the akademik port. Called in
@@ -262,12 +264,12 @@ func (m *Module) GetSantriByUserID(ctx context.Context, userID string) (*SantriB
 	if err != nil {
 		return nil, err
 	}
-	return &SantriBasicInfo{
+	return m.enrichBasicInfo(ctx, &SantriBasicInfo{
 		SantriID: result.SantriID,
 		UserID:   result.UserID,
 		NIS:      result.NIS,
 		Status:   result.Status,
-	}, nil
+	}), nil
 }
 
 func (m *Module) GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error) {
@@ -275,12 +277,28 @@ func (m *Module) GetSantriByID(ctx context.Context, santriID string) (*SantriBas
 	if err != nil {
 		return nil, err
 	}
-	return &SantriBasicInfo{
+	return m.enrichBasicInfo(ctx, &SantriBasicInfo{
 		SantriID: result.SantriID,
 		UserID:   result.UserID,
 		NIS:      result.NIS,
 		Status:   result.Status,
-	}, nil
+	}), nil
+}
+
+// enrichBasicInfo best-effort attaches the user's fullname (from identity) to a
+// SantriBasicInfo. Enrichment failure is logged, not fatal — mirroring the
+// N+1-by-design pattern used in query/list_santri.go.
+func (m *Module) enrichBasicInfo(ctx context.Context, info *SantriBasicInfo) *SantriBasicInfo {
+	if info == nil || info.UserID == "" {
+		return info
+	}
+	summary, err := m.provisioner.GetUserSummary(ctx, info.UserID)
+	if err != nil {
+		slog.Warn("kesantrian: user summary enrichment failed", "user_id", info.UserID, "error", err)
+		return info
+	}
+	info.Fullname = summary.Fullname
+	return info
 }
 
 func (m *Module) ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicInfo, error) {

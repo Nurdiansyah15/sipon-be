@@ -19,6 +19,7 @@ type SantriRegistrationResponse struct {
 	ID               string     `json:"id"`
 	SantriID         string     `json:"santri_id"`
 	SantriNIS        *string    `json:"santri_nis,omitempty"`
+	SantriName       *string    `json:"santri_name,omitempty"`
 	AcademicPeriodID string     `json:"academic_period_id"`
 	PeriodName       string     `json:"period_name,omitempty"`
 	Status           string     `json:"status"`

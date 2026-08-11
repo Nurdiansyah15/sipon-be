@@ -11,6 +11,7 @@ type SantriBasicInfo struct {
 	UserID   string
 	NIS      *string
 	Status   string
+	Fullname *string
 }
 
 type KesantrianReader interface {
@@ -27,5 +28,6 @@ func FromKesantrian(in *kesantrian.SantriBasicInfo) *SantriBasicInfo {
 		UserID:   in.UserID,
 		NIS:      in.NIS,
 		Status:   in.Status,
+		Fullname: in.Fullname,
 	}
 }

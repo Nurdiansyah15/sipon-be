@@ -65,6 +65,7 @@ func (uc *RegisterSantriUseCase) Execute(ctx context.Context, req dto.CreateSant
 	resp := MapSantriRegistrationToResponse(registration)
 	resp.PeriodName = period.Name
 	resp.SantriNIS = info.NIS
+	resp.SantriName = info.Fullname
 	return resp, nil
 }
 
