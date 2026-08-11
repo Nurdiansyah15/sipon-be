@@ -14,6 +14,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/redis/go-redis/v9"
 
+	akademikModule "sipon-be/internal/modules/akademik"
 	articleModule "sipon-be/internal/modules/article"
 	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
 	feedbackModule "sipon-be/internal/modules/feedback"
@@ -61,8 +62,8 @@ func main() {
 
 	kesantrian := kesantrianModule.NewModule(
 		db, redisClient, cfg,
-		identity,     // identity.Contract
-		dokumenAset,  // dokumen_aset.Contract
+		identity,    // identity.Contract
+		dokumenAset, // dokumen_aset.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -91,6 +92,13 @@ func main() {
 	feedback := feedbackModule.NewModule(
 		db, cfg,
 		identity, // identity.Contract
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
+	akademik := akademikModule.NewModule(
+		db, cfg,
+		kesantrian, // kesantrian.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -140,6 +148,7 @@ func main() {
 	article.RegisterRoutes(engine)
 	keuangan.RegisterRoutes(engine)
 	feedback.RegisterRoutes(engine)
+	akademik.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,

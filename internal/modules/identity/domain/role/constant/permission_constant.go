@@ -33,6 +33,7 @@ const (
 	PermissionClosePeriod           PermissionKey = "close_period"
 	PermissionManageFeedback        PermissionKey = "manage_feedback"
 	PermissionManagePersuratan      PermissionKey = "manage_persuratan"
+	PermissionManageAkademik        PermissionKey = "manage_akademik"
 )
 
 type PermissionDefinition struct {
@@ -66,6 +67,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionClosePeriod, DisplayName: "Close Period", Description: "Allows creating, closing, reopening, and locking accounting periods"},
 	{Key: PermissionManageFeedback, DisplayName: "Manage Feedback", Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate"},
 	{Key: PermissionManagePersuratan, DisplayName: "Manage Persuratan", Description: "Allows managing correspondence: letter types, outgoing letters, and linked documents"},
+	{Key: PermissionManageAkademik, DisplayName: "Manage Akademik", Description: "Allows managing academic domain: programs, periods, registrations, activities, schedules, sessions, and attendance"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -111,6 +113,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionClosePeriod,
 		PermissionManageFeedback,
 		PermissionManagePersuratan,
+		PermissionManageAkademik,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -136,6 +139,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionClosePeriod,
 		PermissionManageFeedback,
 		PermissionManagePersuratan,
+		PermissionManageAkademik,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -295,5 +299,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManagePersuratan,
 		DisplayName: "Manage Persuratan",
 		Description: "Allows managing correspondence: letter types, outgoing letters, and linked documents",
+	},
+	PermissionManageAkademik: {
+		Key:         PermissionManageAkademik,
+		DisplayName: "Manage Akademik",
+		Description: "Allows managing academic domain: programs, periods, registrations, activities, schedules, sessions, and attendance",
 	},
 }

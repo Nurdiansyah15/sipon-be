@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS attendances;
+DROP TABLE IF EXISTS activity_sessions;
+DROP TABLE IF EXISTS activity_schedule_yearlies;
+DROP TABLE IF EXISTS activity_schedule_monthlies;
+DROP TABLE IF EXISTS activity_schedule_weeklies;
+DROP TABLE IF EXISTS activity_schedules;
+DROP TABLE IF EXISTS activity_period_programs;
+DROP TABLE IF EXISTS activity_periods;
+DROP TABLE IF EXISTS activities;
+DROP TABLE IF EXISTS santri_registrations;
+DROP TABLE IF EXISTS academic_periods;
+DROP TABLE IF EXISTS programs;
