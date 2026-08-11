@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -50,4 +51,11 @@ func timeFromNull(nt sql.NullTime) *time.Time {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+func jsonBytes(v json.RawMessage) []byte {
+	if len(v) == 0 {
+		return []byte("{}")
+	}
+	return []byte(v)
 }

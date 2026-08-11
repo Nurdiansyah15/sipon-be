@@ -13,6 +13,10 @@ type Pendaftar struct {
 	PsbSettingID  string
 	Gender        string
 	Program       *string
+	// ProgramID adalah referensi ke programs.id di module akademik; sumber
+	// kebenaran program yang dipilih pendaftar. Program (string) tetap
+	// dipertahankan sebagai cache display.
+	ProgramID     *string
 
 	Nickname        *string
 	Hobby           *string

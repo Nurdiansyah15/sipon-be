@@ -34,6 +34,8 @@ type CreateSantriFromPendaftaranCmd struct {
 	Gender    string
 	EntryYear string
 
+	ProgramID *string
+
 	Nickname        *string
 	Program         *string
 	Hobby           *string
@@ -100,6 +102,7 @@ type CreateSantriFromPendaftaranUseCase struct {
 	santriRepo  santrirepo.SantriRepository
 	dokumenRepo dokumenrepo.SantriDokumenRepository
 	provisioner ports.AccountProvisioner
+	akademik    ports.AkademikProvisioner
 	transactor  ports.Transactor
 }
 
@@ -115,6 +118,13 @@ func NewCreateSantriFromPendaftaranUseCase(
 		provisioner: provisioner,
 		transactor:  transactor,
 	}
+}
+
+// SetAkademikProvisioner late-binds the akademik port (avoiding the
+// akademik↔kesantrian import cycle; wired in cmd/api/main.go after both
+// modules are constructed).
+func (uc *CreateSantriFromPendaftaranUseCase) SetAkademikProvisioner(p ports.AkademikProvisioner) {
+	uc.akademik = p
 }
 
 func (uc *CreateSantriFromPendaftaranUseCase) Execute(ctx context.Context, cmd CreateSantriFromPendaftaranCmd) (*CreateSantriFromPendaftaranResult, error) {
@@ -178,6 +188,13 @@ func (uc *CreateSantriFromPendaftaranUseCase) Execute(ctx context.Context, cmd C
 
 	if err := uc.provisioner.AddNISLoginIdentity(ctx, cmd.UserID, nis); err != nil {
 		slog.Warn("kesantrian: best-effort NIS login identity sync to identity failed", "user_id", cmd.UserID, "error", err)
+	}
+
+	if cmd.ProgramID != nil && uc.akademik != nil {
+		if err := uc.akademik.AssignSantriProgram(ctx, santriID, *cmd.ProgramID); err != nil {
+			slog.Warn("kesantrian: best-effort assign santri program to akademik failed",
+				"santri_id", santriID, "program_id", *cmd.ProgramID, "error", err)
+		}
 	}
 
 	return &CreateSantriFromPendaftaranResult{

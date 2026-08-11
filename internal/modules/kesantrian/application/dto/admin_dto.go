@@ -4,6 +4,9 @@ import "time"
 
 type CreateSantriRequest struct {
 	NIS string `json:"nis" binding:"required"`
+	// ProgramID optional; bila kosong akan memakai default program dari
+	// pengaturan akademik.
+	ProgramID *string `json:"program_id,omitempty"`
 }
 
 type CreateSantriResponse struct {

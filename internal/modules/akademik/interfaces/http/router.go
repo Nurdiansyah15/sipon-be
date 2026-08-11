@@ -10,6 +10,17 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 	akademik := router.Group("/api/v1/web/akademik")
 	akademik.Use(jwtAuth, principalLoad)
 	{
+		// Public: daftar program aktif untuk dipilih pendaftar PSB.
+		akademik.GET("/programs/active", h.ListActivePrograms)
+
+		// Settings
+		settings := akademik.Group("/settings")
+		settings.Use(middleware.RequirePermission("manage_akademik"))
+		{
+			settings.GET("", h.GetAkademikSetting)
+			settings.PUT("", h.UpdateAkademikSetting)
+		}
+
 		// Program
 		programs := akademik.Group("/programs")
 		programs.Use(middleware.RequirePermission("manage_akademik"))

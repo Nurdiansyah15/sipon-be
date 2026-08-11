@@ -103,6 +103,11 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	// Late-binding: akademik bergantung pada kesantrian di konstruktor, sehingga
+	// kesantrian menerima kontrak akademik setelah akademik terbentuk. Lihat
+	// docs/plan/santri-program-mapping.md.
+	kesantrian.SetAkademikProvisioner(akademik)
+
 	const pendingUploadExpireDays = 1
 
 	if err := identity.EnsurePendingUploadLifecycle(context.Background(), pendingUploadExpireDays); err != nil {

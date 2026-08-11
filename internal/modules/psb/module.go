@@ -58,7 +58,7 @@ func NewModule(
 	dokumenList := query.NewDokumenListUseCase(pendaftarRepo, settingRepo, dokumenRepo)
 	dokumenAccess := query.NewDokumenAccessUseCase(pendaftarRepo, settingRepo, dokumenRepo, fileUploader)
 
-	upsertFormulir := command.NewUpsertFormulirUseCase(settingRepo, pendaftarRepo, dokumenRepo, fileUploader)
+	upsertFormulir := command.NewUpsertFormulirUseCase(settingRepo, pendaftarRepo, dokumenRepo, fileUploader, kesantrianGW)
 	pendaftarAction := command.NewPendaftarActionUseCase(pendaftarRepo, dokumenRepo, fileUploader)
 	adminReview := command.NewAdminReviewUseCase(pendaftarRepo, reviewRepo, dokumenRepo)
 	generateNIS := command.NewGenerateNISUseCase(pendaftarRepo, settingRepo, dokumenRepo, kesantrianGW)

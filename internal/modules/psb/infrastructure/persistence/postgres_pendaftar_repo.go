@@ -14,7 +14,7 @@ import (
 )
 
 const pendaftarColumns = `
-	id, user_id, psb_setting_id, gender, program,
+	id, user_id, psb_setting_id, gender, program, program_id,
 	nickname, hobby, purpose, motivation_entry, pob, dob, blood,
 	address, sub_district, district, province, postal_code,
 	previous_pondok_name, previous_pondok_address, previous_pondok_div, previous_pondok_time,
@@ -41,9 +41,9 @@ func (r *PostgresPendaftarRepository) Save(ctx context.Context, p *pentity.Penda
 	query := `INSERT INTO pendaftar (` + pendaftarColumns + `) VALUES (` +
 		`$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,` +
 		`$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39,$40,$41,$42,` +
-		`$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58)`
+		`$43,$44,$45,$46,$47,$48,$49,$50,$51,$52,$53,$54,$55,$56,$57,$58,$59)`
 	_, err := execer.ExecContext(ctx, query,
-		p.ID, p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program),
+		p.ID, p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program), nullStr(p.ProgramID),
 		nullStr(p.Nickname), nullStr(p.Hobby), nullStr(p.Purpose), nullStr(p.MotivationEntry), nullStr(p.POB), nullTimeVal(p.DOB), nullStr(p.Blood),
 		nullStr(p.Address), nullStr(p.SubDistrict), nullStr(p.District), nullStr(p.Province), nullStr(p.PostalCode),
 		nullStr(p.PreviousPondokName), nullStr(p.PreviousPondokAddress), nullStr(p.PreviousPondokDiv), nullStr(p.PreviousPondokTime),
@@ -68,20 +68,20 @@ func (r *PostgresPendaftarRepository) Save(ctx context.Context, p *pentity.Penda
 func (r *PostgresPendaftarRepository) Update(ctx context.Context, p *pentity.Pendaftar) error {
 	execer := execerFromContext(ctx, r.db)
 	query := `UPDATE pendaftar SET ` +
-		`user_id=$1, psb_setting_id=$2, gender=$3, program=$4,` +
-		`nickname=$5, hobby=$6, purpose=$7, motivation_entry=$8, pob=$9, dob=$10, blood=$11,` +
-		`address=$12, sub_district=$13, district=$14, province=$15, postal_code=$16,` +
-		`previous_pondok_name=$17, previous_pondok_address=$18, previous_pondok_div=$19, previous_pondok_time=$20,` +
-		`nik=$21, no_kk=$22, nisn=$23, no_kip=$24, no_kks=$25, no_pkh=$26,` +
-		`workplace=$27, department=$28,` +
-		`home_status=$29,` +
-		`father=$30, father_pn=$31, father_nik=$32, father_job=$33, father_graduate=$34, father_income=$35,` +
-		`mother=$36, mother_pn=$37, mother_nik=$38, mother_job=$39, mother_graduate=$40, mother_income=$41,` +
-		`guardian_relationship=$42, guardian=$43, guardian_pn=$44, guardian_nik=$45, guardian_job=$46, guardian_graduate=$47, guardian_income=$48,` +
-		`status=$49, accepted_by=$50, accepted_at=$51, santri_id=$52, nis=$53, no_regis=$54,` +
-		`updated_at=$55, deleted_at=$56 WHERE id=$57 AND deleted_at IS NULL`
+		`user_id=$1, psb_setting_id=$2, gender=$3, program=$4, program_id=$5,` +
+		`nickname=$6, hobby=$7, purpose=$8, motivation_entry=$9, pob=$10, dob=$11, blood=$12,` +
+		`address=$13, sub_district=$14, district=$15, province=$16, postal_code=$17,` +
+		`previous_pondok_name=$18, previous_pondok_address=$19, previous_pondok_div=$20, previous_pondok_time=$21,` +
+		`nik=$22, no_kk=$23, nisn=$24, no_kip=$25, no_kks=$26, no_pkh=$27,` +
+		`workplace=$28, department=$29,` +
+		`home_status=$30,` +
+		`father=$31, father_pn=$32, father_nik=$33, father_job=$34, father_graduate=$35, father_income=$36,` +
+		`mother=$37, mother_pn=$38, mother_nik=$39, mother_job=$40, mother_graduate=$41, mother_income=$42,` +
+		`guardian_relationship=$43, guardian=$44, guardian_pn=$45, guardian_nik=$46, guardian_job=$47, guardian_graduate=$48, guardian_income=$49,` +
+		`status=$50, accepted_by=$51, accepted_at=$52, santri_id=$53, nis=$54, no_regis=$55,` +
+		`updated_at=$56, deleted_at=$57 WHERE id=$58 AND deleted_at IS NULL`
 	res, err := execer.ExecContext(ctx, query,
-		p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program),
+		p.UserID, p.PsbSettingID, p.Gender, nullStr(p.Program), nullStr(p.ProgramID),
 		nullStr(p.Nickname), nullStr(p.Hobby), nullStr(p.Purpose), nullStr(p.MotivationEntry), nullStr(p.POB), nullTimeVal(p.DOB), nullStr(p.Blood),
 		nullStr(p.Address), nullStr(p.SubDistrict), nullStr(p.District), nullStr(p.Province), nullStr(p.PostalCode),
 		nullStr(p.PreviousPondokName), nullStr(p.PreviousPondokAddress), nullStr(p.PreviousPondokDiv), nullStr(p.PreviousPondokTime),
@@ -203,7 +203,7 @@ func (r *PostgresPendaftarRepository) HardDeleteBySettingID(ctx context.Context,
 func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 	var (
 		id, userID, psbSettingID, gender                               string
-		program                                                         sql.NullString
+		program, programID                                              sql.NullString
 		nickname, hobby, purpose, motivationEntry, pob, blood          sql.NullString
 		dob                                                            sql.NullTime
 		address, subDistrict, district, province, postalCode           sql.NullString
@@ -222,7 +222,7 @@ func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 	)
 
 	err := sc.Scan(
-		&id, &userID, &psbSettingID, &gender, &program,
+		&id, &userID, &psbSettingID, &gender, &program, &programID,
 		&nickname, &hobby, &purpose, &motivationEntry, &pob, &dob, &blood,
 		&address, &subDistrict, &district, &province, &postalCode,
 		&prevName, &prevAddress, &prevDiv, &prevTime,
@@ -248,6 +248,7 @@ func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {
 		PsbSettingID:         psbSettingID,
 		Gender:               gender,
 		Program:              strFromNull(program),
+		ProgramID:            strFromNull(programID),
 		Nickname:             strFromNull(nickname),
 		Hobby:                strFromNull(hobby),
 		Purpose:              strFromNull(purpose),

@@ -17,3 +17,7 @@ func New(contract kesantrian.Contract) *Gateway {
 func (g *Gateway) CreateSantriFromPendaftaran(ctx context.Context, in kesantrian.CreateSantriFromPendaftaranInput) (*kesantrian.CreateSantriFromPendaftaranResult, error) {
 	return g.contract.CreateSantriFromPendaftaran(ctx, in)
 }
+
+func (g *Gateway) GetSantriByUserID(ctx context.Context, userID string) (*kesantrian.SantriBasicInfo, error) {
+	return g.contract.GetSantriByUserID(ctx, userID)
+}

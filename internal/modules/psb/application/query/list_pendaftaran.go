@@ -49,6 +49,7 @@ func (uc *ListPendaftaranUseCase) Execute(ctx context.Context, q dto.ListPendaft
 			PsbSettingID: p.PsbSettingID,
 			Gender:       p.Gender,
 			Program:      p.Program,
+			ProgramID:    p.ProgramID,
 			Status:       string(p.Status),
 			NIS:          p.NIS,
 			NoRegis:      p.NoRegis,

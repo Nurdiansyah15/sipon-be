@@ -67,6 +67,10 @@ type AkademikHandler struct {
 	recordAttendanceUC *command.RecordAttendanceUseCase
 	updateAttendanceUC *command.UpdateAttendanceUseCase
 	listAttendanceUC   *query.ListAttendanceUseCase
+
+	// setting
+	updateSettingUC *command.UpdateAkademikSettingUseCase
+	getSettingUC    *query.GetAkademikSettingUseCase
 }
 
 func NewAkademikHandler(
@@ -109,6 +113,8 @@ func NewAkademikHandler(
 	recordAttendanceUC *command.RecordAttendanceUseCase,
 	updateAttendanceUC *command.UpdateAttendanceUseCase,
 	listAttendanceUC *query.ListAttendanceUseCase,
+	updateSettingUC *command.UpdateAkademikSettingUseCase,
+	getSettingUC *query.GetAkademikSettingUseCase,
 ) *AkademikHandler {
 	return &AkademikHandler{
 		createProgramUC:        createProgramUC,
@@ -150,6 +156,8 @@ func NewAkademikHandler(
 		recordAttendanceUC:     recordAttendanceUC,
 		updateAttendanceUC:     updateAttendanceUC,
 		listAttendanceUC:       listAttendanceUC,
+		updateSettingUC:        updateSettingUC,
+		getSettingUC:           getSettingUC,
 	}
 }
 
@@ -176,6 +184,20 @@ func (h *AkademikHandler) GetProgram(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "program berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) ListActivePrograms(c *gin.Context) {
+	active := "active"
+	items, _, err := h.listProgramsUC.Execute(c.Request.Context(), dto.ProgramListQuery{
+		Status: &active,
+		Page:   1,
+		Limit:  100,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar program aktif berhasil diambil", items)
 }
 
 func (h *AkademikHandler) CreateProgram(c *gin.Context) {
@@ -618,4 +640,29 @@ func (h *AkademikHandler) UpdateAttendance(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "absensi berhasil diupdate", resp)
+}
+
+// --- Akademik Settings ---
+
+func (h *AkademikHandler) GetAkademikSetting(c *gin.Context) {
+	resp, err := h.getSettingUC.Execute(c.Request.Context())
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "pengaturan akademik berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) UpdateAkademikSetting(c *gin.Context) {
+	var req dto.UpdateAkademikSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.updateSettingUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "pengaturan akademik berhasil diperbarui", resp)
 }

@@ -5,6 +5,7 @@ import "time"
 type UpsertFormulirRequest struct {
 	Nickname        *string    `json:"nickname,omitempty"`
 	Program         *string    `json:"program,omitempty"`
+	ProgramID       *string    `json:"program_id,omitempty"`
 	Hobby           *string    `json:"hobby,omitempty"`
 	Purpose         *string    `json:"purpose,omitempty"`
 	MotivationEntry *string    `json:"motivation_entry,omitempty"`
@@ -72,6 +73,7 @@ type PendaftarResponse struct {
 	PsbSettingID  string     `json:"psb_setting_id"`
 	Gender        string     `json:"gender"`
 	Program       *string    `json:"program,omitempty"`
+	ProgramID     *string    `json:"program_id,omitempty"`
 
 	Nickname        *string    `json:"nickname,omitempty"`
 	Hobby           *string    `json:"hobby,omitempty"`
@@ -150,6 +152,7 @@ type ListPendaftarItem struct {
 	PsbSettingID string  `json:"psb_setting_id"`
 	Gender       string  `json:"gender"`
 	Program      *string `json:"program,omitempty"`
+	ProgramID    *string `json:"program_id,omitempty"`
 	Status       string  `json:"status"`
 	NIS          *string `json:"nis,omitempty"`
 	NoRegis      *string `json:"no_regis,omitempty"`

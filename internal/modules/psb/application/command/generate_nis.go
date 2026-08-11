@@ -79,6 +79,7 @@ func (uc *GenerateNISUseCase) Execute(ctx context.Context, pendaftarID, adminID 
 		UserID:    p.UserID,
 		Gender:    p.Gender,
 		EntryYear: entryYear,
+		ProgramID:             p.ProgramID,
 		Nickname:              p.Nickname,
 		Program:               p.Program,
 		Hobby:                 p.Hobby,

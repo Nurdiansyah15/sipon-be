@@ -8,8 +8,6 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	ports "sipon-be/internal/modules/identity/application/ports"
-	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
-	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
 	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
 	roleservice "sipon-be/internal/modules/identity/domain/role/service"
 	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
@@ -200,35 +198,41 @@ func (uc *RegisterUseCase) Execute(ctx context.Context, req dto.RegisterRequest)
 
 	user.AddCredential(credential)
 
-	memberRole, err := uc.roleRepo.FindByName(ctx, roleconstant.MemberRoleName)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			switch ke.Code {
-			case roleconstant.ErrCodeRoleNotFound:
-				return nil, kernel.WrapMsg(application.ErrCodeInternal, ke.Message, ke)
+	// Auto-assign member role saat register untuk sementara di-nonaktifkan.
+	// Role akan di-assign oleh admin/flow lain.
+	/*
+		memberRole, err := uc.roleRepo.FindByName(ctx, roleconstant.MemberRoleName)
+		if err != nil {
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case roleconstant.ErrCodeRoleNotFound:
+					return nil, kernel.WrapMsg(application.ErrCodeInternal, ke.Message, ke)
+				}
 			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari role default", err)
 		}
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari role default", err)
-	}
 
-	userRole, err := roleentity.NewUserRole(uuid.NewString(), userID, memberRole.ID, roleconstant.ScopeTypeGlobal, nil, userID, nil, nil)
-	if err != nil {
-		var ke *kernel.AppError
-		if errors.As(err, &ke) {
-			switch ke.Code {
-			case roleconstant.ErrCodeUserRoleIDRequired, roleconstant.ErrCodeUserRoleUserIDRequired, roleconstant.ErrCodeUserRoleRoleIDRequired, roleconstant.ErrCodeInvalidScopeType, roleconstant.ErrCodeUserRoleScopeIDEmpty, roleconstant.ErrCodeUserRoleScopeIDRequired:
-				return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+		userRole, err := roleentity.NewUserRole(uuid.NewString(), userID, memberRole.ID, roleconstant.ScopeTypeGlobal, nil, userID, nil, nil)
+		if err != nil {
+			var ke *kernel.AppError
+			if errors.As(err, &ke) {
+				switch ke.Code {
+				case roleconstant.ErrCodeUserRoleIDRequired, roleconstant.ErrCodeUserRoleUserIDRequired, roleconstant.ErrCodeUserRoleRoleIDRequired, roleconstant.ErrCodeInvalidScopeType, roleconstant.ErrCodeUserRoleScopeIDEmpty, roleconstant.ErrCodeUserRoleScopeIDRequired:
+					return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, ke.Message, ke)
+				}
 			}
+			return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 		}
-		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
-	}
+	*/
 
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		if err := uc.userRepo.Save(txCtx, user); err != nil {
 			return err
 		}
-		return uc.userRoleRepo.Save(txCtx, userRole)
+		// Auto-assign member role di-nonaktifkan (lihat blok role di atas).
+		// return uc.userRoleRepo.Save(txCtx, userRole)
+		return nil
 	}); err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {

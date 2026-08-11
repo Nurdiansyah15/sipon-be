@@ -29,6 +29,8 @@ type Module struct {
 	handler                            *kesantrianHTTP.SantriHandler
 	persuratanHandler                  *kesantrianHTTP.PersuratanHandler
 	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
+	createSantriUC                     *command.CreateSantriUseCase
+	approveSantriRequestUC             *command.ApproveSantriRequestUseCase
 	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
 	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
 	getSantriByIDUC                    *query.GetSantriByIDUseCase
@@ -145,7 +147,17 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, createSantriUC: createSantriUC, approveSantriRequestUC: approveSantriRequestUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+}
+
+// SetAkademikProvisioner late-binds the akademik port. Called in
+// cmd/api/main.go after the akademik module is constructed, because akademik
+// depends on kesantrian (contract) at construction time — passing it in the
+// constructor would create an import cycle.
+func (m *Module) SetAkademikProvisioner(p ports.AkademikProvisioner) {
+	m.createSantriUC.SetAkademikProvisioner(p)
+	m.createSantriFromPendaftaranUC.SetAkademikProvisioner(p)
+	m.approveSantriRequestUC.SetAkademikProvisioner(p)
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -171,6 +183,7 @@ func (m *Module) CreateSantriFromPendaftaran(ctx context.Context, in CreateSantr
 		Gender:    in.Gender,
 		EntryYear: in.EntryYear,
 
+		ProgramID:       in.ProgramID,
 		Nickname:        in.Nickname,
 		Program:         in.Program,
 		Hobby:           in.Hobby,

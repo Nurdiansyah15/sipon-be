@@ -1,6 +1,7 @@
 package akademik
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,10 @@ type Module struct {
 	handler       *akademikHTTP.AkademikHandler
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
+
+	getDefaultProgramIDUC    *query.GetAkademikSettingUseCase
+	assignSantriProgramUC    *command.AssignSantriProgramUseCase
+	getSantriProgramUC       *query.GetSantriProgramUseCase
 }
 
 func NewModule(
@@ -36,6 +41,8 @@ func NewModule(
 	scheduleRepo := persistence.NewPostgresActivityScheduleRepository(db)
 	sessionRepo := persistence.NewPostgresActivitySessionRepository(db)
 	attendanceRepo := persistence.NewPostgresAttendanceRepository(db)
+	settingRepo := persistence.NewPostgresAkademikSettingRepository(db)
+	santriProgramRepo := persistence.NewPostgresSantriProgramRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
@@ -97,6 +104,14 @@ func NewModule(
 	updateAttendanceUC := command.NewUpdateAttendanceUseCase(attendanceRepo)
 	listAttendanceUC := query.NewListAttendanceUseCase(attendanceRepo, sessionRepo, kesantrianGW)
 
+	// setting
+	updateSettingUC := command.NewUpdateAkademikSettingUseCase(settingRepo, programRepo)
+	getSettingUC := query.NewGetAkademikSettingUseCase(settingRepo, programRepo)
+
+	// santri program
+	assignSantriProgramUC := command.NewAssignSantriProgramUseCase(santriProgramRepo, programRepo)
+	getSantriProgramUC := query.NewGetSantriProgramUseCase(santriProgramRepo, programRepo)
+
 	handler := akademikHTTP.NewAkademikHandler(
 		createProgramUC, updateProgramUC, listProgramsUC, getProgramUC,
 		createPeriodUC, updatePeriodUC, openPeriodUC, closePeriodUC, listPeriodsUC, getPeriodUC,
@@ -107,12 +122,49 @@ func NewModule(
 		createScheduleUC, updateScheduleUC, deleteScheduleUC, listSchedulesUC, getScheduleUC,
 		createSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC,
+		updateSettingUC, getSettingUC,
 	)
 
-	return &Module{handler: handler, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{
+		handler:                 handler,
+		jwtAuth:                 jwtAuth,
+		principalLoad:           principalLoad,
+		getDefaultProgramIDUC:   getSettingUC,
+		assignSantriProgramUC:   assignSantriProgramUC,
+		getSantriProgramUC:      getSantriProgramUC,
+	}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	akademikHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) GetDefaultProgramID(ctx context.Context) (*string, error) {
+	setting, err := m.getDefaultProgramIDUC.Execute(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return setting.DefaultProgramID, nil
+}
+
+func (m *Module) AssignSantriProgram(ctx context.Context, santriID, programID string) error {
+	return m.assignSantriProgramUC.Execute(ctx, santriID, programID)
+}
+
+func (m *Module) GetSantriProgram(ctx context.Context, santriID string) (*SantriProgramInfo, error) {
+	info, err := m.getSantriProgramUC.Execute(ctx, santriID)
+	if err != nil {
+		return nil, err
+	}
+	if info == nil {
+		return nil, nil
+	}
+	return &SantriProgramInfo{
+		SantriID:    info.SantriID,
+		ProgramID:   info.ProgramID,
+		ProgramCode: info.ProgramCode,
+		ProgramName: info.ProgramName,
+		IsActive:    info.IsActive,
+	}, nil
 }

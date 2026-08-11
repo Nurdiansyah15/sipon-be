@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	pentity "sipon-be/internal/modules/psb/domain/pendaftar/entity"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
 	srepo "sipon-be/internal/modules/psb/domain/setting/repository"
+	santriconstant "sipon-be/internal/modules/kesantrian/domain/santri/constant"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -28,6 +30,7 @@ type UpsertFormulirUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
 	fileUploader  ports.FileUploader
+	kesantrian    ports.KesantrianProvisioner
 }
 
 func NewUpsertFormulirUseCase(
@@ -35,16 +38,22 @@ func NewUpsertFormulirUseCase(
 	pendaftarRepo prepo.PendaftarRepository,
 	dokumenRepo drepo.PendaftarDokumenRepository,
 	fileUploader ports.FileUploader,
+	kesantrian ports.KesantrianProvisioner,
 ) *UpsertFormulirUseCase {
 	return &UpsertFormulirUseCase{
 		settingRepo:   settingRepo,
 		pendaftarRepo: pendaftarRepo,
 		dokumenRepo:   dokumenRepo,
 		fileUploader:  fileUploader,
+		kesantrian:    kesantrian,
 	}
 }
 
 func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req dto.UpsertFormulirRequest) (*dto.PendaftarResponse, error) {
+	if err := uc.ensureNotSantri(ctx, userID); err != nil {
+		return nil, err
+	}
+
 	setting, err := uc.settingRepo.FindActive(ctx)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeNotFound, err)
@@ -62,6 +71,7 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
+		p.ProgramID = req.ProgramID
 		noRegis, err := generateNoRegis(ctx, uc.pendaftarRepo)
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
@@ -72,6 +82,7 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 	err = p.UpsertFormulir(func(p *pentity.Pendaftar) {
 		p.Gender = "1"
 		p.Program = req.Program
+		p.ProgramID = req.ProgramID
 		p.Nickname = req.Nickname
 		p.Hobby = req.Hobby
 		p.Purpose = req.Purpose
@@ -183,7 +194,7 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 func mapPendaftarToResponse(p *pentity.Pendaftar) *dto.PendaftarResponse {
 	return &dto.PendaftarResponse{
 		ID: p.ID, UserID: p.UserID, PsbSettingID: p.PsbSettingID,
-		Gender: p.Gender, Program: p.Program,
+		Gender: p.Gender, Program: p.Program, ProgramID: p.ProgramID,
 		Nickname: p.Nickname, Hobby: p.Hobby, Purpose: p.Purpose, MotivationEntry: p.MotivationEntry,
 		POB: p.POB, DOB: p.DOB, Blood: p.Blood,
 		Address: p.Address, SubDistrict: p.SubDistrict, District: p.District, Province: p.Province, PostalCode: p.PostalCode,
@@ -227,4 +238,25 @@ func generateNoRegis(ctx context.Context, repo prepo.PendaftarRepository) (strin
 	}
 
 	return prefix + fmt.Sprintf("%03d", seqNum), nil
+}
+
+// ensureNotSantri menolak pengisian formulir jika user sudah terdaftar
+// sebagai santri aktif (status SANTRI). Santri tidak boleh mendaftar lagi
+// melalui PSB.
+func (uc *UpsertFormulirUseCase) ensureNotSantri(ctx context.Context, userID string) error {
+	if uc.kesantrian == nil {
+		return nil
+	}
+	info, err := uc.kesantrian.GetSantriByUserID(ctx, userID)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == santriconstant.CodeSantriNotFound {
+			return nil
+		}
+		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+	if info != nil && info.Status == "SANTRI" {
+		return kernel.WrapMsg(application.ErrCodeConflict, "Anda sudah terdaftar sebagai santri dan tidak dapat mengisi pendaftaran baru", nil)
+	}
+	return nil
 }

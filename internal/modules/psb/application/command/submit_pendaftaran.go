@@ -15,6 +15,7 @@ import (
 	dentity "sipon-be/internal/modules/psb/domain/dokumen/entity"
 	drepo "sipon-be/internal/modules/psb/domain/dokumen/repository"
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
+	pentity "sipon-be/internal/modules/psb/domain/pendaftar/entity"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
 	"sipon-be/internal/shared/kernel"
 )
@@ -41,6 +42,10 @@ func (uc *PendaftarActionUseCase) SubmitPendaftaran(ctx context.Context, userID,
 	p, err := uc.pendaftarRepo.FindByUserIDAndSetting(ctx, userID, settingID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, pconstant.CodePendaftarNotFound)
+	}
+
+	if err := validateProgramRequired(p); err != nil {
+		return nil, err
 	}
 
 	if err := p.Submit(); err != nil {
@@ -123,4 +128,15 @@ func (uc *PendaftarActionUseCase) SubmitDaftarUlang(ctx context.Context, userID,
 	}
 
 	return &dto.MessageResponse{Message: "daftar ulang berhasil diajukan"}, nil
+}
+
+// validateProgramRequired memastikan pendaftar memilih program sebelum
+// mengajukan pendaftaran. ProgramID (referensi ke programs.id akademik)
+// menjadi sumber kebenaran; field Program (string) tetap dipertahankan
+// sebagai cache display.
+func validateProgramRequired(p *pentity.Pendaftar) error {
+	if p.ProgramID == nil || *p.ProgramID == "" {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "program wajib dipilih sebelum mengajukan pendaftaran", nil)
+	}
+	return nil
 }

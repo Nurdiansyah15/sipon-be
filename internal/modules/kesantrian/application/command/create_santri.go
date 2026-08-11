@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/modules/kesantrian/application"
@@ -20,11 +21,17 @@ import (
 type CreateSantriUseCase struct {
 	santriRepo  santrirepo.SantriRepository
 	provisioner ports.AccountProvisioner
+	akademik    ports.AkademikProvisioner
 	transactor  ports.Transactor
 }
 
 func NewCreateSantriUseCase(santriRepo santrirepo.SantriRepository, provisioner ports.AccountProvisioner, transactor ports.Transactor) *CreateSantriUseCase {
 	return &CreateSantriUseCase{santriRepo: santriRepo, provisioner: provisioner, transactor: transactor}
+}
+
+// SetAkademikProvisioner late-binds the akademik port (see Module).
+func (uc *CreateSantriUseCase) SetAkademikProvisioner(p ports.AkademikProvisioner) {
+	uc.akademik = p
 }
 
 func (uc *CreateSantriUseCase) Execute(ctx context.Context, req dto.CreateSantriRequest) (*dto.CreateSantriResponse, error) {
@@ -66,6 +73,23 @@ func (uc *CreateSantriUseCase) Execute(ctx context.Context, req dto.CreateSantri
 		return uc.santriRepo.Save(txCtx, santri)
 	}); err != nil {
 		return nil, application.WrapConflictErr(err, santriconstant.CodeSantriDuplicate)
+	}
+
+	programID := req.ProgramID
+	if programID == nil && uc.akademik != nil {
+		defaultID, err := uc.akademik.GetDefaultProgramID(ctx)
+		if err != nil {
+			slog.Warn("kesantrian: gagal ambil default program dari akademik", "error", err)
+		} else {
+			programID = defaultID
+		}
+	}
+
+	if programID != nil && uc.akademik != nil {
+		if err := uc.akademik.AssignSantriProgram(ctx, santri.ID, *programID); err != nil {
+			slog.Warn("kesantrian: best-effort assign santri program ke akademik gagal",
+				"santri_id", santri.ID, "program_id", *programID, "error", err)
+		}
 	}
 
 	return &dto.CreateSantriResponse{

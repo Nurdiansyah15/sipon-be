@@ -47,7 +47,7 @@ func (uc *GetPendaftaranUseCase) ExecuteByID(ctx context.Context, id string) (*d
 func mapPendaftarToResponse(p *pentity.Pendaftar) *dto.PendaftarResponse {
 	return &dto.PendaftarResponse{
 		ID: p.ID, UserID: p.UserID, PsbSettingID: p.PsbSettingID,
-		Gender: p.Gender, Program: p.Program,
+		Gender: p.Gender, Program: p.Program, ProgramID: p.ProgramID,
 		Nickname: p.Nickname, Hobby: p.Hobby, Purpose: p.Purpose, MotivationEntry: p.MotivationEntry,
 		POB: p.POB, DOB: p.DOB, Blood: p.Blood,
 		Address: p.Address, SubDistrict: p.SubDistrict, District: p.District, Province: p.Province, PostalCode: p.PostalCode,

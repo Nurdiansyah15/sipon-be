@@ -20,6 +20,11 @@ type CreateSantriFromPendaftaranInput struct {
 	Gender    string
 	EntryYear string
 
+	// ProgramID adalah referensi ke programs.id di module akademik. Ketika
+	// diisi, kesantrian akan memanggil kontrak akademik untuk mencatat
+	// pemetaan santri→program. Program (string) tetap sebagai cache display.
+	ProgramID *string
+
 	Nickname        *string
 	Program         *string
 	Hobby           *string

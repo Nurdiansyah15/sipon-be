@@ -28,6 +28,7 @@ type ApproveSantriRequestUseCase struct {
 	requestRepo requestrepo.SantriRequestRepository
 	santriRepo  santrirepo.SantriRepository
 	provisioner ports.AccountProvisioner
+	akademik    ports.AkademikProvisioner
 	transactor  ports.Transactor
 }
 
@@ -43,6 +44,11 @@ func NewApproveSantriRequestUseCase(
 		provisioner: provisioner,
 		transactor:  transactor,
 	}
+}
+
+// SetAkademikProvisioner late-binds the akademik port (see Module).
+func (uc *ApproveSantriRequestUseCase) SetAkademikProvisioner(p ports.AkademikProvisioner) {
+	uc.akademik = p
 }
 
 func (uc *ApproveSantriRequestUseCase) Execute(ctx context.Context, reviewerID, requestID string, req dto.ApproveSantriRequestRequest) (*dto.MessageResponse, error) {
@@ -90,6 +96,24 @@ func (uc *ApproveSantriRequestUseCase) Execute(ctx context.Context, reviewerID, 
 
 	if err := uc.provisioner.AddNISLoginIdentity(ctx, sr.UserID, nis.String()); err != nil {
 		slog.Warn("kesantrian: best-effort NIS login identity sync to identity failed", "user_id", sr.UserID, "error", err)
+	}
+
+	if uc.akademik != nil {
+		programID := req.ProgramID
+		if programID == nil {
+			defaultID, err := uc.akademik.GetDefaultProgramID(ctx)
+			if err != nil {
+				slog.Warn("kesantrian: gagal ambil default program dari akademik", "error", err)
+			} else {
+				programID = defaultID
+			}
+		}
+		if programID != nil {
+			if err := uc.akademik.AssignSantriProgram(ctx, santri.ID, *programID); err != nil {
+				slog.Warn("kesantrian: best-effort assign santri program ke akademik gagal",
+					"santri_id", santri.ID, "program_id", *programID, "error", err)
+			}
+		}
 	}
 
 	return &dto.MessageResponse{Message: "permintaan santri berhasil disetujui"}, nil
