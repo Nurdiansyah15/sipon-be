@@ -88,6 +88,9 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			schedules.DELETE("/:id", h.DeleteSchedule)
 		}
 
+		// Schedule Calendar
+		akademik.GET("/calendar", h.GetScheduleCalendar)
+
 		// Activity Session
 		sessions := akademik.Group("/sessions")
 		sessions.Use(middleware.RequirePermission("manage_akademik"))

@@ -1,12 +1,18 @@
 package http
 
 import (
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 
+	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/query"
+	"sipon-be/internal/modules/akademik/domain/activity_schedule/constant"
 	"sipon-be/internal/shared/httperror"
+	"sipon-be/internal/shared/kernel"
 	"sipon-be/internal/shared/respond"
 )
 
@@ -55,6 +61,7 @@ type AkademikHandler struct {
 	deleteScheduleUC *command.DeleteScheduleUseCase
 	listSchedulesUC  *query.ListActivitySchedulesUseCase
 	getScheduleUC    *query.GetActivityScheduleUseCase
+	getCalendarUC    *query.GetScheduleCalendarUseCase
 
 	// activity session
 	createSessionUC   *command.CreateSessionUseCase
@@ -105,6 +112,7 @@ func NewAkademikHandler(
 	deleteScheduleUC *command.DeleteScheduleUseCase,
 	listSchedulesUC *query.ListActivitySchedulesUseCase,
 	getScheduleUC *query.GetActivityScheduleUseCase,
+	getCalendarUC *query.GetScheduleCalendarUseCase,
 	createSessionUC *command.CreateSessionUseCase,
 	cancelSessionUC *command.CancelSessionUseCase,
 	completeSessionUC *command.CompleteSessionUseCase,
@@ -148,6 +156,7 @@ func NewAkademikHandler(
 		deleteScheduleUC:       deleteScheduleUC,
 		listSchedulesUC:        listSchedulesUC,
 		getScheduleUC:          getScheduleUC,
+		getCalendarUC:          getCalendarUC,
 		createSessionUC:        createSessionUC,
 		cancelSessionUC:        cancelSessionUC,
 		completeSessionUC:      completeSessionUC,
@@ -544,6 +553,62 @@ func (h *AkademikHandler) DeleteSchedule(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "jadwal kegiatan berhasil dihapus", nil)
+}
+
+func (h *AkademikHandler) GetScheduleCalendar(c *gin.Context) {
+	var q dto.ScheduleCalendarQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	from, err := time.Parse("2006-01-02", q.From)
+	if err != nil {
+		httperror.Handle(c, kernel.New(application.ErrCodeBadRequest))
+		return
+	}
+	to, err := time.Parse("2006-01-02", q.To)
+	if err != nil {
+		httperror.Handle(c, kernel.New(application.ErrCodeBadRequest))
+		return
+	}
+	types := parseScheduleTypes(q.Types)
+	resp, err := h.getCalendarUC.Execute(c.Request.Context(), from, to, q.AcademicPeriodID, types)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "kalender kegiatan berhasil diambil", resp)
+}
+
+func parseScheduleTypes(raw string) []constant.ActivityScheduleType {
+	if raw == "" {
+		return nil
+	}
+	seen := map[constant.ActivityScheduleType]struct{}{}
+	parts := strings.Split(raw, ",")
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		t := constant.ActivityScheduleType(p)
+		if t != constant.ActivityScheduleTypeOnce &&
+			t != constant.ActivityScheduleTypeDaily &&
+			t != constant.ActivityScheduleTypeWeekly &&
+			t != constant.ActivityScheduleTypeMonthly &&
+			t != constant.ActivityScheduleTypeYearly {
+			continue
+		}
+		if _, ok := seen[t]; ok {
+			continue
+		}
+		seen[t] = struct{}{}
+	}
+	out := make([]constant.ActivityScheduleType, 0, len(seen))
+	for t := range seen {
+		out = append(out, t)
+	}
+	return out
 }
 
 // --- Activity Session ---

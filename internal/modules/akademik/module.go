@@ -91,6 +91,7 @@ func NewModule(
 	deleteScheduleUC := command.NewDeleteScheduleUseCase(scheduleRepo)
 	listSchedulesUC := query.NewListActivitySchedulesUseCase(scheduleRepo, activityPeriodRepo, activityRepo)
 	getScheduleUC := query.NewGetActivityScheduleUseCase(scheduleRepo, activityPeriodRepo, activityRepo)
+	getCalendarUC := query.NewGetScheduleCalendarUseCase(scheduleRepo, activityPeriodRepo, activityRepo)
 
 	// activity session
 	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo)
@@ -119,7 +120,7 @@ func NewModule(
 		createActivityUC, updateActivityUC, listActivitiesUC, getActivityUC,
 		createActivityPeriodUC, activatePeriodUC, deactivatePeriodUC, listActivityPeriodsUC,
 		assignProgramUC, removeProgramUC, listPeriodProgramsUC,
-		createScheduleUC, updateScheduleUC, deleteScheduleUC, listSchedulesUC, getScheduleUC,
+		createScheduleUC, updateScheduleUC, deleteScheduleUC, listSchedulesUC, getScheduleUC, getCalendarUC,
 		createSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC,
 		updateSettingUC, getSettingUC,
