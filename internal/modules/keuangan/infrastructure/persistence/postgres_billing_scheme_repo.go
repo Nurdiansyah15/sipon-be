@@ -380,8 +380,8 @@ func (r *PostgresSantriBillingAssignmentRepository) HasOverlappingAssignment(ctx
 			SELECT 1 FROM santri_billing_assignments
 			WHERE santri_id=$1
 			  AND ($4::text = '' OR id != $4::uuid)
-			  AND effective_from < COALESCE($3::date, 'infinity'::date)
-			  AND (effective_until IS NULL OR effective_until > $2)
+			  AND effective_from < COALESCE($2::date, 'infinity'::date)
+			  AND (effective_until IS NULL OR effective_until > $3)
 		)`,
 		santriID, from, nullTimeVal(until), excludeID,
 	).Scan(&exists)
