@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/query"
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
@@ -46,6 +47,7 @@ func NewModule(
 	transactor := persistence.NewPostgresTransactor(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
+	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
 
 	// program
 	createProgramUC := command.NewCreateProgramUseCase(programRepo)
@@ -95,15 +97,17 @@ func NewModule(
 
 	// activity session
 	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo)
+	openSessionUC := command.NewOpenSessionUseCase(sessionRepo)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
-	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo)
+	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
 	// attendance
-	recordAttendanceUC := command.NewRecordAttendanceUseCase(attendanceRepo, sessionRepo, kesantrianGW)
-	updateAttendanceUC := command.NewUpdateAttendanceUseCase(attendanceRepo)
+	recordAttendanceUC := command.NewRecordAttendanceUseCase(attendanceRepo, sessionRepo, registrationRepo, periodResolver, kesantrianGW)
+	updateAttendanceUC := command.NewUpdateAttendanceUseCase(attendanceRepo, sessionRepo)
 	listAttendanceUC := query.NewListAttendanceUseCase(attendanceRepo, sessionRepo, kesantrianGW)
+	listEligibleSantriUC := query.NewListEligibleSessionSantriUseCase(registrationRepo, periodResolver, kesantrianGW)
 
 	// setting
 	updateSettingUC := command.NewUpdateAkademikSettingUseCase(settingRepo, programRepo)
@@ -121,8 +125,8 @@ func NewModule(
 		createActivityPeriodUC, activatePeriodUC, deactivatePeriodUC, listActivityPeriodsUC,
 		assignProgramUC, removeProgramUC, listPeriodProgramsUC,
 		createScheduleUC, updateScheduleUC, deleteScheduleUC, listSchedulesUC, getScheduleUC, getCalendarUC,
-		createSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
-		recordAttendanceUC, updateAttendanceUC, listAttendanceUC,
+		createSessionUC, openSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
+		recordAttendanceUC, updateAttendanceUC, listAttendanceUC, listEligibleSantriUC,
 		updateSettingUC, getSettingUC,
 	)
 

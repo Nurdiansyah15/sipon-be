@@ -120,6 +120,33 @@ func (r *PostgresSantriRegistrationRepository) List(ctx context.Context, q repos
 	return &repository.SantriRegistrationListResult{Items: items, Total: total}, rows.Err()
 }
 
+func (r *PostgresSantriRegistrationRepository) ListCompletedByAcademicPeriod(ctx context.Context, academicPeriodID string) ([]*entity.SantriRegistration, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+santriRegistrationColumns+` FROM santri_registrations
+		 WHERE academic_period_id=$1 AND status=$2 AND deleted_at IS NULL
+		 ORDER BY created_at ASC`,
+		academicPeriodID, string(constant.SantriRegistrationStatusCompleted),
+	)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriRegistrationQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*entity.SantriRegistration, 0)
+	for rows.Next() {
+		reg, err := scanSantriRegistration(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, reg)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.Wrap(constant.CodeSantriRegistrationQueryFailed, err)
+	}
+	return items, nil
+}
+
 func scanSantriRegistration(sc scanner) (*entity.SantriRegistration, error) {
 	var (
 		id, santriID, academicPeriodID, status string

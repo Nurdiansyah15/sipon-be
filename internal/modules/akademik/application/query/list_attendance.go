@@ -42,6 +42,7 @@ func (uc *ListAttendanceUseCase) Execute(ctx context.Context, sessionID string) 
 		resp := command.MapAttendanceToResponse(a)
 		if info, err := uc.kesantrianReader.GetSantriByID(ctx, a.SantriID); err == nil {
 			resp.SantriNIS = info.NIS
+			resp.SantriName = info.Fullname
 		}
 		responses = append(responses, *resp)
 	}

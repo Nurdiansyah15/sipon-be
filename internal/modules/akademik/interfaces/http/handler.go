@@ -65,15 +65,17 @@ type AkademikHandler struct {
 
 	// activity session
 	createSessionUC   *command.CreateSessionUseCase
+	openSessionUC     *command.OpenSessionUseCase
 	cancelSessionUC   *command.CancelSessionUseCase
 	completeSessionUC *command.CompleteSessionUseCase
 	listSessionsUC    *query.ListActivitySessionsUseCase
 	getSessionUC      *query.GetActivitySessionUseCase
 
 	// attendance
-	recordAttendanceUC *command.RecordAttendanceUseCase
-	updateAttendanceUC *command.UpdateAttendanceUseCase
-	listAttendanceUC   *query.ListAttendanceUseCase
+	recordAttendanceUC   *command.RecordAttendanceUseCase
+	updateAttendanceUC   *command.UpdateAttendanceUseCase
+	listAttendanceUC     *query.ListAttendanceUseCase
+	listEligibleSantriUC *query.ListEligibleSessionSantriUseCase
 
 	// setting
 	updateSettingUC *command.UpdateAkademikSettingUseCase
@@ -114,6 +116,7 @@ func NewAkademikHandler(
 	getScheduleUC *query.GetActivityScheduleUseCase,
 	getCalendarUC *query.GetScheduleCalendarUseCase,
 	createSessionUC *command.CreateSessionUseCase,
+	openSessionUC *command.OpenSessionUseCase,
 	cancelSessionUC *command.CancelSessionUseCase,
 	completeSessionUC *command.CompleteSessionUseCase,
 	listSessionsUC *query.ListActivitySessionsUseCase,
@@ -121,6 +124,7 @@ func NewAkademikHandler(
 	recordAttendanceUC *command.RecordAttendanceUseCase,
 	updateAttendanceUC *command.UpdateAttendanceUseCase,
 	listAttendanceUC *query.ListAttendanceUseCase,
+	listEligibleSantriUC *query.ListEligibleSessionSantriUseCase,
 	updateSettingUC *command.UpdateAkademikSettingUseCase,
 	getSettingUC *query.GetAkademikSettingUseCase,
 ) *AkademikHandler {
@@ -158,6 +162,7 @@ func NewAkademikHandler(
 		getScheduleUC:          getScheduleUC,
 		getCalendarUC:          getCalendarUC,
 		createSessionUC:        createSessionUC,
+		openSessionUC:          openSessionUC,
 		cancelSessionUC:        cancelSessionUC,
 		completeSessionUC:      completeSessionUC,
 		listSessionsUC:         listSessionsUC,
@@ -165,6 +170,7 @@ func NewAkademikHandler(
 		recordAttendanceUC:     recordAttendanceUC,
 		updateAttendanceUC:     updateAttendanceUC,
 		listAttendanceUC:       listAttendanceUC,
+		listEligibleSantriUC:   listEligibleSantriUC,
 		updateSettingUC:        updateSettingUC,
 		getSettingUC:           getSettingUC,
 	}
@@ -659,6 +665,15 @@ func (h *AkademikHandler) CancelSession(c *gin.Context) {
 	respond.OK(c, "sesi kegiatan berhasil dibatalkan", resp)
 }
 
+func (h *AkademikHandler) OpenSession(c *gin.Context) {
+	resp, err := h.openSessionUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "sesi kegiatan berhasil dibuka", resp)
+}
+
 func (h *AkademikHandler) CompleteSession(c *gin.Context) {
 	resp, err := h.completeSessionUC.Execute(c.Request.Context(), c.Param("id"))
 	if err != nil {
@@ -677,6 +692,15 @@ func (h *AkademikHandler) ListAttendance(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "daftar absensi berhasil diambil", items)
+}
+
+func (h *AkademikHandler) ListEligibleSessionSantri(c *gin.Context) {
+	items, err := h.listEligibleSantriUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar santri yang berhak absen berhasil diambil", items)
 }
 
 func (h *AkademikHandler) RecordAttendance(c *gin.Context) {

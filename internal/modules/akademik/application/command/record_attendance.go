@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/google/uuid"
 
@@ -12,21 +13,32 @@ import (
 	"sipon-be/internal/modules/akademik/domain/attendance/constant"
 	"sipon-be/internal/modules/akademik/domain/attendance/entity"
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
+	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type RecordAttendanceUseCase struct {
 	attendanceRepo   attRepo.AttendanceRepository
 	sessionRepo      sesRepo.ActivitySessionRepository
+	registrationRepo regRepo.SantriRegistrationRepository
+	periodResolver   *application.SessionPeriodResolver
 	kesantrianReader ports.KesantrianReader
 }
 
 func NewRecordAttendanceUseCase(
 	attendanceRepo attRepo.AttendanceRepository,
 	sessionRepo sesRepo.ActivitySessionRepository,
+	registrationRepo regRepo.SantriRegistrationRepository,
+	periodResolver *application.SessionPeriodResolver,
 	kesantrianReader ports.KesantrianReader,
 ) *RecordAttendanceUseCase {
-	return &RecordAttendanceUseCase{attendanceRepo: attendanceRepo, sessionRepo: sessionRepo, kesantrianReader: kesantrianReader}
+	return &RecordAttendanceUseCase{
+		attendanceRepo:   attendanceRepo,
+		sessionRepo:      sessionRepo,
+		registrationRepo: registrationRepo,
+		periodResolver:   periodResolver,
+		kesantrianReader: kesantrianReader,
+	}
 }
 
 func (uc *RecordAttendanceUseCase) Execute(ctx context.Context, sessionID string, req dto.RecordAttendanceRequest) ([]dto.AttendanceResponse, error) {
@@ -34,15 +46,25 @@ func (uc *RecordAttendanceUseCase) Execute(ctx context.Context, sessionID string
 	if err != nil {
 		return nil, application.WrapRepoErr(err, constant.CodeAttendanceNotFound)
 	}
-	if session.Status == "cancelled" {
-		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+	if session.Status != "open" {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "sesi harus dibuka terlebih dahulu untuk mencatat absensi", nil)
+	}
+
+	academicPeriodID, err := uc.periodResolver.Resolve(ctx, sessionID)
+	if err != nil {
+		slog.Warn("akademik: resolve session academic period failed", "session_id", sessionID, "error", err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "periode akademik sesi tidak ditemukan", nil)
 	}
 
 	responses := make([]dto.AttendanceResponse, 0, len(req.Records))
 	for _, rec := range req.Records {
 		info, err := uc.kesantrianReader.GetSantriByID(ctx, rec.SantriID)
 		if err != nil || info == nil || info.Status != "SANTRI" {
-			return nil, kernel.New(application.ErrCodeUnprocessableEntity)
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri tidak valid", nil)
+		}
+
+		if err := uc.ensureHerreg(ctx, rec.SantriID, academicPeriodID); err != nil {
+			return nil, err
 		}
 
 		existing, _ := uc.attendanceRepo.FindBySessionAndSantri(ctx, sessionID, rec.SantriID)
@@ -60,9 +82,20 @@ func (uc *RecordAttendanceUseCase) Execute(ctx context.Context, sessionID string
 
 		resp := MapAttendanceToResponse(attendance)
 		resp.SantriNIS = info.NIS
+		resp.SantriName = info.Fullname
 		responses = append(responses, *resp)
 	}
 	return responses, nil
+}
+
+// ensureHerreg rejects the attendance record when the santri has not completed
+// herregistrasi for the session's academic period.
+func (uc *RecordAttendanceUseCase) ensureHerreg(ctx context.Context, santriID, academicPeriodID string) error {
+	reg, err := uc.registrationRepo.FindBySantriAndPeriod(ctx, santriID, academicPeriodID)
+	if err != nil || reg == nil || reg.Status != "completed" {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri belum herregistrasi pada periode ini", nil)
+	}
+	return nil
 }
 
 func MapAttendanceToResponse(a *entity.Attendance) *dto.AttendanceResponse {

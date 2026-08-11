@@ -25,4 +25,7 @@ type SantriRegistrationRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.SantriRegistration, error)
 	FindBySantriAndPeriod(ctx context.Context, santriID, academicPeriodID string) (*entity.SantriRegistration, error)
 	List(ctx context.Context, query SantriRegistrationListQuery) (*SantriRegistrationListResult, error)
+	// ListCompletedByAcademicPeriod returns registrations with status
+	// 'completed' for the given academic period (herregistrasi done).
+	ListCompletedByAcademicPeriod(ctx context.Context, academicPeriodID string) ([]*entity.SantriRegistration, error)
 }

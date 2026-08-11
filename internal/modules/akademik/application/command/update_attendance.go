@@ -5,6 +5,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
+	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 	"sipon-be/internal/modules/akademik/domain/attendance/constant"
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	"sipon-be/internal/shared/kernel"
@@ -12,13 +13,22 @@ import (
 
 type UpdateAttendanceUseCase struct {
 	attendanceRepo attRepo.AttendanceRepository
+	sessionRepo    sesRepo.ActivitySessionRepository
 }
 
-func NewUpdateAttendanceUseCase(attendanceRepo attRepo.AttendanceRepository) *UpdateAttendanceUseCase {
-	return &UpdateAttendanceUseCase{attendanceRepo: attendanceRepo}
+func NewUpdateAttendanceUseCase(attendanceRepo attRepo.AttendanceRepository, sessionRepo sesRepo.ActivitySessionRepository) *UpdateAttendanceUseCase {
+	return &UpdateAttendanceUseCase{attendanceRepo: attendanceRepo, sessionRepo: sessionRepo}
 }
 
 func (uc *UpdateAttendanceUseCase) Execute(ctx context.Context, sessionID, santriID string, req dto.UpdateAttendanceRequest) (*dto.AttendanceResponse, error) {
+	session, err := uc.sessionRepo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, constant.CodeAttendanceNotFound)
+	}
+	if session.Status != "open" {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "absensi terkunci pada sesi yang sudah selesai atau dibatalkan", nil)
+	}
+
 	attendance, err := uc.attendanceRepo.FindBySessionAndSantri(ctx, sessionID, santriID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, constant.CodeAttendanceNotFound)
