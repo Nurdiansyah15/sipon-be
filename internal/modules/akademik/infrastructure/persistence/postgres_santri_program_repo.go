@@ -97,6 +97,28 @@ func (r *PostgresSantriProgramRepository) ListActiveSantriIDsByProgramID(ctx con
 	return ids, rows.Err()
 }
 
+func (r *PostgresSantriProgramRepository) ListActive(ctx context.Context) ([]*spEntity.SantriProgram, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+santriProgramColumns+` FROM santri_programs
+		 WHERE is_active=true AND deleted_at IS NULL`,
+	)
+	if err != nil {
+		return nil, kernel.Wrap(spConst.CodeSantriProgramQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*spEntity.SantriProgram, 0)
+	for rows.Next() {
+		sp, err := scanSantriProgram(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, sp)
+	}
+	return items, rows.Err()
+}
+
 func (r *PostgresSantriProgramRepository) DeactivateAllBySantriID(ctx context.Context, santriID string) error {
 	execer := execerFromContext(ctx, r.db)
 	_, err := execer.ExecContext(ctx,

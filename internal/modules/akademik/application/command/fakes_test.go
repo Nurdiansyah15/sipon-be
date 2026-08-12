@@ -15,6 +15,8 @@ import (
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	progEntity "sipon-be/internal/modules/akademik/domain/program/entity"
 	progRepo "sipon-be/internal/modules/akademik/domain/program/repository"
+	ptrEntity "sipon-be/internal/modules/akademik/domain/program_transfer_request/entity"
+	ptrRepo "sipon-be/internal/modules/akademik/domain/program_transfer_request/repository"
 	regEntity "sipon-be/internal/modules/akademik/domain/santri_registration/entity"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	spEntity "sipon-be/internal/modules/akademik/domain/santri_program/entity"
@@ -23,14 +25,16 @@ import (
 // --- Kesantrian reader ---
 
 type fakeKesantrian struct {
-	byNIS *ports.SantriBasicInfo
+	byNIS     *ports.SantriBasicInfo
+	byUserID  *ports.SantriBasicInfo
+	byID      *ports.SantriBasicInfo
 }
 
 func (f *fakeKesantrian) GetSantriByID(ctx context.Context, santriID string) (*ports.SantriBasicInfo, error) {
-	return nil, nil
+	return f.byID, nil
 }
 func (f *fakeKesantrian) GetSantriByUserID(ctx context.Context, userID string) (*ports.SantriBasicInfo, error) {
-	return nil, nil
+	return f.byUserID, nil
 }
 func (f *fakeKesantrian) GetSantriByNIS(ctx context.Context, nis string) (*ports.SantriBasicInfo, error) {
 	return f.byNIS, nil
@@ -100,9 +104,14 @@ func (f *fakeAttendanceRepo) ListBySantriAndPeriod(ctx context.Context, santriID
 type fakeSantriProgramRepo struct {
 	santriByProgram map[string][]string
 	activeBySantri  *spEntity.SantriProgram
+	deactivated     bool
+	saved           []*spEntity.SantriProgram
 }
 
-func (f *fakeSantriProgramRepo) Save(ctx context.Context, sp *spEntity.SantriProgram) error { return nil }
+func (f *fakeSantriProgramRepo) Save(ctx context.Context, sp *spEntity.SantriProgram) error {
+	f.saved = append(f.saved, sp)
+	return nil
+}
 func (f *fakeSantriProgramRepo) FindActiveBySantriID(ctx context.Context, santriID string) (*spEntity.SantriProgram, error) {
 	return f.activeBySantri, nil
 }
@@ -112,7 +121,11 @@ func (f *fakeSantriProgramRepo) FindBySantriID(ctx context.Context, santriID str
 func (f *fakeSantriProgramRepo) ListActiveSantriIDsByProgramID(ctx context.Context, programID string) ([]string, error) {
 	return f.santriByProgram[programID], nil
 }
+func (f *fakeSantriProgramRepo) ListActive(ctx context.Context) ([]*spEntity.SantriProgram, error) {
+	return nil, nil
+}
 func (f *fakeSantriProgramRepo) DeactivateAllBySantriID(ctx context.Context, santriID string) error {
+	f.deactivated = true
 	return nil
 }
 
@@ -178,7 +191,9 @@ func (f *fakeAPProgramRepo) ListByActivityPeriod(ctx context.Context, activityPe
 // --- Program repo ---
 
 type fakeProgramRepo struct {
-	activeIDs []string
+	activeIDs   []string
+	programByID *progEntity.Program
+	programByID2 *progEntity.Program
 }
 
 func (f *fakeProgramRepo) Save(ctx context.Context, p *progEntity.Program) error { return nil }
@@ -186,7 +201,10 @@ func (f *fakeProgramRepo) Update(ctx context.Context, p *progEntity.Program) err
 	return nil
 }
 func (f *fakeProgramRepo) FindByID(ctx context.Context, id string) (*progEntity.Program, error) {
-	return nil, nil
+	if f.programByID2 != nil && f.programByID2.ID == id {
+		return f.programByID2, nil
+	}
+	return f.programByID, nil
 }
 func (f *fakeProgramRepo) FindByCode(ctx context.Context, code string) (*progEntity.Program, error) {
 	return nil, nil
@@ -250,4 +268,38 @@ func (f *fakeRegistrationRepo) List(ctx context.Context, q regRepo.SantriRegistr
 }
 func (f *fakeRegistrationRepo) ListCompletedByAcademicPeriod(ctx context.Context, academicPeriodID string) ([]*regEntity.SantriRegistration, error) {
 	return nil, nil
+}
+
+// --- Program transfer request repo ---
+
+type fakePtrRepo struct {
+	saved    []*ptrEntity.ProgramTransferRequest
+	byID     *ptrEntity.ProgramTransferRequest
+	pending  *ptrEntity.ProgramTransferRequest
+	updated  *ptrEntity.ProgramTransferRequest
+	list     []*ptrEntity.ProgramTransferRequest
+}
+
+func (f *fakePtrRepo) Save(ctx context.Context, req *ptrEntity.ProgramTransferRequest) error {
+	f.saved = append(f.saved, req)
+	return nil
+}
+func (f *fakePtrRepo) Update(ctx context.Context, req *ptrEntity.ProgramTransferRequest) error {
+	f.updated = req
+	return nil
+}
+func (f *fakePtrRepo) FindByID(ctx context.Context, id string) (*ptrEntity.ProgramTransferRequest, error) {
+	return f.byID, nil
+}
+func (f *fakePtrRepo) FindPendingBySantriID(ctx context.Context, santriID string) (*ptrEntity.ProgramTransferRequest, error) {
+	return f.pending, nil
+}
+func (f *fakePtrRepo) List(ctx context.Context, q ptrRepo.ProgramTransferRequestListQuery) (*ptrRepo.ProgramTransferRequestListResult, error) {
+	return &ptrRepo.ProgramTransferRequestListResult{Items: f.list, Total: int64(len(f.list))}, nil
+}
+
+// helper untuk membangun request transfer pending
+func newPtrFixture(id, santriID, fromProg, toProg string) *ptrEntity.ProgramTransferRequest {
+	req, _ := ptrEntity.NewProgramTransferRequest(id, santriID, fromProg, toProg, nil)
+	return req
 }

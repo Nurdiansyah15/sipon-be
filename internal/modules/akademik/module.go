@@ -45,6 +45,7 @@ func NewModule(
 	attendanceRepo := persistence.NewPostgresAttendanceRepository(db)
 	settingRepo := persistence.NewPostgresAkademikSettingRepository(db)
 	santriProgramRepo := persistence.NewPostgresSantriProgramRepository(db)
+	programTransferRequestRepo := persistence.NewPostgresProgramTransferRequestRepository(db)
 	docRequirementRepo := persistence.NewPostgresHerregistrasiDocumentRequirementRepository(db)
 	docRepo := persistence.NewPostgresHerregistrasiDocumentRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
@@ -147,6 +148,19 @@ func NewModule(
 	assignSantriProgramUC := command.NewAssignSantriProgramUseCase(santriProgramRepo, programRepo)
 	getSantriProgramUC := query.NewGetSantriProgramUseCase(santriProgramRepo, programRepo)
 
+	// santri program management (admin)
+	assignSantriProgramAdminUC := command.NewAssignSantriProgramAdminUseCase(santriProgramRepo, programRepo, transactor)
+	getSantriProgramAdminUC := query.NewGetSantriProgramAdminUseCase(santriProgramRepo, programRepo)
+	listSantriProgramsUC := query.NewListSantriProgramsUseCase(kesantrianGW, santriProgramRepo, programRepo)
+
+	// program transfer requests
+	requestProgramTransferUC := command.NewRequestProgramTransferUseCase(programTransferRequestRepo, santriProgramRepo, programRepo, kesantrianGW)
+	approveProgramTransferUC := command.NewApproveProgramTransferUseCase(programTransferRequestRepo, santriProgramRepo, programRepo, transactor)
+	rejectProgramTransferUC := command.NewRejectProgramTransferUseCase(programTransferRequestRepo, programRepo)
+	listProgramTransferRequestsUC := query.NewListProgramTransferRequestsUseCase(programTransferRequestRepo, programRepo, kesantrianGW)
+	getProgramTransferRequestUC := query.NewGetProgramTransferRequestUseCase(programTransferRequestRepo, programRepo, kesantrianGW)
+	listMyProgramTransferReqUC := query.NewListMyProgramTransferRequestsUseCase(programTransferRequestRepo, programRepo, kesantrianGW)
+
 	// santri portal (non-admin)
 	getMySummaryUC := query.NewGetMySummaryUseCase(kesantrianGW, periodRepo, registrationRepo, santriProgramRepo, programRepo)
 	getMyProgramUC := query.NewGetMyProgramUseCase(kesantrianGW, santriProgramRepo, programRepo)
@@ -178,6 +192,9 @@ func NewModule(
 		createDocRequirementUC, updateDocRequirementUC, deleteDocRequirementUC, listDocRequirementsUC,
 		requestRevisionUC, listRegistrationDocsUC, verifyDocUC, rejectDocUC,
 		myHerregDetailUC, presignDocUC, confirmDocUC, deleteDocUC, downloadDocUC,
+		assignSantriProgramAdminUC, getSantriProgramAdminUC, listSantriProgramsUC,
+		requestProgramTransferUC, approveProgramTransferUC, rejectProgramTransferUC,
+		listProgramTransferRequestsUC, getProgramTransferRequestUC, listMyProgramTransferReqUC,
 	)
 
 	return &Module{

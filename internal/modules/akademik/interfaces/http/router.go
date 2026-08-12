@@ -28,6 +28,8 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 		akademik.GET("/my/jadwal", h.MySchedules)
 		akademik.GET("/my/absensi", h.MyAttendance)
 		akademik.GET("/my/absensi/periods", h.MyAttendancePeriods)
+		akademik.POST("/my/program-transfer-requests", h.RequestProgramTransfer)
+		akademik.GET("/my/program-transfer-requests", h.ListMyProgramTransferRequests)
 		akademik.POST("/my/herregistrasi", h.ApplyHerregistrasi)
 		akademik.POST("/my/herregistrasi/submit", h.SubmitHerregistrasi)
 		akademik.GET("/my/herregistrasi", h.MyHerregistrasiDetail)
@@ -137,6 +139,25 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			sessions.GET("/:id/attendance", h.ListAttendance)
 			sessions.POST("/:id/attendance", h.RecordAttendance)
 			sessions.PUT("/:id/attendance/:santriId", h.UpdateAttendance)
+		}
+
+		// Santri Program Management (Admin)
+		santriPrograms := akademik.Group("/admin/santri")
+		santriPrograms.Use(middleware.RequirePermission("manage_akademik"))
+		{
+			santriPrograms.GET("", h.ListSantriPrograms)
+			santriPrograms.GET("/:santriId/program", h.GetSantriProgramAdmin)
+			santriPrograms.PUT("/:santriId/program", h.AssignSantriProgramAdmin)
+		}
+
+		// Program Transfer Requests (Admin)
+		programTransfers := akademik.Group("/admin/program-transfer-requests")
+		programTransfers.Use(middleware.RequirePermission("manage_akademik"))
+		{
+			programTransfers.GET("", h.ListProgramTransferRequests)
+			programTransfers.GET("/:id", h.GetProgramTransferRequest)
+			programTransfers.POST("/:id/approve", h.ApproveProgramTransferRequest)
+			programTransfers.POST("/:id/reject", h.RejectProgramTransferRequest)
 		}
 	}
 }

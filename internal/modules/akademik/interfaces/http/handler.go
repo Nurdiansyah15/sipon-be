@@ -111,6 +111,19 @@ type AkademikHandler struct {
 	confirmDocUC           *command.ConfirmHerregistrasiDocumentUseCase
 	deleteDocUC            *command.DeleteHerregistrasiDocumentUseCase
 	downloadDocUC          *query.DownloadHerregistrasiDocumentUseCase
+
+	// santri program management (admin)
+	assignSantriProgramAdminUC *command.AssignSantriProgramAdminUseCase
+	getSantriProgramAdminUC    *query.GetSantriProgramAdminUseCase
+	listSantriProgramsUC       *query.ListSantriProgramsUseCase
+
+	// program transfer requests
+	requestProgramTransferUC      *command.RequestProgramTransferUseCase
+	approveProgramTransferUC      *command.ApproveProgramTransferUseCase
+	rejectProgramTransferUC       *command.RejectProgramTransferUseCase
+	listProgramTransferRequestsUC *query.ListProgramTransferRequestsUseCase
+	getProgramTransferRequestUC   *query.GetProgramTransferRequestUseCase
+	listMyProgramTransferReqUC    *query.ListMyProgramTransferRequestsUseCase
 }
 
 func NewAkademikHandler(
@@ -182,6 +195,15 @@ func NewAkademikHandler(
 	confirmDocUC *command.ConfirmHerregistrasiDocumentUseCase,
 	deleteDocUC *command.DeleteHerregistrasiDocumentUseCase,
 	downloadDocUC *query.DownloadHerregistrasiDocumentUseCase,
+	assignSantriProgramAdminUC *command.AssignSantriProgramAdminUseCase,
+	getSantriProgramAdminUC *query.GetSantriProgramAdminUseCase,
+	listSantriProgramsUC *query.ListSantriProgramsUseCase,
+	requestProgramTransferUC *command.RequestProgramTransferUseCase,
+	approveProgramTransferUC *command.ApproveProgramTransferUseCase,
+	rejectProgramTransferUC *command.RejectProgramTransferUseCase,
+	listProgramTransferRequestsUC *query.ListProgramTransferRequestsUseCase,
+	getProgramTransferRequestUC *query.GetProgramTransferRequestUseCase,
+	listMyProgramTransferReqUC *query.ListMyProgramTransferRequestsUseCase,
 ) *AkademikHandler {
 	return &AkademikHandler{
 		createProgramUC:        createProgramUC,
@@ -252,6 +274,15 @@ func NewAkademikHandler(
 		confirmDocUC:           confirmDocUC,
 		deleteDocUC:            deleteDocUC,
 		downloadDocUC:          downloadDocUC,
+		assignSantriProgramAdminUC: assignSantriProgramAdminUC,
+		getSantriProgramAdminUC:    getSantriProgramAdminUC,
+		listSantriProgramsUC:       listSantriProgramsUC,
+		requestProgramTransferUC:   requestProgramTransferUC,
+		approveProgramTransferUC:   approveProgramTransferUC,
+		rejectProgramTransferUC:    rejectProgramTransferUC,
+		listProgramTransferRequestsUC: listProgramTransferRequestsUC,
+		getProgramTransferRequestUC:   getProgramTransferRequestUC,
+		listMyProgramTransferReqUC:    listMyProgramTransferReqUC,
 	}
 }
 
@@ -1131,4 +1162,118 @@ func (h *AkademikHandler) ListPresensiAttendance(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "daftar kehadiran berhasil diambil", items)
+}
+
+// --- Santri Program Management (Admin) ---
+
+func (h *AkademikHandler) AssignSantriProgramAdmin(c *gin.Context) {
+	var req dto.AssignProgramRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.assignSantriProgramAdminUC.Execute(c.Request.Context(), c.Param("santriId"), req.ProgramID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "program santri berhasil diubah", resp)
+}
+
+func (h *AkademikHandler) GetSantriProgramAdmin(c *gin.Context) {
+	resp, err := h.getSantriProgramAdminUC.Execute(c.Request.Context(), c.Param("santriId"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "program santri berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) ListSantriPrograms(c *gin.Context) {
+	var q dto.SantriProgramListQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, meta, err := h.listSantriProgramsUC.Execute(c.Request.Context(), q)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.SuccessWithMeta(c, 200, "daftar santri berhasil diambil", items, meta)
+}
+
+// --- Program Transfer Requests ---
+
+func (h *AkademikHandler) RequestProgramTransfer(c *gin.Context) {
+	var req dto.RequestProgramTransferRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	userID := middleware.GetUserID(c)
+	resp, err := h.requestProgramTransferUC.Execute(c.Request.Context(), userID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "permintaan pindah program berhasil diajukan", resp)
+}
+
+func (h *AkademikHandler) ListMyProgramTransferRequests(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	items, err := h.listMyProgramTransferReqUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar permintaan pindah program berhasil diambil", items)
+}
+
+func (h *AkademikHandler) ListProgramTransferRequests(c *gin.Context) {
+	var q dto.ProgramTransferRequestListQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	items, meta, err := h.listProgramTransferRequestsUC.Execute(c.Request.Context(), q)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.SuccessWithMeta(c, 200, "daftar permintaan pindah program berhasil diambil", items, meta)
+}
+
+func (h *AkademikHandler) GetProgramTransferRequest(c *gin.Context) {
+	resp, err := h.getProgramTransferRequestUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail permintaan pindah program berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) ApproveProgramTransferRequest(c *gin.Context) {
+	adminID := middleware.GetUserID(c)
+	resp, err := h.approveProgramTransferUC.Execute(c.Request.Context(), c.Param("id"), adminID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "permintaan pindah program berhasil disetujui", resp)
+}
+
+func (h *AkademikHandler) RejectProgramTransferRequest(c *gin.Context) {
+	var req dto.RejectProgramTransferRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	adminID := middleware.GetUserID(c)
+	resp, err := h.rejectProgramTransferUC.Execute(c.Request.Context(), c.Param("id"), adminID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "permintaan pindah program berhasil ditolak", resp)
 }
