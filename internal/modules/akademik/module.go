@@ -117,6 +117,13 @@ func NewModule(
 	assignSantriProgramUC := command.NewAssignSantriProgramUseCase(santriProgramRepo, programRepo)
 	getSantriProgramUC := query.NewGetSantriProgramUseCase(santriProgramRepo, programRepo)
 
+	// santri portal (non-admin)
+	getMySummaryUC := query.NewGetMySummaryUseCase(kesantrianGW, periodRepo, registrationRepo, santriProgramRepo, programRepo)
+	getMyProgramUC := query.NewGetMyProgramUseCase(kesantrianGW, santriProgramRepo, programRepo)
+	listMyActivitiesUC := query.NewListMyActivitiesUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo)
+	listMySchedulesUC := query.NewListMySchedulesUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo)
+	applyHerregistrasiUC := command.NewApplyHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, santriProgramRepo)
+
 	handler := akademikHTTP.NewAkademikHandler(
 		createProgramUC, updateProgramUC, listProgramsUC, getProgramUC,
 		createPeriodUC, updatePeriodUC, openPeriodUC, closePeriodUC, listPeriodsUC, getPeriodUC,
@@ -128,6 +135,7 @@ func NewModule(
 		createSessionUC, openSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC, listEligibleSantriUC,
 		updateSettingUC, getSettingUC,
+		getMySummaryUC, getMyProgramUC, listMyActivitiesUC, listMySchedulesUC, applyHerregistrasiUC,
 	)
 
 	return &Module{

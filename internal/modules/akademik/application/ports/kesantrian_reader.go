@@ -16,6 +16,7 @@ type SantriBasicInfo struct {
 
 type KesantrianReader interface {
 	GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error)
+	GetSantriByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
 	ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicInfo, error)
 }
 

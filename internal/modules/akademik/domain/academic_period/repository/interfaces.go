@@ -24,6 +24,8 @@ type AcademicPeriodRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.AcademicPeriod, error)
 	FindByCode(ctx context.Context, code string) (*entity.AcademicPeriod, error)
 	FindByIDs(ctx context.Context, ids []string) ([]*entity.AcademicPeriod, error)
+	// FindOpen returns the most recent open period (highest start_date).
+	FindOpen(ctx context.Context) (*entity.AcademicPeriod, error)
 	List(ctx context.Context, query AcademicPeriodListQuery) (*AcademicPeriodListResult, error)
 	HasData(ctx context.Context, id string) (bool, error)
 }

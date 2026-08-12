@@ -13,6 +13,8 @@ type ActivityScheduleRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.ActivitySchedule, error)
 	FindByIDs(ctx context.Context, ids []string) ([]*entity.ActivitySchedule, error)
 	ListByActivityPeriod(ctx context.Context, activityPeriodID string) ([]*entity.ActivitySchedule, error)
+	// ListByActivityPeriodIDs returns schedules for the given activity period ids.
+	ListByActivityPeriodIDs(ctx context.Context, activityPeriodIDs []string) ([]*entity.ActivitySchedule, error)
 
 	ReplaceWeeklies(ctx context.Context, scheduleID string, days []constant.DayOfWeek) error
 	ReplaceMonthlies(ctx context.Context, scheduleID string, days []int) error

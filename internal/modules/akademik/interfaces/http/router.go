@@ -13,6 +13,13 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 		// Public: daftar program aktif untuk dipilih pendaftar PSB.
 		akademik.GET("/programs/active", h.ListActivePrograms)
 
+		// Santri portal (non-admin) — hanya butuh JWT, tanpa permission.
+		akademik.GET("/my/summary", h.MySummary)
+		akademik.GET("/my/program", h.MyProgram)
+		akademik.GET("/my/kegiatan", h.MyActivities)
+		akademik.GET("/my/jadwal", h.MySchedules)
+		akademik.POST("/my/herregistrasi", h.ApplyHerregistrasi)
+
 		// Settings
 		settings := akademik.Group("/settings")
 		settings.Use(middleware.RequirePermission("manage_akademik"))

@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/activity_schedule/constant"
 	"sipon-be/internal/shared/httperror"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/middleware"
 	"sipon-be/internal/shared/respond"
 )
 
@@ -80,6 +81,13 @@ type AkademikHandler struct {
 	// setting
 	updateSettingUC *command.UpdateAkademikSettingUseCase
 	getSettingUC    *query.GetAkademikSettingUseCase
+
+	// santri portal (non-admin)
+	getMySummaryUC       *query.GetMySummaryUseCase
+	getMyProgramUC       *query.GetMyProgramUseCase
+	listMyActivitiesUC   *query.ListMyActivitiesUseCase
+	listMySchedulesUC    *query.ListMySchedulesUseCase
+	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase
 }
 
 func NewAkademikHandler(
@@ -127,6 +135,11 @@ func NewAkademikHandler(
 	listEligibleSantriUC *query.ListEligibleSessionSantriUseCase,
 	updateSettingUC *command.UpdateAkademikSettingUseCase,
 	getSettingUC *query.GetAkademikSettingUseCase,
+	getMySummaryUC *query.GetMySummaryUseCase,
+	getMyProgramUC *query.GetMyProgramUseCase,
+	listMyActivitiesUC *query.ListMyActivitiesUseCase,
+	listMySchedulesUC *query.ListMySchedulesUseCase,
+	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase,
 ) *AkademikHandler {
 	return &AkademikHandler{
 		createProgramUC:        createProgramUC,
@@ -173,6 +186,11 @@ func NewAkademikHandler(
 		listEligibleSantriUC:   listEligibleSantriUC,
 		updateSettingUC:        updateSettingUC,
 		getSettingUC:           getSettingUC,
+		getMySummaryUC:         getMySummaryUC,
+		getMyProgramUC:         getMyProgramUC,
+		listMyActivitiesUC:     listMyActivitiesUC,
+		listMySchedulesUC:      listMySchedulesUC,
+		applyHerregistrasiUC:   applyHerregistrasiUC,
 	}
 }
 
@@ -754,4 +772,56 @@ func (h *AkademikHandler) UpdateAkademikSetting(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "pengaturan akademik berhasil diperbarui", resp)
+}
+
+// --- Santri Portal (non-admin) ---
+
+func (h *AkademikHandler) MySummary(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.getMySummaryUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "ringkasan akademik berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) MyProgram(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.getMyProgramUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "program akademik berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) MyActivities(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	items, err := h.listMyActivitiesUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar kegiatan wajib berhasil diambil", items)
+}
+
+func (h *AkademikHandler) MySchedules(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	items, err := h.listMySchedulesUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar jadwal kegiatan berhasil diambil", items)
+}
+
+func (h *AkademikHandler) ApplyHerregistrasi(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.applyHerregistrasiUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "herregistrasi berhasil diajukan", resp)
 }

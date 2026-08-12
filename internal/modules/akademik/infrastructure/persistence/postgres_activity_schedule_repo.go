@@ -116,6 +116,36 @@ func (r *PostgresActivityScheduleRepository) ListByActivityPeriod(ctx context.Co
 	return items, rows.Err()
 }
 
+func (r *PostgresActivityScheduleRepository) ListByActivityPeriodIDs(ctx context.Context, activityPeriodIDs []string) ([]*entity.ActivitySchedule, error) {
+	if len(activityPeriodIDs) == 0 {
+		return nil, nil
+	}
+	execer := execerFromContext(ctx, r.db)
+	placeholders := make([]string, len(activityPeriodIDs))
+	args := make([]interface{}, len(activityPeriodIDs))
+	for i, id := range activityPeriodIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+activityScheduleColumns+` FROM activity_schedules WHERE deleted_at IS NULL AND activity_period_id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeActivityScheduleQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*entity.ActivitySchedule, 0)
+	for rows.Next() {
+		s, err := scanActivitySchedule(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, s)
+	}
+	return items, rows.Err()
+}
+
 func (r *PostgresActivityScheduleRepository) ReplaceWeeklies(ctx context.Context, scheduleID string, days []constant.DayOfWeek) error {
 	execer := execerFromContext(ctx, r.db)
 	if _, err := execer.ExecContext(ctx, `DELETE FROM activity_schedule_weeklies WHERE schedule_id=$1`, scheduleID); err != nil {

@@ -101,6 +101,13 @@ func (r *PostgresAcademicPeriodRepository) FindByIDs(ctx context.Context, ids []
 	return items, rows.Err()
 }
 
+func (r *PostgresAcademicPeriodRepository) FindOpen(ctx context.Context) (*entity.AcademicPeriod, error) {
+	execer := execerFromContext(ctx, r.db)
+	row := execer.QueryRowContext(ctx,
+		`SELECT `+academicPeriodColumns+` FROM academic_periods WHERE status='open' AND deleted_at IS NULL ORDER BY start_date DESC LIMIT 1`)
+	return scanAcademicPeriod(row)
+}
+
 func (r *PostgresAcademicPeriodRepository) List(ctx context.Context, q repository.AcademicPeriodListQuery) (*repository.AcademicPeriodListResult, error) {
 	execer := execerFromContext(ctx, r.db)
 

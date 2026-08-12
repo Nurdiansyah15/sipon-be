@@ -100,6 +100,32 @@ func (r *PostgresActivityPeriodRepository) FindByIDs(ctx context.Context, ids []
 	return items, rows.Err()
 }
 
+func (r *PostgresActivityPeriodRepository) ListByPeriodAndProgram(ctx context.Context, periodID, programID string) ([]*entity.ActivityPeriod, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+activityPeriodColumns+` FROM activity_periods ap
+		 WHERE ap.academic_period_id=$1 AND ap.status='active' AND ap.deleted_at IS NULL
+		   AND (
+		     NOT EXISTS (SELECT 1 FROM activity_period_programs app WHERE app.activity_period_id = ap.id)
+		     OR EXISTS (SELECT 1 FROM activity_period_programs app WHERE app.activity_period_id = ap.id AND app.program_id = $2)
+		   )
+		 ORDER BY ap.created_at ASC`, periodID, programID)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeActivityPeriodQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*entity.ActivityPeriod, 0)
+	for rows.Next() {
+		p, err := scanActivityPeriod(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, p)
+	}
+	return items, rows.Err()
+}
+
 func (r *PostgresActivityPeriodRepository) List(ctx context.Context, q repository.ActivityPeriodListQuery) (*repository.ActivityPeriodListResult, error) {
 	execer := execerFromContext(ctx, r.db)
 
