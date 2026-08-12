@@ -93,9 +93,10 @@ type AkademikHandler struct {
 	myAttendanceUC        *query.GetMyAttendanceUseCase
 
 	// presensi (check-in via NIS, tanpa JWT)
-	presensiInfoUC *query.GetPresensiSessionInfoUseCase
-	presensiListUC *query.ListPresensiAttendanceUseCase
-	checkinUC      *command.CheckinByNISUseCase
+	presensiInfoUC      *query.GetPresensiSessionInfoUseCase
+	presensiListUC      *query.ListPresensiAttendanceUseCase
+	checkinUC           *command.CheckinByNISUseCase
+	syncFingerprintUC   *command.SyncAttendanceFromFingerprintUseCase
 
 	// herregistrasi dokumen & revisi
 	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase
@@ -182,6 +183,7 @@ func NewAkademikHandler(
 	presensiInfoUC *query.GetPresensiSessionInfoUseCase,
 	presensiListUC *query.ListPresensiAttendanceUseCase,
 	checkinUC *command.CheckinByNISUseCase,
+	syncFingerprintUC *command.SyncAttendanceFromFingerprintUseCase,
 	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase,
 	updateDocRequirementUC *command.UpdateHerregistrasiDocumentRequirementUseCase,
 	deleteDocRequirementUC *command.DeleteHerregistrasiDocumentRequirementUseCase,
@@ -261,6 +263,7 @@ func NewAkademikHandler(
 		presensiInfoUC:         presensiInfoUC,
 		presensiListUC:         presensiListUC,
 		checkinUC:              checkinUC,
+		syncFingerprintUC:      syncFingerprintUC,
 		createDocRequirementUC: createDocRequirementUC,
 		updateDocRequirementUC: updateDocRequirementUC,
 		deleteDocRequirementUC: deleteDocRequirementUC,
@@ -1162,6 +1165,15 @@ func (h *AkademikHandler) ListPresensiAttendance(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "daftar kehadiran berhasil diambil", items)
+}
+
+func (h *AkademikHandler) SyncFingerprint(c *gin.Context) {
+	resp, err := h.syncFingerprintUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "sinkronisasi absensi dari fingerprint berhasil", resp)
 }
 
 // --- Santri Program Management (Admin) ---

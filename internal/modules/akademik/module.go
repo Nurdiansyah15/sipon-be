@@ -10,9 +10,11 @@ import (
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/query"
 	"sipon-be/internal/modules/akademik/infrastructure/external"
+	"sipon-be/internal/modules/akademik/infrastructure/fingerprintgateway"
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
 	"sipon-be/internal/modules/akademik/infrastructure/persistence"
 	akademikHTTP "sipon-be/internal/modules/akademik/interfaces/http"
+	"sipon-be/internal/modules/fingerprint"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
 )
@@ -31,6 +33,7 @@ func NewModule(
 	db *sql.DB,
 	cfg *config.Config,
 	kesantrianContract kesantrian.Contract,
+	fingerprintContract fingerprint.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
 ) *Module {
@@ -51,6 +54,7 @@ func NewModule(
 	transactor := persistence.NewPostgresTransactor(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
+	fingerprintGW := fingerprintgateway.New(fingerprintContract)
 	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
 	programResolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, activityPeriodProgramRepo, programRepo)
 
@@ -171,6 +175,7 @@ func NewModule(
 
 	// presensi & riwayat absensi
 	checkinUC := command.NewCheckinByNISUseCase(sessionRepo, kesantrianGW, periodResolver, registrationRepo, attendanceRepo, santriProgramRepo, programResolver)
+	syncFingerprintUC := command.NewSyncAttendanceFromFingerprintUseCase(sessionRepo, fingerprintGW, checkinUC)
 	presensiInfoUC := query.NewGetPresensiSessionInfoUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, periodRepo, registrationRepo, attendanceRepo)
 	presensiListUC := query.NewListPresensiAttendanceUseCase(attendanceRepo, kesantrianGW)
 	myAttendanceUC := query.NewGetMyAttendanceUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo, sessionRepo, attendanceRepo)
@@ -188,7 +193,7 @@ func NewModule(
 		updateSettingUC, getSettingUC,
 		getMySummaryUC, getMyProgramUC, listMyActivitiesUC, listMySchedulesUC, applyHerregistrasiUC,
 		submitHerregistrasiUC, myAttendanceUC,
-		presensiInfoUC, presensiListUC, checkinUC,
+		presensiInfoUC, presensiListUC, checkinUC, syncFingerprintUC,
 		createDocRequirementUC, updateDocRequirementUC, deleteDocRequirementUC, listDocRequirementsUC,
 		requestRevisionUC, listRegistrationDocsUC, verifyDocUC, rejectDocUC,
 		myHerregDetailUC, presignDocUC, confirmDocUC, deleteDocUC, downloadDocUC,

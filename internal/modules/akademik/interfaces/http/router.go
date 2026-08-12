@@ -139,6 +139,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			sessions.GET("/:id/attendance", h.ListAttendance)
 			sessions.POST("/:id/attendance", h.RecordAttendance)
 			sessions.PUT("/:id/attendance/:santriId", h.UpdateAttendance)
+			sessions.POST("/:id/sync-fingerprint", h.SyncFingerprint)
 		}
 
 		// Santri Program Management (Admin)

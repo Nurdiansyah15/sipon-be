@@ -18,6 +18,7 @@ import (
 	articleModule "sipon-be/internal/modules/article"
 	dokumenAsetModule "sipon-be/internal/modules/dokumen_aset"
 	feedbackModule "sipon-be/internal/modules/feedback"
+	fingerprintModule "sipon-be/internal/modules/fingerprint"
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
@@ -101,9 +102,16 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	fingerprint := fingerprintModule.NewModule(
+		db, cfg,
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	akademik := akademikModule.NewModule(
 		db, cfg,
-		kesantrian, // kesantrian.Contract
+		kesantrian,  // kesantrian.Contract
+		fingerprint, // fingerprint.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -158,6 +166,7 @@ func main() {
 	article.RegisterRoutes(engine)
 	keuangan.RegisterRoutes(engine)
 	feedback.RegisterRoutes(engine)
+	fingerprint.RegisterRoutes(engine)
 	akademik.RegisterRoutes(engine)
 
 	srv := &http.Server{

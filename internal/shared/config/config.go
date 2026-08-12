@@ -10,14 +10,22 @@ import (
 )
 
 type Config struct {
-	App       AppConfig
-	Database  DatabaseConfig
-	JWT       JWTConfig
-	SMTP      SMTPConfig
-	Fonnte    FonnteConfig
-	Redis     RedisConfig
-	RateLimit RateLimitConfig
-	Minio     MinioConfig
+	App         AppConfig
+	Database    DatabaseConfig
+	JWT         JWTConfig
+	SMTP        SMTPConfig
+	Fonnte      FonnteConfig
+	Redis       RedisConfig
+	RateLimit   RateLimitConfig
+	Minio       MinioConfig
+	Fingerprint FingerprintConfig
+}
+
+// FingerprintConfig mengatur integrasi absensi mesin fingerprint.
+type FingerprintConfig struct {
+	// SandboxEnabled menghidupkan endpoint sandbox (simulasi mesin fingerprint
+	// palsu). Default false — di production endpoint ini tidak didaftarkan.
+	SandboxEnabled bool
 }
 
 type AppConfig struct {
@@ -149,6 +157,9 @@ func Load() (*Config, error) {
 			Bucket:         getEnv("MINIO_BUCKET", "sipon-public"),
 			PrivateBucket:  getEnv("MINIO_PRIVATE_BUCKET", "sipon-private"),
 			UseSSL:         getEnv("MINIO_USE_SSL", "false") == "true",
+		},
+		Fingerprint: FingerprintConfig{
+			SandboxEnabled: getEnv("FINGERPRINT_SANDBOX_ENABLED", "false") == "true",
 		},
 	}
 	return cfg, nil
