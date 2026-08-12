@@ -79,6 +79,7 @@ func (uc *GetMySummaryUseCase) Execute(ctx context.Context, userID string) (*dto
 			Status:         string(reg.Status),
 			RegistrationID: &regID,
 			RegisteredAt:   reg.RegisteredAt,
+			RevisionNotes:  reg.RevisionNotes,
 		}
 	}
 	return resp, nil

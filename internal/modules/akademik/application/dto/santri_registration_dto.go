@@ -23,6 +23,7 @@ type SantriRegistrationResponse struct {
 	AcademicPeriodID string     `json:"academic_period_id"`
 	PeriodName       string     `json:"period_name,omitempty"`
 	Status           string     `json:"status"`
+	RevisionNotes    *string    `json:"revision_notes,omitempty"`
 	RegisteredAt     *time.Time `json:"registered_at,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`

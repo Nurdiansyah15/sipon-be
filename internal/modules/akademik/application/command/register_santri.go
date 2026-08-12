@@ -75,6 +75,7 @@ func MapSantriRegistrationToResponse(r *entity.SantriRegistration) *dto.SantriRe
 		SantriID:         r.SantriID,
 		AcademicPeriodID: r.AcademicPeriodID,
 		Status:           string(r.Status),
+		RevisionNotes:    r.RevisionNotes,
 		RegisteredAt:     r.RegisteredAt,
 		CreatedAt:        r.CreatedAt,
 		UpdatedAt:        r.UpdatedAt,

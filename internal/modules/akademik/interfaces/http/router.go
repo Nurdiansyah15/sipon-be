@@ -19,6 +19,12 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 		akademik.GET("/my/kegiatan", h.MyActivities)
 		akademik.GET("/my/jadwal", h.MySchedules)
 		akademik.POST("/my/herregistrasi", h.ApplyHerregistrasi)
+		akademik.POST("/my/herregistrasi/submit", h.SubmitHerregistrasi)
+		akademik.GET("/my/herregistrasi", h.MyHerregistrasiDetail)
+		akademik.POST("/my/herregistrasi/dokumen/presign", h.PresignMyHerregistrasiDocument)
+		akademik.POST("/my/herregistrasi/dokumen/confirm", h.ConfirmMyHerregistrasiDocument)
+		akademik.DELETE("/my/herregistrasi/dokumen/:id", h.DeleteMyHerregistrasiDocument)
+		akademik.GET("/my/herregistrasi/dokumen/:id/download", h.DownloadMyHerregistrasiDocument)
 
 		// Settings
 		settings := akademik.Group("/settings")
@@ -48,6 +54,10 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			periods.PUT("/:id", h.UpdatePeriod)
 			periods.POST("/:id/open", h.OpenPeriod)
 			periods.POST("/:id/close", h.ClosePeriod)
+			periods.GET("/:id/dokumen-requirements", h.ListPeriodDocumentRequirements)
+			periods.POST("/:id/dokumen-requirements", h.CreatePeriodDocumentRequirement)
+			periods.PUT("/dokumen-requirements/:id", h.UpdatePeriodDocumentRequirement)
+			periods.DELETE("/dokumen-requirements/:id", h.DeletePeriodDocumentRequirement)
 		}
 
 		// Santri Registration
@@ -59,6 +69,10 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			registrations.POST("", h.RegisterSantri)
 			registrations.POST("/:id/complete", h.CompleteRegistration)
 			registrations.POST("/:id/cancel", h.CancelRegistration)
+			registrations.POST("/:id/revision", h.RequestRevision)
+			registrations.GET("/:id/dokumen", h.ListRegistrationDocuments)
+			registrations.POST("/:id/dokumen/:dokumenId/verify", h.VerifyRegistrationDocument)
+			registrations.POST("/:id/dokumen/:dokumenId/reject", h.RejectRegistrationDocument)
 		}
 
 		// Activity

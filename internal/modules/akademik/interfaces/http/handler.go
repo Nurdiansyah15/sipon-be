@@ -88,6 +88,22 @@ type AkademikHandler struct {
 	listMyActivitiesUC   *query.ListMyActivitiesUseCase
 	listMySchedulesUC    *query.ListMySchedulesUseCase
 	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase
+	submitHerregistrasiUC *command.SubmitHerregistrasiUseCase
+
+	// herregistrasi dokumen & revisi
+	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase
+	updateDocRequirementUC *command.UpdateHerregistrasiDocumentRequirementUseCase
+	deleteDocRequirementUC *command.DeleteHerregistrasiDocumentRequirementUseCase
+	listDocRequirementsUC  *query.ListHerregistrasiDocumentRequirementsUseCase
+	requestRevisionUC      *command.RequestRevisionUseCase
+	listRegistrationDocsUC *query.ListHerregistrasiDocumentsUseCase
+	verifyDocUC            *command.VerifyHerregistrasiDocumentUseCase
+	rejectDocUC            *command.RejectHerregistrasiDocumentUseCase
+	myHerregDetailUC       *query.GetMyHerregistrasiDetailUseCase
+	presignDocUC           *command.PresignHerregistrasiDocumentUseCase
+	confirmDocUC           *command.ConfirmHerregistrasiDocumentUseCase
+	deleteDocUC            *command.DeleteHerregistrasiDocumentUseCase
+	downloadDocUC          *query.DownloadHerregistrasiDocumentUseCase
 }
 
 func NewAkademikHandler(
@@ -140,6 +156,20 @@ func NewAkademikHandler(
 	listMyActivitiesUC *query.ListMyActivitiesUseCase,
 	listMySchedulesUC *query.ListMySchedulesUseCase,
 	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase,
+	submitHerregistrasiUC *command.SubmitHerregistrasiUseCase,
+	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase,
+	updateDocRequirementUC *command.UpdateHerregistrasiDocumentRequirementUseCase,
+	deleteDocRequirementUC *command.DeleteHerregistrasiDocumentRequirementUseCase,
+	listDocRequirementsUC *query.ListHerregistrasiDocumentRequirementsUseCase,
+	requestRevisionUC *command.RequestRevisionUseCase,
+	listRegistrationDocsUC *query.ListHerregistrasiDocumentsUseCase,
+	verifyDocUC *command.VerifyHerregistrasiDocumentUseCase,
+	rejectDocUC *command.RejectHerregistrasiDocumentUseCase,
+	myHerregDetailUC *query.GetMyHerregistrasiDetailUseCase,
+	presignDocUC *command.PresignHerregistrasiDocumentUseCase,
+	confirmDocUC *command.ConfirmHerregistrasiDocumentUseCase,
+	deleteDocUC *command.DeleteHerregistrasiDocumentUseCase,
+	downloadDocUC *query.DownloadHerregistrasiDocumentUseCase,
 ) *AkademikHandler {
 	return &AkademikHandler{
 		createProgramUC:        createProgramUC,
@@ -191,6 +221,20 @@ func NewAkademikHandler(
 		listMyActivitiesUC:     listMyActivitiesUC,
 		listMySchedulesUC:      listMySchedulesUC,
 		applyHerregistrasiUC:   applyHerregistrasiUC,
+		submitHerregistrasiUC:  submitHerregistrasiUC,
+		createDocRequirementUC: createDocRequirementUC,
+		updateDocRequirementUC: updateDocRequirementUC,
+		deleteDocRequirementUC: deleteDocRequirementUC,
+		listDocRequirementsUC:  listDocRequirementsUC,
+		requestRevisionUC:      requestRevisionUC,
+		listRegistrationDocsUC: listRegistrationDocsUC,
+		verifyDocUC:            verifyDocUC,
+		rejectDocUC:            rejectDocUC,
+		myHerregDetailUC:       myHerregDetailUC,
+		presignDocUC:           presignDocUC,
+		confirmDocUC:           confirmDocUC,
+		deleteDocUC:            deleteDocUC,
+		downloadDocUC:          downloadDocUC,
 	}
 }
 
@@ -823,5 +867,172 @@ func (h *AkademikHandler) ApplyHerregistrasi(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	respond.Created(c, "herregistrasi berhasil diajukan", resp)
+	respond.Created(c, "herregistrasi berhasil dibuat", resp)
+}
+
+func (h *AkademikHandler) SubmitHerregistrasi(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.submitHerregistrasiUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "herregistrasi berhasil diajukan", resp)
+}
+
+// --- Blueprint Dokumen Herregistrasi (admin) ---
+
+func (h *AkademikHandler) ListPeriodDocumentRequirements(c *gin.Context) {
+	items, err := h.listDocRequirementsUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar dokumen herregistrasi berhasil diambil", items)
+}
+
+func (h *AkademikHandler) CreatePeriodDocumentRequirement(c *gin.Context) {
+	var req dto.CreateHerregistrasiDocumentRequirementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.createDocRequirementUC.Execute(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "dokumen herregistrasi berhasil ditambahkan", resp)
+}
+
+func (h *AkademikHandler) UpdatePeriodDocumentRequirement(c *gin.Context) {
+	var req dto.UpdateHerregistrasiDocumentRequirementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.updateDocRequirementUC.Execute(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "dokumen herregistrasi berhasil diperbarui", resp)
+}
+
+func (h *AkademikHandler) DeletePeriodDocumentRequirement(c *gin.Context) {
+	if err := h.deleteDocRequirementUC.Execute(c.Request.Context(), c.Param("id")); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "dokumen herregistrasi berhasil dihapus", nil)
+}
+
+// --- Review Herregistrasi & Dokumen (admin) ---
+
+func (h *AkademikHandler) RequestRevision(c *gin.Context) {
+	var req dto.RevisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.requestRevisionUC.Execute(c.Request.Context(), c.Param("id"), req.Notes)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "revisi herregistrasi diminta", resp)
+}
+
+func (h *AkademikHandler) ListRegistrationDocuments(c *gin.Context) {
+	items, err := h.listRegistrationDocsUC.Execute(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar dokumen herregistrasi berhasil diambil", items)
+}
+
+func (h *AkademikHandler) VerifyRegistrationDocument(c *gin.Context) {
+	verifierID := middleware.GetUserID(c)
+	resp, err := h.verifyDocUC.Execute(c.Request.Context(), verifierID, c.Param("dokumenId"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "dokumen herregistrasi berhasil diverifikasi", resp)
+}
+
+func (h *AkademikHandler) RejectRegistrationDocument(c *gin.Context) {
+	var req dto.DokumenRejectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	verifierID := middleware.GetUserID(c)
+	resp, err := h.rejectDocUC.Execute(c.Request.Context(), verifierID, c.Param("dokumenId"), req.Notes)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "dokumen herregistrasi ditolak", resp)
+}
+
+// --- Santri: Herregistrasi Detail & Dokumen ---
+
+func (h *AkademikHandler) MyHerregistrasiDetail(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.myHerregDetailUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail herregistrasi berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) PresignMyHerregistrasiDocument(c *gin.Context) {
+	var req dto.HerregistrasiDocumentPresignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.presignDocUC.Execute(c.Request.Context(), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "presign URL berhasil dibuat", resp)
+}
+
+func (h *AkademikHandler) ConfirmMyHerregistrasiDocument(c *gin.Context) {
+	var req dto.HerregistrasiDocumentConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	userID := middleware.GetUserID(c)
+	resp, err := h.confirmDocUC.Execute(c.Request.Context(), userID, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "dokumen herregistrasi berhasil di-upload", resp)
+}
+
+func (h *AkademikHandler) DeleteMyHerregistrasiDocument(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if err := h.deleteDocUC.Execute(c.Request.Context(), userID, c.Param("id")); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "dokumen herregistrasi berhasil dihapus", nil)
+}
+
+func (h *AkademikHandler) DownloadMyHerregistrasiDocument(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.downloadDocUC.Execute(c.Request.Context(), userID, c.Param("id"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "URL download berhasil dibuat", resp)
 }

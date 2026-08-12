@@ -63,7 +63,7 @@ func (uc *ApplyHerregistrasiUseCase) Execute(ctx context.Context, userID string)
 		return nil, kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 
-	registration, err := regEntity.NewSantriRegistration(uuid.NewString(), info.SantriID, period.ID)
+	registration, err := regEntity.NewDraftSantriRegistration(uuid.NewString(), info.SantriID, period.ID)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}

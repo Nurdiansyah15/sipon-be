@@ -14,7 +14,7 @@ import (
 )
 
 const santriRegistrationColumns = `
-	id, santri_id, academic_period_id, status, registered_at, created_at, updated_at, deleted_at
+	id, santri_id, academic_period_id, status, registered_at, revision_notes, created_at, updated_at, deleted_at
 `
 
 type PostgresSantriRegistrationRepository struct {
@@ -28,9 +28,9 @@ func NewPostgresSantriRegistrationRepository(db *sql.DB) *PostgresSantriRegistra
 func (r *PostgresSantriRegistrationRepository) Save(ctx context.Context, reg *entity.SantriRegistration) error {
 	execer := execerFromContext(ctx, r.db)
 	_, err := execer.ExecContext(ctx,
-		`INSERT INTO santri_registrations (`+santriRegistrationColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		`INSERT INTO santri_registrations (`+santriRegistrationColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
 		reg.ID, reg.SantriID, reg.AcademicPeriodID, string(reg.Status), nullTimeVal(reg.RegisteredAt),
-		reg.CreatedAt, reg.UpdatedAt, nullTimeVal(reg.DeletedAt),
+		nullStr(reg.RevisionNotes), reg.CreatedAt, reg.UpdatedAt, nullTimeVal(reg.DeletedAt),
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -44,8 +44,8 @@ func (r *PostgresSantriRegistrationRepository) Save(ctx context.Context, reg *en
 func (r *PostgresSantriRegistrationRepository) Update(ctx context.Context, reg *entity.SantriRegistration) error {
 	execer := execerFromContext(ctx, r.db)
 	res, err := execer.ExecContext(ctx,
-		`UPDATE santri_registrations SET status=$1, registered_at=$2, updated_at=$3, deleted_at=$4 WHERE id=$5 AND deleted_at IS NULL`,
-		string(reg.Status), nullTimeVal(reg.RegisteredAt), reg.UpdatedAt, nullTimeVal(reg.DeletedAt), reg.ID,
+		`UPDATE santri_registrations SET status=$1, registered_at=$2, revision_notes=$3, updated_at=$4, deleted_at=$5 WHERE id=$6 AND deleted_at IS NULL`,
+		string(reg.Status), nullTimeVal(reg.RegisteredAt), nullStr(reg.RevisionNotes), reg.UpdatedAt, nullTimeVal(reg.DeletedAt), reg.ID,
 	)
 	if err != nil {
 		return kernel.Wrap(constant.CodeSantriRegistrationPersistenceFailed, fmt.Errorf("update santri registration: %w", err))
@@ -151,10 +151,11 @@ func scanSantriRegistration(sc scanner) (*entity.SantriRegistration, error) {
 	var (
 		id, santriID, academicPeriodID, status string
 		registeredAt                           sql.NullTime
+		revisionNotes                          sql.NullString
 		createdAt, updatedAt                   time.Time
 		deletedAt                              sql.NullTime
 	)
-	err := sc.Scan(&id, &santriID, &academicPeriodID, &status, &registeredAt, &createdAt, &updatedAt, &deletedAt)
+	err := sc.Scan(&id, &santriID, &academicPeriodID, &status, &registeredAt, &revisionNotes, &createdAt, &updatedAt, &deletedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, kernel.New(constant.CodeSantriRegistrationNotFound)
@@ -167,6 +168,7 @@ func scanSantriRegistration(sc scanner) (*entity.SantriRegistration, error) {
 		AcademicPeriodID: academicPeriodID,
 		Status:           constant.SantriRegistrationStatus(status),
 		RegisteredAt:     timeFromNull(registeredAt),
+		RevisionNotes:    strFromNull(revisionNotes),
 		CreatedAt:        createdAt,
 		UpdatedAt:        updatedAt,
 		DeletedAt:        timeFromNull(deletedAt),

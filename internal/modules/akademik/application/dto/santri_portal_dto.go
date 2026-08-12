@@ -9,6 +9,7 @@ type HerregistrasiStatus struct {
 	Status         string     `json:"status"`
 	RegistrationID *string    `json:"registration_id,omitempty"`
 	RegisteredAt   *time.Time `json:"registered_at,omitempty"`
+	RevisionNotes  *string    `json:"revision_notes,omitempty"`
 }
 
 type MySummaryResponse struct {

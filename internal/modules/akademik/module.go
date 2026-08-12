@@ -9,6 +9,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/query"
+	"sipon-be/internal/modules/akademik/infrastructure/external"
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
 	"sipon-be/internal/modules/akademik/infrastructure/persistence"
 	akademikHTTP "sipon-be/internal/modules/akademik/interfaces/http"
@@ -44,10 +45,22 @@ func NewModule(
 	attendanceRepo := persistence.NewPostgresAttendanceRepository(db)
 	settingRepo := persistence.NewPostgresAkademikSettingRepository(db)
 	santriProgramRepo := persistence.NewPostgresSantriProgramRepository(db)
+	docRequirementRepo := persistence.NewPostgresHerregistrasiDocumentRequirementRepository(db)
+	docRepo := persistence.NewPostgresHerregistrasiDocumentRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
 	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
+
+	fileUploader, _ := external.NewMinioFileUploader(
+		cfg.Minio.Endpoint,
+		cfg.Minio.PublicEndpoint,
+		cfg.Minio.AccessKey,
+		cfg.Minio.SecretKey,
+		cfg.Minio.Bucket,
+		cfg.Minio.PrivateBucket,
+		cfg.Minio.UseSSL,
+	)
 
 	// program
 	createProgramUC := command.NewCreateProgramUseCase(programRepo)
@@ -65,10 +78,25 @@ func NewModule(
 
 	// santri registration
 	registerSantriUC := command.NewRegisterSantriUseCase(registrationRepo, periodRepo, kesantrianGW)
-	completeRegistrationUC := command.NewCompleteRegistrationUseCase(registrationRepo)
+	completeRegistrationUC := command.NewCompleteRegistrationUseCase(registrationRepo, docRequirementRepo, docRepo)
 	cancelRegistrationUC := command.NewCancelRegistrationUseCase(registrationRepo)
 	listRegistrationsUC := query.NewListSantriRegistrationsUseCase(registrationRepo, periodRepo, kesantrianGW)
 	getRegistrationUC := query.NewGetSantriRegistrationUseCase(registrationRepo, periodRepo)
+
+	// herregistrasi dokumen & revisi
+	createDocRequirementUC := command.NewCreateHerregistrasiDocumentRequirementUseCase(docRequirementRepo, periodRepo)
+	updateDocRequirementUC := command.NewUpdateHerregistrasiDocumentRequirementUseCase(docRequirementRepo)
+	deleteDocRequirementUC := command.NewDeleteHerregistrasiDocumentRequirementUseCase(docRequirementRepo)
+	listDocRequirementsUC := query.NewListHerregistrasiDocumentRequirementsUseCase(docRequirementRepo)
+	requestRevisionUC := command.NewRequestRevisionUseCase(registrationRepo)
+	listRegistrationDocsUC := query.NewListHerregistrasiDocumentsUseCase(registrationRepo, docRequirementRepo, docRepo)
+	verifyDocUC := command.NewVerifyHerregistrasiDocumentUseCase(docRepo)
+	rejectDocUC := command.NewRejectHerregistrasiDocumentUseCase(docRepo)
+	myHerregDetailUC := query.NewGetMyHerregistrasiDetailUseCase(kesantrianGW, periodRepo, registrationRepo, docRequirementRepo, docRepo)
+	presignDocUC := command.NewPresignHerregistrasiDocumentUseCase(fileUploader)
+	confirmDocUC := command.NewConfirmHerregistrasiDocumentUseCase(kesantrianGW, periodRepo, registrationRepo, docRequirementRepo, docRepo, fileUploader)
+	deleteDocUC := command.NewDeleteHerregistrasiDocumentUseCase(kesantrianGW, registrationRepo, docRepo, fileUploader)
+	downloadDocUC := query.NewDownloadHerregistrasiDocumentUseCase(kesantrianGW, registrationRepo, docRepo, fileUploader)
 
 	// activity
 	createActivityUC := command.NewCreateActivityUseCase(activityRepo)
@@ -123,6 +151,7 @@ func NewModule(
 	listMyActivitiesUC := query.NewListMyActivitiesUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo)
 	listMySchedulesUC := query.NewListMySchedulesUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo)
 	applyHerregistrasiUC := command.NewApplyHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, santriProgramRepo)
+	submitHerregistrasiUC := command.NewSubmitHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, docRequirementRepo, docRepo)
 
 	handler := akademikHTTP.NewAkademikHandler(
 		createProgramUC, updateProgramUC, listProgramsUC, getProgramUC,
@@ -136,6 +165,10 @@ func NewModule(
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC, listEligibleSantriUC,
 		updateSettingUC, getSettingUC,
 		getMySummaryUC, getMyProgramUC, listMyActivitiesUC, listMySchedulesUC, applyHerregistrasiUC,
+		submitHerregistrasiUC,
+		createDocRequirementUC, updateDocRequirementUC, deleteDocRequirementUC, listDocRequirementsUC,
+		requestRevisionUC, listRegistrationDocsUC, verifyDocUC, rejectDocUC,
+		myHerregDetailUC, presignDocUC, confirmDocUC, deleteDocUC, downloadDocUC,
 	)
 
 	return &Module{

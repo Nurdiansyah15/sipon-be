@@ -40,6 +40,21 @@ func strFromNull(ns sql.NullString) *string {
 	return &v
 }
 
+func nullInt64(i *int64) interface{} {
+	if i == nil {
+		return nil
+	}
+	return *i
+}
+
+func int64FromNull(ni sql.NullInt64) *int64 {
+	if !ni.Valid {
+		return nil
+	}
+	v := ni.Int64
+	return &v
+}
+
 func timeFromNull(nt sql.NullTime) *time.Time {
 	if !nt.Valid {
 		return nil
