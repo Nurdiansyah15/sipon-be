@@ -83,12 +83,18 @@ type AkademikHandler struct {
 	getSettingUC    *query.GetAkademikSettingUseCase
 
 	// santri portal (non-admin)
-	getMySummaryUC       *query.GetMySummaryUseCase
-	getMyProgramUC       *query.GetMyProgramUseCase
-	listMyActivitiesUC   *query.ListMyActivitiesUseCase
-	listMySchedulesUC    *query.ListMySchedulesUseCase
-	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase
+	getMySummaryUC        *query.GetMySummaryUseCase
+	getMyProgramUC        *query.GetMyProgramUseCase
+	listMyActivitiesUC    *query.ListMyActivitiesUseCase
+	listMySchedulesUC     *query.ListMySchedulesUseCase
+	applyHerregistrasiUC  *command.ApplyHerregistrasiUseCase
 	submitHerregistrasiUC *command.SubmitHerregistrasiUseCase
+	myAttendanceUC        *query.GetMyAttendanceUseCase
+
+	// presensi (check-in via NIS, tanpa JWT)
+	presensiInfoUC *query.GetPresensiSessionInfoUseCase
+	presensiListUC *query.ListPresensiAttendanceUseCase
+	checkinUC      *command.CheckinByNISUseCase
 
 	// herregistrasi dokumen & revisi
 	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase
@@ -157,6 +163,10 @@ func NewAkademikHandler(
 	listMySchedulesUC *query.ListMySchedulesUseCase,
 	applyHerregistrasiUC *command.ApplyHerregistrasiUseCase,
 	submitHerregistrasiUC *command.SubmitHerregistrasiUseCase,
+	myAttendanceUC *query.GetMyAttendanceUseCase,
+	presensiInfoUC *query.GetPresensiSessionInfoUseCase,
+	presensiListUC *query.ListPresensiAttendanceUseCase,
+	checkinUC *command.CheckinByNISUseCase,
 	createDocRequirementUC *command.CreateHerregistrasiDocumentRequirementUseCase,
 	updateDocRequirementUC *command.UpdateHerregistrasiDocumentRequirementUseCase,
 	deleteDocRequirementUC *command.DeleteHerregistrasiDocumentRequirementUseCase,
@@ -222,6 +232,10 @@ func NewAkademikHandler(
 		listMySchedulesUC:      listMySchedulesUC,
 		applyHerregistrasiUC:   applyHerregistrasiUC,
 		submitHerregistrasiUC:  submitHerregistrasiUC,
+		myAttendanceUC:         myAttendanceUC,
+		presensiInfoUC:         presensiInfoUC,
+		presensiListUC:         presensiListUC,
+		checkinUC:              checkinUC,
 		createDocRequirementUC: createDocRequirementUC,
 		updateDocRequirementUC: updateDocRequirementUC,
 		deleteDocRequirementUC: deleteDocRequirementUC,
@@ -1035,4 +1049,69 @@ func (h *AkademikHandler) DownloadMyHerregistrasiDocument(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "URL download berhasil dibuat", resp)
+}
+
+// --- Santri: Riwayat Absensi ---
+
+func (h *AkademikHandler) MyAttendance(c *gin.Context) {
+	var q dto.MyAttendanceListQuery
+	if err := c.ShouldBindQuery(&q); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	userID := middleware.GetUserID(c)
+	resp, err := h.myAttendanceUC.Execute(c.Request.Context(), userID, q)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "riwayat absensi berhasil diambil", resp)
+}
+
+// MyAttendancePeriods returns the academic periods available for the santri's
+// attendance history filter.
+func (h *AkademikHandler) MyAttendancePeriods(c *gin.Context) {
+	items, _, err := h.listPeriodsUC.Execute(c.Request.Context(), dto.AcademicPeriodListQuery{
+		Page:  1,
+		Limit: 100,
+	})
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar periode akademik berhasil diambil", items)
+}
+
+// --- Presensi (tanpa JWT) ---
+
+func (h *AkademikHandler) PresensiSessionInfo(c *gin.Context) {
+	resp, err := h.presensiInfoUC.Execute(c.Request.Context(), c.Param("sessionId"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "info presensi berhasil diambil", resp)
+}
+
+func (h *AkademikHandler) Checkin(c *gin.Context) {
+	var req dto.CheckinRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.checkinUC.Execute(c.Request.Context(), c.Param("sessionId"), req.NIS)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "kehadiran tercatat", resp)
+}
+
+func (h *AkademikHandler) ListPresensiAttendance(c *gin.Context) {
+	items, err := h.presensiListUC.Execute(c.Request.Context(), c.Param("sessionId"))
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "daftar kehadiran berhasil diambil", items)
 }

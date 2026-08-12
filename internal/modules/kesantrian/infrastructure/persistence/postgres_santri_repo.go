@@ -431,6 +431,27 @@ func (r *PostgresSantriRepository) FindBasicByID(ctx context.Context, santriID s
 	return &info, nil
 }
 
+func (r *PostgresSantriRepository) FindBasicByNIS(ctx context.Context, nis string) (*repository.SantriBasicInfo, error) {
+	execer := execerFromContext(ctx, r.db)
+	var info repository.SantriBasicInfo
+	var nisVal sql.NullString
+
+	row := execer.QueryRowContext(ctx,
+		`SELECT id, user_id, nis, status FROM santri WHERE nis=$1 AND deleted_at IS NULL`,
+		nis,
+	)
+	if err := row.Scan(&info.SantriID, &info.UserID, &nisVal, &info.Status); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, kernel.New(constant.CodeSantriNotFound)
+		}
+		return nil, kernel.Wrap(constant.CodeSantriQueryFailed, fmt.Errorf("find basic by nis: %w", err))
+	}
+	if nisVal.Valid {
+		info.NIS = &nisVal.String
+	}
+	return &info, nil
+}
+
 func (r *PostgresSantriRepository) ListActiveWithUserID(ctx context.Context) ([]repository.SantriBasicInfo, error) {
 	execer := execerFromContext(ctx, r.db)
 	rows, err := execer.QueryContext(ctx,

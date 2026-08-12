@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"sipon-be/internal/modules/akademik/domain/activity_session/constant"
@@ -57,6 +58,36 @@ func (r *PostgresActivitySessionRepository) FindByID(ctx context.Context, id str
 	execer := execerFromContext(ctx, r.db)
 	row := execer.QueryRowContext(ctx, `SELECT `+activitySessionColumns+` FROM activity_sessions WHERE id=$1 AND deleted_at IS NULL`, id)
 	return scanActivitySession(row)
+}
+
+func (r *PostgresActivitySessionRepository) ListByScheduleIDs(ctx context.Context, scheduleIDs []string) ([]*entity.ActivitySession, error) {
+	if len(scheduleIDs) == 0 {
+		return nil, nil
+	}
+	execer := execerFromContext(ctx, r.db)
+	placeholders := make([]string, len(scheduleIDs))
+	args := make([]interface{}, len(scheduleIDs))
+	for i, id := range scheduleIDs {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+	rows, err := execer.QueryContext(ctx,
+		`SELECT `+activitySessionColumns+` FROM activity_sessions WHERE deleted_at IS NULL AND activity_schedule_id IN (`+strings.Join(placeholders, ",")+`)`,
+		args...)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeActivitySessionQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*entity.ActivitySession, 0)
+	for rows.Next() {
+		s, err := scanActivitySession(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, s)
+	}
+	return items, rows.Err()
 }
 
 func (r *PostgresActivitySessionRepository) List(ctx context.Context, q repository.ActivitySessionListQuery) (*repository.ActivitySessionListResult, error) {

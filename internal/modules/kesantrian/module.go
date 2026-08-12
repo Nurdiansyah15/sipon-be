@@ -35,6 +35,7 @@ type Module struct {
 	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
 	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
 	getSantriByIDUC                    *query.GetSantriByIDUseCase
+	getSantriByNISUC                   *query.GetSantriByNISUseCase
 	listActiveSantriWithUserIDUC       *query.ListActiveSantriWithUserIDUseCase
 	fileUploader                       ports.FileUploader
 	provisioner                        ports.AccountProvisioner
@@ -99,6 +100,7 @@ func NewModule(
 	listActiveSantriIDsUC := query.NewListActiveSantriIDsUseCase(santriRepo)
 	getSantriByUserIDUC := query.NewGetSantriByUserIDUseCase(santriRepo)
 	getSantriByIDUC := query.NewGetSantriByIDUseCase(santriRepo)
+	getSantriByNISUC := query.NewGetSantriByNISUseCase(santriRepo)
 	listActiveSantriWithUserIDUC := query.NewListActiveSantriWithUserIDUseCase(santriRepo)
 
 	tipeSuratRepo := persistence.NewPostgresTipeSuratRepository(db)
@@ -149,7 +151,7 @@ func NewModule(
 		changeSantriStatusUC,
 	)
 
-	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, createSantriUC: createSantriUC, approveSantriRequestUC: approveSantriRequestUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, provisioner: provisioner, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{handler: handler, persuratanHandler: persuratanHandler, createSantriFromPendaftaranUC: createSantriFromPendaftaranUC, createSantriUC: createSantriUC, approveSantriRequestUC: approveSantriRequestUC, listActiveSantriIDsUC: listActiveSantriIDsUC, getSantriByUserIDUC: getSantriByUserIDUC, getSantriByIDUC: getSantriByIDUC, getSantriByNISUC: getSantriByNISUC, listActiveSantriWithUserIDUC: listActiveSantriWithUserIDUC, fileUploader: fileUploader, provisioner: provisioner, jwtAuth: jwtAuth, principalLoad: principalLoad}
 }
 
 // SetAkademikProvisioner late-binds the akademik port. Called in
@@ -274,6 +276,19 @@ func (m *Module) GetSantriByUserID(ctx context.Context, userID string) (*SantriB
 
 func (m *Module) GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error) {
 	result, err := m.getSantriByIDUC.Execute(ctx, santriID)
+	if err != nil {
+		return nil, err
+	}
+	return m.enrichBasicInfo(ctx, &SantriBasicInfo{
+		SantriID: result.SantriID,
+		UserID:   result.UserID,
+		NIS:      result.NIS,
+		Status:   result.Status,
+	}), nil
+}
+
+func (m *Module) GetSantriByNIS(ctx context.Context, nis string) (*SantriBasicInfo, error) {
+	result, err := m.getSantriByNISUC.Execute(ctx, nis)
 	if err != nil {
 		return nil, err
 	}

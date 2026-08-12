@@ -31,6 +31,14 @@ func (g *Gateway) GetSantriByUserID(ctx context.Context, userID string) (*ports.
 	return ports.FromKesantrian(info), nil
 }
 
+func (g *Gateway) GetSantriByNIS(ctx context.Context, nis string) (*ports.SantriBasicInfo, error) {
+	info, err := g.contract.GetSantriByNIS(ctx, nis)
+	if err != nil {
+		return nil, err
+	}
+	return ports.FromKesantrian(info), nil
+}
+
 func (g *Gateway) ListActiveSantriWithUserID(ctx context.Context) ([]ports.SantriBasicInfo, error) {
 	results, err := g.contract.ListActiveSantriWithUserID(ctx)
 	if err != nil {

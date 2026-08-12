@@ -153,6 +153,12 @@ func NewModule(
 	applyHerregistrasiUC := command.NewApplyHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, santriProgramRepo)
 	submitHerregistrasiUC := command.NewSubmitHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, docRequirementRepo, docRepo)
 
+	// presensi & riwayat absensi
+	checkinUC := command.NewCheckinByNISUseCase(sessionRepo, kesantrianGW, periodResolver, registrationRepo, attendanceRepo)
+	presensiInfoUC := query.NewGetPresensiSessionInfoUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, periodRepo, registrationRepo, attendanceRepo)
+	presensiListUC := query.NewListPresensiAttendanceUseCase(attendanceRepo, kesantrianGW)
+	myAttendanceUC := query.NewGetMyAttendanceUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo, sessionRepo, attendanceRepo)
+
 	handler := akademikHTTP.NewAkademikHandler(
 		createProgramUC, updateProgramUC, listProgramsUC, getProgramUC,
 		createPeriodUC, updatePeriodUC, openPeriodUC, closePeriodUC, listPeriodsUC, getPeriodUC,
@@ -165,7 +171,8 @@ func NewModule(
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC, listEligibleSantriUC,
 		updateSettingUC, getSettingUC,
 		getMySummaryUC, getMyProgramUC, listMyActivitiesUC, listMySchedulesUC, applyHerregistrasiUC,
-		submitHerregistrasiUC,
+		submitHerregistrasiUC, myAttendanceUC,
+		presensiInfoUC, presensiListUC, checkinUC,
 		createDocRequirementUC, updateDocRequirementUC, deleteDocRequirementUC, listDocRequirementsUC,
 		requestRevisionUC, listRegistrationDocsUC, verifyDocUC, rejectDocUC,
 		myHerregDetailUC, presignDocUC, confirmDocUC, deleteDocUC, downloadDocUC,

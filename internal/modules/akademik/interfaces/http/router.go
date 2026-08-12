@@ -7,6 +7,14 @@ import (
 )
 
 func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, principalLoad gin.HandlerFunc) {
+	// Presensi — tanpa JWT (check-in santri via NIS dari halaman presensi).
+	presensi := router.Group("/api/v1/web/akademik/presensi")
+	{
+		presensi.GET("/:sessionId", h.PresensiSessionInfo)
+		presensi.POST("/:sessionId/checkin", h.Checkin)
+		presensi.GET("/:sessionId/attendance", h.ListPresensiAttendance)
+	}
+
 	akademik := router.Group("/api/v1/web/akademik")
 	akademik.Use(jwtAuth, principalLoad)
 	{
@@ -18,6 +26,8 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 		akademik.GET("/my/program", h.MyProgram)
 		akademik.GET("/my/kegiatan", h.MyActivities)
 		akademik.GET("/my/jadwal", h.MySchedules)
+		akademik.GET("/my/absensi", h.MyAttendance)
+		akademik.GET("/my/absensi/periods", h.MyAttendancePeriods)
 		akademik.POST("/my/herregistrasi", h.ApplyHerregistrasi)
 		akademik.POST("/my/herregistrasi/submit", h.SubmitHerregistrasi)
 		akademik.GET("/my/herregistrasi", h.MyHerregistrasiDetail)

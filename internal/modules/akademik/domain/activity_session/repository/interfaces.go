@@ -25,5 +25,7 @@ type ActivitySessionRepository interface {
 	Save(ctx context.Context, session *entity.ActivitySession) error
 	Update(ctx context.Context, session *entity.ActivitySession) error
 	FindByID(ctx context.Context, id string) (*entity.ActivitySession, error)
+	// ListByScheduleIDs returns sessions belonging to the given schedule ids.
+	ListByScheduleIDs(ctx context.Context, scheduleIDs []string) ([]*entity.ActivitySession, error)
 	List(ctx context.Context, query ActivitySessionListQuery) (*ActivitySessionListResult, error)
 }

@@ -9,6 +9,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/domain/attendance/constant"
 	"sipon-be/internal/modules/akademik/domain/attendance/entity"
+	"sipon-be/internal/modules/akademik/domain/attendance/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -88,6 +89,77 @@ func (r *PostgresAttendanceRepository) ListBySession(ctx context.Context, sessio
 		items = append(items, a)
 	}
 	return items, rows.Err()
+}
+
+func (r *PostgresAttendanceRepository) ListBySantriAndPeriod(ctx context.Context, santriID, academicPeriodID string) ([]*repository.AttendanceWithSession, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT a.id, a.activity_session_id, a.santri_id, a.status, a.recorded_at, a.created_at, a.updated_at, a.deleted_at,
+		        s.id, s.starts_at, s.ends_at,
+		        act.name, act.code,
+		        sch.type
+		 FROM attendances a
+		 JOIN activity_sessions s ON s.id = a.activity_session_id
+		 JOIN activity_schedules sch ON sch.id = s.activity_schedule_id
+		 JOIN activity_periods ap ON ap.id = sch.activity_period_id
+		 JOIN activities act ON act.id = ap.activity_id
+		 WHERE a.santri_id = $1
+		   AND ap.academic_period_id = $2
+		   AND a.deleted_at IS NULL
+		   AND s.deleted_at IS NULL
+		 ORDER BY s.starts_at DESC`,
+		santriID, academicPeriodID)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeAttendanceQueryFailed, err)
+	}
+	defer rows.Close()
+
+	items := make([]*repository.AttendanceWithSession, 0)
+	for rows.Next() {
+		item, err := scanAttendanceWithSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func scanAttendanceWithSession(sc scanner) (*repository.AttendanceWithSession, error) {
+	var (
+		id, sessionID, santriID, status   string
+		recordedAt, createdAt, updatedAt  time.Time
+		deletedAt                         sql.NullTime
+		sID, activityName, activityCode   string
+		scType                            string
+		startsAt, endsAt                  time.Time
+	)
+	err := sc.Scan(&id, &sessionID, &santriID, &status, &recordedAt, &createdAt, &updatedAt, &deletedAt,
+		&sID, &startsAt, &endsAt, &activityName, &activityCode, &scType)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, kernel.New(constant.CodeAttendanceNotFound)
+		}
+		return nil, kernel.Wrap(constant.CodeAttendanceQueryFailed, fmt.Errorf("scan attendance with session: %w", err))
+	}
+	return &repository.AttendanceWithSession{
+		Attendance: entity.Attendance{
+			ID:                id,
+			ActivitySessionID: sessionID,
+			SantriID:          santriID,
+			Status:            constant.AttendanceStatus(status),
+			RecordedAt:        recordedAt,
+			CreatedAt:         createdAt,
+			UpdatedAt:         updatedAt,
+			DeletedAt:         timeFromNull(deletedAt),
+		},
+		SessionID:       sID,
+		SessionStartsAt: startsAt,
+		SessionEndsAt:   endsAt,
+		ActivityName:    activityName,
+		ActivityCode:    activityCode,
+		ScheduleType:    scType,
+	}, nil
 }
 
 func scanAttendance(sc scanner) (*entity.Attendance, error) {

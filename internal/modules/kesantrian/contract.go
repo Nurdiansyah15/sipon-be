@@ -100,6 +100,7 @@ type Contract interface {
 	ListActiveSantriIDs(ctx context.Context) ([]string, error)
 	GetSantriByUserID(ctx context.Context, userID string) (*SantriBasicInfo, error)
 	GetSantriByID(ctx context.Context, santriID string) (*SantriBasicInfo, error)
+	GetSantriByNIS(ctx context.Context, nis string) (*SantriBasicInfo, error)
 	ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicInfo, error)
 }
 

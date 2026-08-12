@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"time"
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
@@ -23,6 +24,17 @@ func (uc *OpenSessionUseCase) Execute(ctx context.Context, id string) (*dto.Acti
 	if err != nil {
 		return nil, application.WrapRepoErr(err, constant.CodeActivitySessionNotFound)
 	}
+
+	// Validasi jendela waktu: hanya bisa dibuka saat sesi berlangsung
+	// (antara starts_at dan ends_at).
+	now := time.Now()
+	if now.Before(session.StartsAt) {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "sesi belum waktunya dibuka (sebelum waktu mulai)", nil)
+	}
+	if now.After(session.EndsAt) {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "sesi sudah lewat waktunya (setelah waktu selesai)", nil)
+	}
+
 	if err := session.Open(); err != nil {
 		return nil, application.WrapBadRequestErr(err, constant.CodeActivitySessionInvalidStatus)
 	}

@@ -1,0 +1,107 @@
+package command
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/google/uuid"
+
+	"sipon-be/internal/modules/akademik/application"
+	"sipon-be/internal/modules/akademik/application/dto"
+	"sipon-be/internal/modules/akademik/application/ports"
+	sesConst "sipon-be/internal/modules/akademik/domain/activity_session/constant"
+	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
+	attConst "sipon-be/internal/modules/akademik/domain/attendance/constant"
+	attEntity "sipon-be/internal/modules/akademik/domain/attendance/entity"
+	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
+	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
+	"sipon-be/internal/shared/kernel"
+)
+
+// CheckinByNISUseCase mencatat kehadiran santri via NIS dari halaman presensi.
+type CheckinByNISUseCase struct {
+	sessionRepo      sesRepo.ActivitySessionRepository
+	kesantrianReader ports.KesantrianReader
+	periodResolver   *application.SessionPeriodResolver
+	registrationRepo regRepo.SantriRegistrationRepository
+	attendanceRepo   attRepo.AttendanceRepository
+}
+
+func NewCheckinByNISUseCase(
+	sessionRepo sesRepo.ActivitySessionRepository,
+	kesantrianReader ports.KesantrianReader,
+	periodResolver *application.SessionPeriodResolver,
+	registrationRepo regRepo.SantriRegistrationRepository,
+	attendanceRepo attRepo.AttendanceRepository,
+) *CheckinByNISUseCase {
+	return &CheckinByNISUseCase{
+		sessionRepo:      sessionRepo,
+		kesantrianReader: kesantrianReader,
+		periodResolver:   periodResolver,
+		registrationRepo: registrationRepo,
+		attendanceRepo:   attendanceRepo,
+	}
+}
+
+func (uc *CheckinByNISUseCase) Execute(ctx context.Context, sessionID, nis string) (*dto.CheckinResponse, error) {
+	session, err := uc.sessionRepo.FindByID(ctx, sessionID)
+	if err != nil {
+		return nil, application.WrapRepoErr(err, sesConst.CodeActivitySessionNotFound)
+	}
+	if session.Status != "open" {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "sesi tidak terbuka untuk presensi", nil)
+	}
+
+	info, err := uc.kesantrianReader.GetSantriByNIS(ctx, nis)
+	if err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeNotFound, "NIS tidak ditemukan", nil)
+	}
+	if info == nil || info.Status != "SANTRI" {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri tidak aktif", nil)
+	}
+
+	academicPeriodID, err := uc.periodResolver.Resolve(ctx, sessionID)
+	if err != nil {
+		slog.Warn("akademik: resolve session academic period failed", "session_id", sessionID, "error", err)
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "periode akademik sesi tidak ditemukan", nil)
+	}
+
+	if err := uc.ensureHerreg(ctx, info.SantriID, academicPeriodID); err != nil {
+		return nil, err
+	}
+
+	existing, _ := uc.attendanceRepo.FindBySessionAndSantri(ctx, sessionID, info.SantriID)
+	if existing != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeConflict, "NIS sudah tercatat hadir", nil)
+	}
+
+	attendance, err := attEntity.NewAttendance(uuid.NewString(), sessionID, info.SantriID, attConst.AttendanceStatusPresent)
+	if err != nil {
+		return nil, application.WrapBadRequestErr(err, attConst.CodeAttendanceInvalidStatus)
+	}
+	if err := uc.attendanceRepo.Save(ctx, attendance); err != nil {
+		return nil, application.WrapConflictErr(err, attConst.CodeAttendanceDuplicate)
+	}
+
+	resp := MapAttendanceToResponse(attendance)
+	resp.SantriNIS = info.NIS
+	resp.SantriName = info.Fullname
+
+	name := ""
+	if info.Fullname != nil {
+		name = *info.Fullname
+	}
+	return &dto.CheckinResponse{
+		Attendance: *resp,
+		Message:    fmt.Sprintf("Selamat, %s! Kehadiran tercatat.", name),
+	}, nil
+}
+
+func (uc *CheckinByNISUseCase) ensureHerreg(ctx context.Context, santriID, academicPeriodID string) error {
+	reg, err := uc.registrationRepo.FindBySantriAndPeriod(ctx, santriID, academicPeriodID)
+	if err != nil || reg == nil || reg.Status != "completed" {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri belum herregistrasi pada periode ini", nil)
+	}
+	return nil
+}
