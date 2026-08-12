@@ -34,14 +34,9 @@ func NewGetScheduleCalendarUseCase(
 }
 
 type scheduleRecurrence struct {
-	weeklyDays  map[constant.DayOfWeek]struct{}
-	monthlyDays map[int]struct{}
-	yearlyDates map[yearlyKey]struct{}
-}
-
-type yearlyKey struct {
-	month int
-	day   int
+	weeklyDays  []constant.DayOfWeek
+	monthlyDays []int
+	yearlyDates []schEntity.YearlyDate
 }
 
 func (uc *GetScheduleCalendarUseCase) Execute(ctx context.Context, from, to time.Time, academicPeriodID string, types []constant.ActivityScheduleType) (*dto.ScheduleCalendarResponse, error) {
@@ -166,27 +161,27 @@ func (uc *GetScheduleCalendarUseCase) loadRecurrence(ctx context.Context, s *sch
 		if err != nil {
 			return nil, err
 		}
-		rec.weeklyDays = map[constant.DayOfWeek]struct{}{}
+		rec.weeklyDays = make([]constant.DayOfWeek, 0, len(weeklies))
 		for _, w := range weeklies {
-			rec.weeklyDays[w.DayOfWeek] = struct{}{}
+			rec.weeklyDays = append(rec.weeklyDays, w.DayOfWeek)
 		}
 	case constant.ActivityScheduleTypeMonthly:
 		monthlies, err := uc.scheduleRepo.ListMonthlies(ctx, s.ID)
 		if err != nil {
 			return nil, err
 		}
-		rec.monthlyDays = map[int]struct{}{}
+		rec.monthlyDays = make([]int, 0, len(monthlies))
 		for _, m := range monthlies {
-			rec.monthlyDays[m.DayOfMonth] = struct{}{}
+			rec.monthlyDays = append(rec.monthlyDays, m.DayOfMonth)
 		}
 	case constant.ActivityScheduleTypeYearly:
 		yearlies, err := uc.scheduleRepo.ListYearlies(ctx, s.ID)
 		if err != nil {
 			return nil, err
 		}
-		rec.yearlyDates = map[yearlyKey]struct{}{}
+		rec.yearlyDates = make([]schEntity.YearlyDate, 0, len(yearlies))
 		for _, y := range yearlies {
-			rec.yearlyDates[yearlyKey{month: y.Month, day: y.Day}] = struct{}{}
+			rec.yearlyDates = append(rec.yearlyDates, schEntity.YearlyDate{Month: y.Month, Day: y.Day})
 		}
 	}
 	return rec, nil
@@ -199,70 +194,10 @@ func (uc *GetScheduleCalendarUseCase) expand(
 	byDate map[string][]dto.ScheduleCalendarItem,
 	item dto.ScheduleCalendarItem,
 ) {
-	effStart, effEnd := effectiveRange(s, from, to)
-	if effStart.After(effEnd) {
-		return
+	dates := application.ExpandScheduleDates(s, rec.weeklyDays, rec.monthlyDays, rec.yearlyDates, from, to)
+	for _, d := range dates {
+		appendItem(byDate, d, item)
 	}
-
-	switch s.Type {
-	case constant.ActivityScheduleTypeOnce:
-		if s.StartDate == nil {
-			return
-		}
-		once := dateOnly(*s.StartDate)
-		if !once.Before(effStart) && !once.After(effEnd) {
-			appendItem(byDate, once, item)
-		}
-		return
-	case constant.ActivityScheduleTypeDaily:
-		for d := effStart; !d.After(effEnd); d = d.AddDate(0, 0, 1) {
-			appendItem(byDate, d, item)
-		}
-		return
-	}
-
-	for d := effStart; !d.After(effEnd); d = d.AddDate(0, 0, 1) {
-		if matches(d, s.Type, rec) {
-			appendItem(byDate, d, item)
-		}
-	}
-}
-
-func matches(d time.Time, typ constant.ActivityScheduleType, rec *scheduleRecurrence) bool {
-	switch typ {
-	case constant.ActivityScheduleTypeWeekly:
-		if rec.weeklyDays == nil {
-			return false
-		}
-		dow := constant.DayOfWeek(toDayOfWeek(d))
-		_, ok := rec.weeklyDays[dow]
-		return ok
-	case constant.ActivityScheduleTypeMonthly:
-		if rec.monthlyDays == nil {
-			return false
-		}
-		_, ok := rec.monthlyDays[d.Day()]
-		return ok
-	case constant.ActivityScheduleTypeYearly:
-		if rec.yearlyDates == nil {
-			return false
-		}
-		_, ok := rec.yearlyDates[yearlyKey{month: int(d.Month()), day: d.Day()}]
-		return ok
-	}
-	return false
-}
-
-func effectiveRange(s *schEntity.ActivitySchedule, from, to time.Time) (time.Time, time.Time) {
-	start := from
-	if s.StartDate != nil && s.StartDate.After(start) {
-		start = dateOnly(*s.StartDate)
-	}
-	end := to
-	if s.EndDate != nil && s.EndDate.Before(end) {
-		end = dateOnly(*s.EndDate)
-	}
-	return start, end
 }
 
 func appendItem(byDate map[string][]dto.ScheduleCalendarItem, d time.Time, item dto.ScheduleCalendarItem) {
@@ -280,9 +215,4 @@ func buildCalendarDays(byDate map[string][]dto.ScheduleCalendarItem) []dto.Sched
 
 func dateOnly(t time.Time) time.Time {
 	return timeutil.DateOnly(t)
-}
-
-func toDayOfWeek(t time.Time) string {
-	names := []string{"sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"}
-	return names[int(t.Weekday())]
 }

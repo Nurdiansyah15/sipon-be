@@ -55,9 +55,9 @@ func TestExpandWeekly(t *testing.T) {
 		Type: constant.ActivityScheduleTypeWeekly,
 	}
 	// 2026-08-03 is Monday, 2026-08-09 is Sunday.
-	rec := &scheduleRecurrence{weeklyDays: map[constant.DayOfWeek]struct{}{
-		constant.DayOfWeekMonday: {},
-		constant.DayOfWeekFriday: {},
+	rec := &scheduleRecurrence{weeklyDays: []constant.DayOfWeek{
+		constant.DayOfWeekMonday,
+		constant.DayOfWeekFriday,
 	}}
 	item := dto.ScheduleCalendarItem{ID: "s1", Type: "weekly"}
 	byDate := map[string][]dto.ScheduleCalendarItem{}
@@ -80,7 +80,7 @@ func TestExpandMonthly(t *testing.T) {
 		ID:   "s1",
 		Type: constant.ActivityScheduleTypeMonthly,
 	}
-	rec := &scheduleRecurrence{monthlyDays: map[int]struct{}{1: {}, 15: {}}}
+	rec := &scheduleRecurrence{monthlyDays: []int{1, 15}}
 	item := dto.ScheduleCalendarItem{ID: "s1", Type: "monthly"}
 	byDate := map[string][]dto.ScheduleCalendarItem{}
 
@@ -99,8 +99,8 @@ func TestExpandYearly(t *testing.T) {
 		ID:   "s1",
 		Type: constant.ActivityScheduleTypeYearly,
 	}
-	rec := &scheduleRecurrence{yearlyDates: map[yearlyKey]struct{}{
-		{month: 8, day: 17}: {},
+	rec := &scheduleRecurrence{yearlyDates: []schEntity.YearlyDate{
+		{Month: 8, Day: 17},
 	}}
 	item := dto.ScheduleCalendarItem{ID: "s1", Type: "yearly"}
 	byDate := map[string][]dto.ScheduleCalendarItem{}

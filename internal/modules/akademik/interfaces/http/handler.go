@@ -65,12 +65,13 @@ type AkademikHandler struct {
 	getCalendarUC    *query.GetScheduleCalendarUseCase
 
 	// activity session
-	createSessionUC   *command.CreateSessionUseCase
-	openSessionUC     *command.OpenSessionUseCase
-	cancelSessionUC   *command.CancelSessionUseCase
-	completeSessionUC *command.CompleteSessionUseCase
-	listSessionsUC    *query.ListActivitySessionsUseCase
-	getSessionUC      *query.GetActivitySessionUseCase
+	createSessionUC     *command.CreateSessionUseCase
+	generateSessionsUC  *command.GenerateSessionsFromScheduleUseCase
+	openSessionUC       *command.OpenSessionUseCase
+	cancelSessionUC     *command.CancelSessionUseCase
+	completeSessionUC   *command.CompleteSessionUseCase
+	listSessionsUC      *query.ListActivitySessionsUseCase
+	getSessionUC        *query.GetActivitySessionUseCase
 
 	// attendance
 	recordAttendanceUC   *command.RecordAttendanceUseCase
@@ -146,6 +147,7 @@ func NewAkademikHandler(
 	getScheduleUC *query.GetActivityScheduleUseCase,
 	getCalendarUC *query.GetScheduleCalendarUseCase,
 	createSessionUC *command.CreateSessionUseCase,
+	generateSessionsUC *command.GenerateSessionsFromScheduleUseCase,
 	openSessionUC *command.OpenSessionUseCase,
 	cancelSessionUC *command.CancelSessionUseCase,
 	completeSessionUC *command.CompleteSessionUseCase,
@@ -215,6 +217,7 @@ func NewAkademikHandler(
 		getScheduleUC:          getScheduleUC,
 		getCalendarUC:          getCalendarUC,
 		createSessionUC:        createSessionUC,
+		generateSessionsUC:     generateSessionsUC,
 		openSessionUC:          openSessionUC,
 		cancelSessionUC:        cancelSessionUC,
 		completeSessionUC:      completeSessionUC,
@@ -730,6 +733,20 @@ func (h *AkademikHandler) CreateSession(c *gin.Context) {
 		return
 	}
 	respond.Created(c, "sesi kegiatan berhasil dibuat", resp)
+}
+
+func (h *AkademikHandler) GenerateSessionsFromSchedule(c *gin.Context) {
+	var req dto.GenerateSessionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.generateSessionsUC.Execute(c.Request.Context(), c.Param("id"), req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.Created(c, "sesi kegiatan berhasil digenerate dari jadwal", resp)
 }
 
 func (h *AkademikHandler) CancelSession(c *gin.Context) {

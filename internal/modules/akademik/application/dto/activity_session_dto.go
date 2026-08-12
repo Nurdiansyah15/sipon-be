@@ -8,6 +8,18 @@ type CreateSessionRequest struct {
 	EndsAt             string `json:"ends_at" binding:"required"`
 }
 
+type GenerateSessionsRequest struct {
+	FromDate string `json:"from_date" binding:"required"`
+	ToDate   string `json:"to_date"`
+}
+
+type GenerateSessionsResponse struct {
+	TotalDatesExpanded int                       `json:"total_dates_expanded"`
+	TotalCreated       int                       `json:"total_created"`
+	TotalSkipped       int                       `json:"total_skipped"`
+	Sessions           []ActivitySessionResponse `json:"sessions"`
+}
+
 type ActivitySessionListQuery struct {
 	ActivityScheduleID *string `form:"activity_schedule_id"`
 	AcademicPeriodID   *string `form:"academic_period_id"`

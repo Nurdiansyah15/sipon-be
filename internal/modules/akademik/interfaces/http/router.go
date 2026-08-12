@@ -117,6 +117,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *AkademikHandler, jwtAuth, princi
 			schedules.POST("", h.CreateSchedule)
 			schedules.PUT("/:id", h.UpdateSchedule)
 			schedules.DELETE("/:id", h.DeleteSchedule)
+			schedules.POST("/:id/generate-sessions", h.GenerateSessionsFromSchedule)
 		}
 
 		// Schedule Calendar

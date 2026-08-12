@@ -125,6 +125,7 @@ func NewModule(
 
 	// activity session
 	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo)
+	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor)
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo)
@@ -167,7 +168,7 @@ func NewModule(
 		createActivityPeriodUC, activatePeriodUC, deactivatePeriodUC, listActivityPeriodsUC,
 		assignProgramUC, removeProgramUC, listPeriodProgramsUC,
 		createScheduleUC, updateScheduleUC, deleteScheduleUC, listSchedulesUC, getScheduleUC, getCalendarUC,
-		createSessionUC, openSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
+		createSessionUC, generateSessionsUC, openSessionUC, cancelSessionUC, completeSessionUC, listSessionsUC, getSessionUC,
 		recordAttendanceUC, updateAttendanceUC, listAttendanceUC, listEligibleSantriUC,
 		updateSettingUC, getSettingUC,
 		getMySummaryUC, getMyProgramUC, listMyActivitiesUC, listMySchedulesUC, applyHerregistrasiUC,
