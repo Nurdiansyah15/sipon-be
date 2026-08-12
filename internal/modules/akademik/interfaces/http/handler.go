@@ -2,7 +2,6 @@ package http
 
 import (
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,6 +14,7 @@ import (
 	"sipon-be/internal/shared/kernel"
 	"sipon-be/internal/shared/middleware"
 	"sipon-be/internal/shared/respond"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type AkademikHandler struct {
@@ -643,12 +643,12 @@ func (h *AkademikHandler) GetScheduleCalendar(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	from, err := time.Parse("2006-01-02", q.From)
+	from, err := timeutil.ParseDate(q.From)
 	if err != nil {
 		httperror.Handle(c, kernel.New(application.ErrCodeBadRequest))
 		return
 	}
-	to, err := time.Parse("2006-01-02", q.To)
+	to, err := timeutil.ParseDate(q.To)
 	if err != nil {
 		httperror.Handle(c, kernel.New(application.ErrCodeBadRequest))
 		return

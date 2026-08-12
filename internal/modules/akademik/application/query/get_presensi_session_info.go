@@ -13,6 +13,7 @@ import (
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type GetPresensiSessionInfoUseCase struct {
@@ -54,8 +55,8 @@ func (uc *GetPresensiSessionInfoUseCase) Execute(ctx context.Context, sessionID 
 	resp := &dto.PresensiSessionInfo{
 		ID:       session.ID,
 		Status:   string(session.Status),
-		StartsAt: session.StartsAt.Format("2006-01-02T15:04:05Z07:00"),
-		EndsAt:   session.EndsAt.Format("2006-01-02T15:04:05Z07:00"),
+		StartsAt: timeutil.FormatDateTime(session.StartsAt),
+		EndsAt:   timeutil.FormatDateTime(session.EndsAt),
 	}
 
 	academicPeriodID := ""

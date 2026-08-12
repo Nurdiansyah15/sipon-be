@@ -9,6 +9,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/academic_period/constant"
 	repo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type UpdateAcademicPeriodUseCase struct {
@@ -39,14 +40,14 @@ func (uc *UpdateAcademicPeriodUseCase) Execute(ctx context.Context, id string, r
 	}
 	var startDate, endDate *time.Time
 	if req.StartDate != nil {
-		t, err := time.Parse("2006-01-02", *req.StartDate)
+		t, err := timeutil.ParseDate(*req.StartDate)
 		if err != nil {
 			return nil, kernel.New(application.ErrCodeBadRequest)
 		}
 		startDate = &t
 	}
 	if req.EndDate != nil {
-		t, err := time.Parse("2006-01-02", *req.EndDate)
+		t, err := timeutil.ParseDate(*req.EndDate)
 		if err != nil {
 			return nil, kernel.New(application.ErrCodeBadRequest)
 		}

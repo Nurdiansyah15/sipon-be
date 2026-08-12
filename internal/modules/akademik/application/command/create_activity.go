@@ -11,6 +11,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/activity/entity"
 	repo "sipon-be/internal/modules/akademik/domain/activity/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateActivityUseCase struct {
@@ -46,7 +47,7 @@ func MapActivityToResponse(a *entity.Activity) *dto.ActivityResponse {
 		Code:      a.Code,
 		Name:      a.Name,
 		Status:    string(a.Status),
-		CreatedAt: a.CreatedAt,
-		UpdatedAt: a.UpdatedAt,
+		CreatedAt: timeutil.ToPlatform(a.CreatedAt),
+		UpdatedAt: timeutil.ToPlatform(a.UpdatedAt),
 	}
 }

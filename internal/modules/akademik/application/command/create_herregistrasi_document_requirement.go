@@ -11,6 +11,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/constant"
 	"sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/entity"
 	reqRepo "sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/repository"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateHerregistrasiDocumentRequirementUseCase struct {
@@ -55,7 +56,7 @@ func MapHerregistrasiDocumentRequirementToResponse(r *entity.HerregistrasiDocume
 		Label:            r.Label,
 		IsRequired:       r.IsRequired,
 		Description:      r.Description,
-		CreatedAt:        r.CreatedAt,
-		UpdatedAt:        r.UpdatedAt,
+		CreatedAt:        timeutil.ToPlatform(r.CreatedAt),
+		UpdatedAt:        timeutil.ToPlatform(r.UpdatedAt),
 	}
 }

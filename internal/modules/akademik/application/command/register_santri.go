@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/santri_registration/entity"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type RegisterSantriUseCase struct {
@@ -76,8 +77,8 @@ func MapSantriRegistrationToResponse(r *entity.SantriRegistration) *dto.SantriRe
 		AcademicPeriodID: r.AcademicPeriodID,
 		Status:           string(r.Status),
 		RevisionNotes:    r.RevisionNotes,
-		RegisteredAt:     r.RegisteredAt,
-		CreatedAt:        r.CreatedAt,
-		UpdatedAt:        r.UpdatedAt,
+		RegisteredAt:     timeutil.ToPlatformPtr(r.RegisteredAt),
+		CreatedAt:        timeutil.ToPlatform(r.CreatedAt),
+		UpdatedAt:        timeutil.ToPlatform(r.UpdatedAt),
 	}
 }

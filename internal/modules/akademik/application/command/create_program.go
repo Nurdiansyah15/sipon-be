@@ -11,6 +11,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/program/entity"
 	repo "sipon-be/internal/modules/akademik/domain/program/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateProgramUseCase struct {
@@ -61,7 +62,7 @@ func MapProgramToResponse(p *entity.Program) *dto.ProgramResponse {
 		Code:      p.Code,
 		Name:      p.Name,
 		Status:    string(p.Status),
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		CreatedAt: timeutil.ToPlatform(p.CreatedAt),
+		UpdatedAt: timeutil.ToPlatform(p.UpdatedAt),
 	}
 }

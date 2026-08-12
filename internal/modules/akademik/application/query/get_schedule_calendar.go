@@ -14,6 +14,7 @@ import (
 	schEntity "sipon-be/internal/modules/akademik/domain/activity_schedule/entity"
 	schRepo "sipon-be/internal/modules/akademik/domain/activity_schedule/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 const maxCalendarSpanDays = 366 * 5
@@ -87,8 +88,8 @@ func (uc *GetScheduleCalendarUseCase) Execute(ctx context.Context, from, to time
 	}
 
 	return &dto.ScheduleCalendarResponse{
-		From: from.Format("2006-01-02"),
-		To:   to.Format("2006-01-02"),
+		From: timeutil.FormatDate(from),
+		To:   timeutil.FormatDate(to),
 		Days: buildCalendarDays(byDate),
 	}, nil
 }
@@ -265,7 +266,7 @@ func effectiveRange(s *schEntity.ActivitySchedule, from, to time.Time) (time.Tim
 }
 
 func appendItem(byDate map[string][]dto.ScheduleCalendarItem, d time.Time, item dto.ScheduleCalendarItem) {
-	key := d.Format("2006-01-02")
+	key := timeutil.FormatDate(d)
 	byDate[key] = append(byDate[key], item)
 }
 
@@ -278,7 +279,7 @@ func buildCalendarDays(byDate map[string][]dto.ScheduleCalendarItem) []dto.Sched
 }
 
 func dateOnly(t time.Time) time.Time {
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+	return timeutil.DateOnly(t)
 }
 
 func toDayOfWeek(t time.Time) string {

@@ -3,6 +3,7 @@ package command
 import (
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/domain/herregistrasi_document/entity"
+	"sipon-be/internal/shared/timeutil"
 )
 
 func MapHerregistrasiDocumentToResponse(doc *entity.HerregistrasiDocument, kindLabel string) *dto.HerregistrasiDocumentResponse {
@@ -18,8 +19,8 @@ func MapHerregistrasiDocumentToResponse(doc *entity.HerregistrasiDocument, kindL
 		Status:               string(doc.Status),
 		Notes:                doc.Notes,
 		VerifiedBy:           doc.VerifiedBy,
-		VerifiedAt:           doc.VerifiedAt,
-		CreatedAt:            doc.CreatedAt,
-		UpdatedAt:            doc.UpdatedAt,
+		VerifiedAt:           timeutil.ToPlatformPtr(doc.VerifiedAt),
+		CreatedAt:            timeutil.ToPlatform(doc.CreatedAt),
+		UpdatedAt:            timeutil.ToPlatform(doc.UpdatedAt),
 	}
 }

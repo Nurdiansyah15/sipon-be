@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/activity_period/entity"
 	apRepo "sipon-be/internal/modules/akademik/domain/activity_period/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateActivityPeriodUseCase struct {
@@ -68,7 +69,7 @@ func MapActivityPeriodToResponse(p *entity.ActivityPeriod) *dto.ActivityPeriodRe
 		ActivityID:       p.ActivityID,
 		AcademicPeriodID: p.AcademicPeriodID,
 		Status:           string(p.Status),
-		CreatedAt:        p.CreatedAt,
-		UpdatedAt:        p.UpdatedAt,
+		CreatedAt:        timeutil.ToPlatform(p.CreatedAt),
+		UpdatedAt:        timeutil.ToPlatform(p.UpdatedAt),
 	}
 }

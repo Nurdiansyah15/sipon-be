@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/activity_session/entity"
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateSessionUseCase struct {
@@ -52,10 +53,10 @@ func MapSessionToResponse(s *entity.ActivitySession) *dto.ActivitySessionRespons
 	return &dto.ActivitySessionResponse{
 		ID:                 s.ID,
 		ActivityScheduleID: s.ActivityScheduleID,
-		StartsAt:           s.StartsAt,
-		EndsAt:             s.EndsAt,
+		StartsAt:           timeutil.ToPlatform(s.StartsAt),
+		EndsAt:             timeutil.ToPlatform(s.EndsAt),
 		Status:             string(s.Status),
-		CreatedAt:          s.CreatedAt,
-		UpdatedAt:          s.UpdatedAt,
+		CreatedAt:          timeutil.ToPlatform(s.CreatedAt),
+		UpdatedAt:          timeutil.ToPlatform(s.UpdatedAt),
 	}
 }

@@ -11,10 +11,15 @@ import (
 	"github.com/joho/godotenv"
 
 	"sipon-be/internal/seeders"
+	"sipon-be/internal/shared/timeutil"
 )
 
 func main() {
 	_ = godotenv.Load()
+
+	if err := timeutil.Init(getEnv("APP_TIMEZONE", "Asia/Jakarta")); err != nil {
+		log.Fatalf("gagal load timezone: %v", err)
+	}
 
 	dsn := buildDSN()
 	db, err := sql.Open("pgx", dsn)

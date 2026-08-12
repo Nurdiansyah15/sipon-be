@@ -8,6 +8,7 @@ import (
 	"sipon-be/internal/modules/akademik/application/ports"
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type ListPresensiAttendanceUseCase struct {
@@ -33,7 +34,7 @@ func (uc *ListPresensiAttendanceUseCase) Execute(ctx context.Context, sessionID 
 		item := dto.PresensiAttendanceItem{
 			SantriID:   a.SantriID,
 			Status:     string(a.Status),
-			RecordedAt: a.RecordedAt.Format("2006-01-02T15:04:05Z07:00"),
+			RecordedAt: timeutil.FormatDateTime(a.RecordedAt),
 		}
 		if info, err := uc.kesantrianReader.GetSantriByID(ctx, a.SantriID); err == nil && info != nil {
 			item.NIS = info.NIS

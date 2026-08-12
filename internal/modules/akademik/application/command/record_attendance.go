@@ -15,6 +15,7 @@ import (
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type RecordAttendanceUseCase struct {
@@ -104,8 +105,8 @@ func MapAttendanceToResponse(a *entity.Attendance) *dto.AttendanceResponse {
 		ActivitySessionID: a.ActivitySessionID,
 		SantriID:          a.SantriID,
 		Status:            string(a.Status),
-		RecordedAt:        a.RecordedAt,
-		CreatedAt:         a.CreatedAt,
-		UpdatedAt:         a.UpdatedAt,
+		RecordedAt:        timeutil.ToPlatform(a.RecordedAt),
+		CreatedAt:         timeutil.ToPlatform(a.CreatedAt),
+		UpdatedAt:         timeutil.ToPlatform(a.UpdatedAt),
 	}
 }

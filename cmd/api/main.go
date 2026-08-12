@@ -26,12 +26,17 @@ import (
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
 	"sipon-be/internal/shared/middleware"
+	"sipon-be/internal/shared/timeutil"
 )
 
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("gagal load config: %v", err)
+	}
+
+	if err := timeutil.Init(cfg.App.Timezone); err != nil {
+		log.Fatalf("gagal load timezone %s: %v", cfg.App.Timezone, err)
 	}
 
 	lg := logger.New(cfg.App.Env, cfg.App.LogFormat)

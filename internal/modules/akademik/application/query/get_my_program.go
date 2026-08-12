@@ -10,6 +10,7 @@ import (
 	spConst "sipon-be/internal/modules/akademik/domain/santri_program/constant"
 	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type GetMyProgramUseCase struct {
@@ -45,7 +46,7 @@ func (uc *GetMyProgramUseCase) Execute(ctx context.Context, userID string) (*dto
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
-	started := sp.StartedAt
+	started := timeutil.ToPlatform(sp.StartedAt)
 	return &dto.MyProgramResponse{
 		ID:        prog.ID,
 		Code:      prog.Code,

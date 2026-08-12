@@ -14,6 +14,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/activity_schedule/entity"
 	schRepo "sipon-be/internal/modules/akademik/domain/activity_schedule/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateScheduleUseCase struct {
@@ -123,14 +124,7 @@ func replaceScheduleDetails(ctx context.Context, scheduleRepo schRepo.ActivitySc
 }
 
 func parseDatePtr(v *string) (*time.Time, error) {
-	if v == nil || *v == "" {
-		return nil, nil
-	}
-	t, err := time.Parse("2006-01-02", *v)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
+	return timeutil.ParseDatePtr(v)
 }
 
 func MapScheduleToDetailResponse(s *entity.ActivitySchedule) *dto.ActivityScheduleDetailResponse {
@@ -140,15 +134,15 @@ func MapScheduleToDetailResponse(s *entity.ActivitySchedule) *dto.ActivitySchedu
 		Type:             string(s.Type),
 		StartTime:        s.StartTime,
 		EndTime:          s.EndTime,
-		CreatedAt:        s.CreatedAt,
-		UpdatedAt:        s.UpdatedAt,
+		CreatedAt:        timeutil.ToPlatform(s.CreatedAt),
+		UpdatedAt:        timeutil.ToPlatform(s.UpdatedAt),
 	}
 	if s.StartDate != nil {
-		v := s.StartDate.Format("2006-01-02")
+		v := timeutil.FormatDate(*s.StartDate)
 		resp.StartDate = &v
 	}
 	if s.EndDate != nil {
-		v := s.EndDate.Format("2006-01-02")
+		v := timeutil.FormatDate(*s.EndDate)
 		resp.EndDate = &v
 	}
 	return resp

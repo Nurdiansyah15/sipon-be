@@ -13,6 +13,7 @@ import (
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type GetMySummaryUseCase struct {
@@ -49,7 +50,7 @@ func (uc *GetMySummaryUseCase) Execute(ctx context.Context, userID string) (*dto
 
 	if sp, err := uc.santriProgramRepo.FindActiveBySantriID(ctx, info.SantriID); err == nil {
 		if prog, err := uc.programRepo.FindByID(ctx, sp.ProgramID); err == nil {
-			started := sp.StartedAt
+			started := timeutil.ToPlatform(sp.StartedAt)
 			resp.Program = &dto.ProgramInfo{
 				ID:        prog.ID,
 				Code:      prog.Code,
@@ -78,7 +79,7 @@ func (uc *GetMySummaryUseCase) Execute(ctx context.Context, userID string) (*dto
 		resp.Herregistrasi = &dto.HerregistrasiStatus{
 			Status:         string(reg.Status),
 			RegistrationID: &regID,
-			RegisteredAt:   reg.RegisteredAt,
+			RegisteredAt:   timeutil.ToPlatformPtr(reg.RegisteredAt),
 			RevisionNotes:  reg.RevisionNotes,
 		}
 	}

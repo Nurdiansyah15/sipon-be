@@ -16,6 +16,7 @@ import (
 	schRepo "sipon-be/internal/modules/akademik/domain/activity_schedule/repository"
 	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type ListMySchedulesUseCase struct {
@@ -102,11 +103,11 @@ func (uc *ListMySchedulesUseCase) Execute(ctx context.Context, userID string) ([
 			EndTime:          s.EndTime,
 		}
 		if s.StartDate != nil {
-			v := s.StartDate.Format("2006-01-02")
+			v := timeutil.FormatDate(*s.StartDate)
 			item.StartDate = &v
 		}
 		if s.EndDate != nil {
-			v := s.EndDate.Format("2006-01-02")
+			v := timeutil.FormatDate(*s.EndDate)
 			item.EndDate = &v
 		}
 		if ap, ok := apMap[s.ActivityPeriodID]; ok {

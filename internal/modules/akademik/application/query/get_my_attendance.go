@@ -18,6 +18,7 @@ import (
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type GetMyAttendanceUseCase struct {
@@ -143,8 +144,8 @@ func (uc *GetMyAttendanceUseCase) Execute(ctx context.Context, userID string, q 
 	for _, s := range sessions {
 		item := dto.MyAttendanceSessionItem{
 			SessionID:    s.ID,
-			StartsAt:     s.StartsAt.Format("2006-01-02T15:04:05Z07:00"),
-			EndsAt:       s.EndsAt.Format("2006-01-02T15:04:05Z07:00"),
+			StartsAt:     timeutil.FormatDateTime(s.StartsAt),
+			EndsAt:       timeutil.FormatDateTime(s.EndsAt),
 			Status:       "unrecorded",
 			ScheduleType: scheduleTypeOf(scheduleMap[s.ActivityScheduleID]),
 		}
@@ -159,7 +160,7 @@ func (uc *GetMyAttendanceUseCase) Execute(ctx context.Context, userID string, q 
 
 		if rec, ok := recordedBySession[s.ID]; ok {
 			item.Status = string(rec.Attendance.Status)
-			recTime := rec.Attendance.RecordedAt.Format("2006-01-02T15:04:05Z07:00")
+			recTime := timeutil.FormatDateTime(rec.Attendance.RecordedAt)
 			item.RecordedAt = &recTime
 		}
 

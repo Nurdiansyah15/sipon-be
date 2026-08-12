@@ -24,6 +24,7 @@ type AppConfig struct {
 	Port      string
 	Env       string
 	LogFormat string
+	Timezone  string
 }
 
 type DatabaseConfig struct {
@@ -94,6 +95,7 @@ func Load() (*Config, error) {
 			Port:      getEnv("APP_PORT", "8080"),
 			Env:       getEnv("APP_ENV", "development"),
 			LogFormat: getEnv("LOG_FORMAT", ""),
+			Timezone:  getEnv("APP_TIMEZONE", "Asia/Jakarta"),
 		},
 		Database: DatabaseConfig{
 			DB_HOST:    requireEnv("DB_HOST"),

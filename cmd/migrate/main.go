@@ -10,10 +10,16 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/joho/godotenv"
+
+	"sipon-be/internal/shared/timeutil"
 )
 
 func main() {
 	_ = godotenv.Load()
+
+	if err := timeutil.Init(getEnv("APP_TIMEZONE", "Asia/Jakarta")); err != nil {
+		log.Fatalf("gagal load timezone: %v", err)
+	}
 
 	dsn := buildDSN()
 	migrationsDir := getEnv("MIGRATIONS_DIR", "migrations")

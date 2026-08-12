@@ -2,7 +2,6 @@ package command
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -12,6 +11,7 @@ import (
 	"sipon-be/internal/modules/akademik/domain/academic_period/entity"
 	repo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	"sipon-be/internal/shared/kernel"
+	"sipon-be/internal/shared/timeutil"
 )
 
 type CreateAcademicPeriodUseCase struct {
@@ -23,11 +23,11 @@ func NewCreateAcademicPeriodUseCase(periodRepo repo.AcademicPeriodRepository) *C
 }
 
 func (uc *CreateAcademicPeriodUseCase) Execute(ctx context.Context, req dto.CreateAcademicPeriodRequest) (*dto.AcademicPeriodResponse, error) {
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
+	startDate, err := timeutil.ParseDate(req.StartDate)
 	if err != nil {
 		return nil, kernel.New(application.ErrCodeBadRequest)
 	}
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
+	endDate, err := timeutil.ParseDate(req.EndDate)
 	if err != nil {
 		return nil, kernel.New(application.ErrCodeBadRequest)
 	}
@@ -55,10 +55,10 @@ func MapAcademicPeriodToResponse(p *entity.AcademicPeriod) *dto.AcademicPeriodRe
 		ID:        p.ID,
 		Code:      p.Code,
 		Name:      p.Name,
-		StartDate: p.StartDate.Format("2006-01-02"),
-		EndDate:   p.EndDate.Format("2006-01-02"),
+		StartDate: timeutil.FormatDate(p.StartDate),
+		EndDate:   timeutil.FormatDate(p.EndDate),
 		Status:    string(p.Status),
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
+		CreatedAt: timeutil.ToPlatform(p.CreatedAt),
+		UpdatedAt: timeutil.ToPlatform(p.UpdatedAt),
 	}
 }
