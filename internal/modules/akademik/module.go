@@ -51,6 +51,7 @@ func NewModule(
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
 	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
+	programResolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, activityPeriodProgramRepo, programRepo)
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,
@@ -128,7 +129,7 @@ func NewModule(
 	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor)
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
-	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo)
+	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
@@ -155,7 +156,7 @@ func NewModule(
 	submitHerregistrasiUC := command.NewSubmitHerregistrasiUseCase(kesantrianGW, periodRepo, registrationRepo, docRequirementRepo, docRepo)
 
 	// presensi & riwayat absensi
-	checkinUC := command.NewCheckinByNISUseCase(sessionRepo, kesantrianGW, periodResolver, registrationRepo, attendanceRepo)
+	checkinUC := command.NewCheckinByNISUseCase(sessionRepo, kesantrianGW, periodResolver, registrationRepo, attendanceRepo, santriProgramRepo, programResolver)
 	presensiInfoUC := query.NewGetPresensiSessionInfoUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, periodRepo, registrationRepo, attendanceRepo)
 	presensiListUC := query.NewListPresensiAttendanceUseCase(attendanceRepo, kesantrianGW)
 	myAttendanceUC := query.NewGetMyAttendanceUseCase(kesantrianGW, periodRepo, santriProgramRepo, activityPeriodRepo, activityRepo, scheduleRepo, sessionRepo, attendanceRepo)

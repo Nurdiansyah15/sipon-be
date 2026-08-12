@@ -9,70 +9,7 @@ import (
 	schConst "sipon-be/internal/modules/akademik/domain/activity_schedule/constant"
 	schEntity "sipon-be/internal/modules/akademik/domain/activity_schedule/entity"
 	sesEntity "sipon-be/internal/modules/akademik/domain/activity_session/entity"
-	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 )
-
-type fakeScheduleRepo struct {
-	schedule *schEntity.ActivitySchedule
-	weeklies []schEntity.ActivityScheduleWeekly
-	month    []schEntity.ActivityScheduleMonthly
-	year     []schEntity.ActivityScheduleYearly
-}
-
-func (f *fakeScheduleRepo) FindByID(ctx context.Context, id string) (*schEntity.ActivitySchedule, error) {
-	return f.schedule, nil
-}
-func (f *fakeScheduleRepo) Save(ctx context.Context, s *schEntity.ActivitySchedule) error { return nil }
-func (f *fakeScheduleRepo) Update(ctx context.Context, s *schEntity.ActivitySchedule) error {
-	return nil
-}
-func (f *fakeScheduleRepo) FindByIDs(ctx context.Context, ids []string) ([]*schEntity.ActivitySchedule, error) {
-	return []*schEntity.ActivitySchedule{f.schedule}, nil
-}
-func (f *fakeScheduleRepo) ListByActivityPeriod(ctx context.Context, id string) ([]*schEntity.ActivitySchedule, error) {
-	return nil, nil
-}
-func (f *fakeScheduleRepo) ListByActivityPeriodIDs(ctx context.Context, ids []string) ([]*schEntity.ActivitySchedule, error) {
-	return nil, nil
-}
-func (f *fakeScheduleRepo) ReplaceWeeklies(ctx context.Context, id string, days []schConst.DayOfWeek) error {
-	return nil
-}
-func (f *fakeScheduleRepo) ReplaceMonthlies(ctx context.Context, id string, days []int) error {
-	return nil
-}
-func (f *fakeScheduleRepo) ReplaceYearlies(ctx context.Context, id string, dates []schEntity.YearlyDate) error {
-	return nil
-}
-func (f *fakeScheduleRepo) ListWeeklies(ctx context.Context, scheduleID string) ([]schEntity.ActivityScheduleWeekly, error) {
-	return f.weeklies, nil
-}
-func (f *fakeScheduleRepo) ListMonthlies(ctx context.Context, scheduleID string) ([]schEntity.ActivityScheduleMonthly, error) {
-	return f.month, nil
-}
-func (f *fakeScheduleRepo) ListYearlies(ctx context.Context, scheduleID string) ([]schEntity.ActivityScheduleYearly, error) {
-	return f.year, nil
-}
-
-type fakeSessionRepo struct {
-	existing []*sesEntity.ActivitySession
-	saved    []*sesEntity.ActivitySession
-}
-
-func (f *fakeSessionRepo) Save(ctx context.Context, s *sesEntity.ActivitySession) error {
-	f.saved = append(f.saved, s)
-	return nil
-}
-func (f *fakeSessionRepo) Update(ctx context.Context, s *sesEntity.ActivitySession) error { return nil }
-func (f *fakeSessionRepo) FindByID(ctx context.Context, id string) (*sesEntity.ActivitySession, error) {
-	return nil, nil
-}
-func (f *fakeSessionRepo) ListByScheduleIDs(ctx context.Context, scheduleIDs []string) ([]*sesEntity.ActivitySession, error) {
-	return f.existing, nil
-}
-func (f *fakeSessionRepo) List(ctx context.Context, q sesRepo.ActivitySessionListQuery) (*sesRepo.ActivitySessionListResult, error) {
-	return &sesRepo.ActivitySessionListResult{Items: f.existing, Total: int64(len(f.existing))}, nil
-}
 
 type fakeTransactor struct{}
 

@@ -25,6 +25,9 @@ type AttendanceRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.Attendance, error)
 	FindBySessionAndSantri(ctx context.Context, sessionID, santriID string) (*entity.Attendance, error)
 	ListBySession(ctx context.Context, sessionID string) ([]*entity.Attendance, error)
+	// ListSantriIDsBySession returns santri IDs that already have attendance
+	// records in the given session.
+	ListSantriIDsBySession(ctx context.Context, sessionID string) ([]string, error)
 	// ListBySantriAndPeriod returns attendance records for a santri within an
 	// academic period (resolved through session → schedule → activity_period).
 	ListBySantriAndPeriod(ctx context.Context, santriID, academicPeriodID string) ([]*AttendanceWithSession, error)

@@ -24,5 +24,7 @@ type ProgramRepository interface {
 	FindByID(ctx context.Context, id string) (*entity.Program, error)
 	FindByCode(ctx context.Context, code string) (*entity.Program, error)
 	FindByIDs(ctx context.Context, ids []string) ([]*entity.Program, error)
+	// ListActiveIDs returns the IDs of all active programs.
+	ListActiveIDs(ctx context.Context) ([]string, error)
 	List(ctx context.Context, query ProgramListQuery) (*ProgramListResult, error)
 }

@@ -16,16 +16,19 @@ import (
 	attEntity "sipon-be/internal/modules/akademik/domain/attendance/entity"
 	attRepo "sipon-be/internal/modules/akademik/domain/attendance/repository"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
+	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 // CheckinByNISUseCase mencatat kehadiran santri via NIS dari halaman presensi.
 type CheckinByNISUseCase struct {
-	sessionRepo      sesRepo.ActivitySessionRepository
-	kesantrianReader ports.KesantrianReader
-	periodResolver   *application.SessionPeriodResolver
-	registrationRepo regRepo.SantriRegistrationRepository
-	attendanceRepo   attRepo.AttendanceRepository
+	sessionRepo       sesRepo.ActivitySessionRepository
+	kesantrianReader  ports.KesantrianReader
+	periodResolver    *application.SessionPeriodResolver
+	registrationRepo  regRepo.SantriRegistrationRepository
+	attendanceRepo    attRepo.AttendanceRepository
+	santriProgramRepo spRepo.SantriProgramRepository
+	programResolver   *application.SessionProgramResolver
 }
 
 func NewCheckinByNISUseCase(
@@ -34,13 +37,17 @@ func NewCheckinByNISUseCase(
 	periodResolver *application.SessionPeriodResolver,
 	registrationRepo regRepo.SantriRegistrationRepository,
 	attendanceRepo attRepo.AttendanceRepository,
+	santriProgramRepo spRepo.SantriProgramRepository,
+	programResolver *application.SessionProgramResolver,
 ) *CheckinByNISUseCase {
 	return &CheckinByNISUseCase{
-		sessionRepo:      sessionRepo,
-		kesantrianReader: kesantrianReader,
-		periodResolver:   periodResolver,
-		registrationRepo: registrationRepo,
-		attendanceRepo:   attendanceRepo,
+		sessionRepo:       sessionRepo,
+		kesantrianReader:  kesantrianReader,
+		periodResolver:    periodResolver,
+		registrationRepo:  registrationRepo,
+		attendanceRepo:    attendanceRepo,
+		santriProgramRepo: santriProgramRepo,
+		programResolver:   programResolver,
 	}
 }
 
@@ -68,6 +75,10 @@ func (uc *CheckinByNISUseCase) Execute(ctx context.Context, sessionID, nis strin
 	}
 
 	if err := uc.ensureHerreg(ctx, info.SantriID, academicPeriodID); err != nil {
+		return nil, err
+	}
+
+	if err := uc.ensureProgramMembership(ctx, sessionID, info.SantriID); err != nil {
 		return nil, err
 	}
 
@@ -102,6 +113,34 @@ func (uc *CheckinByNISUseCase) ensureHerreg(ctx context.Context, santriID, acade
 	reg, err := uc.registrationRepo.FindBySantriAndPeriod(ctx, santriID, academicPeriodID)
 	if err != nil || reg == nil || reg.Status != "completed" {
 		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri belum herregistrasi pada periode ini", nil)
+	}
+	return nil
+}
+
+// ensureProgramMembership memastikan santri berada pada program yang terkait
+// dengan kegiatan sesi ini. Hanya santri pada program yang berkaitan yang boleh
+// melakukan absensi.
+func (uc *CheckinByNISUseCase) ensureProgramMembership(ctx context.Context, sessionID, santriID string) error {
+	programIDs, err := uc.programResolver.Resolve(ctx, sessionID)
+	if err != nil {
+		slog.Warn("akademik: resolve session programs failed", "session_id", sessionID, "error", err)
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	sp, err := uc.santriProgramRepo.FindActiveBySantriID(ctx, santriID)
+	if err != nil || sp == nil {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri tidak terdaftar di program manapun", nil)
+	}
+
+	found := false
+	for _, pid := range programIDs {
+		if sp.ProgramID == pid {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "santri tidak terdaftar di program kegiatan ini", nil)
 	}
 	return nil
 }

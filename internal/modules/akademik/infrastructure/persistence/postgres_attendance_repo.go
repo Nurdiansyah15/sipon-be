@@ -91,6 +91,27 @@ func (r *PostgresAttendanceRepository) ListBySession(ctx context.Context, sessio
 	return items, rows.Err()
 }
 
+func (r *PostgresAttendanceRepository) ListSantriIDsBySession(ctx context.Context, sessionID string) ([]string, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT santri_id FROM attendances WHERE activity_session_id=$1 AND deleted_at IS NULL`,
+		sessionID)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeAttendanceQueryFailed, err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, kernel.Wrap(constant.CodeAttendanceQueryFailed, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *PostgresAttendanceRepository) ListBySantriAndPeriod(ctx context.Context, santriID, academicPeriodID string) ([]*repository.AttendanceWithSession, error) {
 	execer := execerFromContext(ctx, r.db)
 	rows, err := execer.QueryContext(ctx,

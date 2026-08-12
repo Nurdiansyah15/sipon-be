@@ -101,6 +101,26 @@ func (r *PostgresProgramRepository) FindByIDs(ctx context.Context, ids []string)
 	return items, rows.Err()
 }
 
+func (r *PostgresProgramRepository) ListActiveIDs(ctx context.Context) ([]string, error) {
+	execer := execerFromContext(ctx, r.db)
+	rows, err := execer.QueryContext(ctx,
+		`SELECT id FROM programs WHERE status='active' AND deleted_at IS NULL ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, kernel.Wrap(constant.CodeProgramQueryFailed, err)
+	}
+	defer rows.Close()
+
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, kernel.Wrap(constant.CodeProgramQueryFailed, err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *PostgresProgramRepository) List(ctx context.Context, q repository.ProgramListQuery) (*repository.ProgramListResult, error) {
 	execer := execerFromContext(ctx, r.db)
 
