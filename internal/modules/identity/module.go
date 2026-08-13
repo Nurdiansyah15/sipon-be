@@ -18,6 +18,7 @@ import (
 	"sipon-be/internal/modules/identity/infrastructure/principal"
 	identityHTTP "sipon-be/internal/modules/identity/interfaces/http"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 // Module's exported surface is method-only, by design — zero exported
@@ -340,4 +341,7 @@ func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname str
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

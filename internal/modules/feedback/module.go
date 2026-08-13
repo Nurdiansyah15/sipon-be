@@ -15,6 +15,7 @@ import (
 	feedbackHTTP "sipon-be/internal/modules/feedback/interfaces/http"
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -87,4 +88,7 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

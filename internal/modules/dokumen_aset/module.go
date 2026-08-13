@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/dokumen_aset/infrastructure/persistence"
 	dokumenAsetHTTP "sipon-be/internal/modules/dokumen_aset/interfaces/http"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -76,4 +77,7 @@ func (m *Module) GetDownloadURL(ctx context.Context, id string, isAuthenticated 
 		AccessURL: result.AccessURL,
 		ExpiresIn: result.ExpiresIn,
 	}, nil
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

@@ -12,6 +12,7 @@ import (
 	"sipon-be/internal/modules/article/infrastructure/scraper"
 	articleHTTP "sipon-be/internal/modules/article/interfaces/http"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -108,4 +109,7 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	articleHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
 	articleHTTP.RegisterSourceRoutes(grp, m.sourceHandler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

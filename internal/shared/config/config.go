@@ -19,6 +19,12 @@ type Config struct {
 	RateLimit   RateLimitConfig
 	Minio       MinioConfig
 	Fingerprint FingerprintConfig
+	Worker      WorkerConfig
+}
+
+type WorkerConfig struct {
+	Enabled   bool
+	TickSeconds int
 }
 
 // FingerprintConfig mengatur integrasi absensi mesin fingerprint.
@@ -160,6 +166,10 @@ func Load() (*Config, error) {
 		},
 		Fingerprint: FingerprintConfig{
 			SandboxEnabled: getEnv("FINGERPRINT_SANDBOX_ENABLED", "false") == "true",
+		},
+		Worker: WorkerConfig{
+			Enabled:     getEnv("WORKER_ENABLED", "true") != "false",
+			TickSeconds: parseInt("WORKER_TICK_SECONDS", 10),
 		},
 	}
 	return cfg, nil

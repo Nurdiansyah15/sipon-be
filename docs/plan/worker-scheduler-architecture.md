@@ -1,235 +1,352 @@
-# Plan: Arsitektur Worker/Scheduler (General-Purpose)
+# Arsitektur Worker/Scheduler (General-Purpose)
 
-## Context
+## Ringkasan
 
-Codebase ini saat ini **tidak punya** infrastruktur background job / scheduler sama sekali.
-Satu-satunya goroutine yang ada: `go func() { srv.ListenAndServe() }()` di `cmd/api/main.go:165-172`
-(menjalankan HTTP server) dan satu goroutine fire-and-forget di
-`internal/modules/feedback/application/command/delete_feedback.go:69` (cleanup sekali jalan,
-bukan recurring). Tidak ada `cron`/`ticker`/worker package di manapun.
+Sistem background job berbasis **database-persisted scheduled jobs** yang dijalankan oleh
+**worker process terpisah**. Usecase mendefinisikan job schedule → persist ke DB → worker
+tick secara recurring, mengklaim dan mengeksekusi job yang jatuh tempo.
 
-Kebutuhan untuk pekerjaan berkala (recurring) sudah mulai muncul dan akan makin sering, contoh
-konkret yang sudah teridentifikasi:
-- Sync data dari mesin fingerprint untuk sesi yang sedang `open` (lihat
-  `docs/plan/fingerprint-attendance-integration.md` — di plan itu sengaja **manual trigger**
-  dulu karena infra ini belum ada; begitu ada, auto-poll bisa jadi consumer pertama).
-- Auto-close sesi/periode yang lewat waktu, reminder herregistrasi mendekati deadline, cleanup
-  data kadaluarsa, dll — semua pola "jalankan fungsi X setiap interval Y" yang berulang di
-  banyak module.
+Terinspirasi dari pola yang diterapkan di `k-forum-api` (`app/service/scheduledjob`),
+disesuaikan tanpa RabbitMQ — worker langsung mengeksekusi handler via registry dispatch.
 
-Daripada setiap module bikin ticker-nya sendiri-sendiri (duplikasi pola, tidak ada shutdown
-yang konsisten, tidak ada observability yang seragam), plan ini membuat **satu package
-shared** yang generik dan dipakai module manapun, mengikuti konvensi yang sudah ada di
-`internal/shared/` (`database`, `middleware`, `logger`, dst: struct + constructor sederhana,
-**tanpa** DI container/registry — lihat `docs/architecture/module-boundaries.md` baris
-173-175 yang secara eksplisit melarang itu).
+## Arsitektur
 
-## Keputusan Desain
-
-| No | Pertanyaan | Keputusan | Alasan |
-|----|-----------|-----------|--------|
-| 1 | Cron-expression (`"0 6 * * *"`) atau interval sederhana (`time.Duration`)? | **Interval sederhana** (`5*time.Minute`, dst), tiap job juga bisa `RunOnStart bool`. | YAGNI — belum ada kebutuhan nyata untuk cron-expression; kalau nanti perlu, tinggal tambah field `Schedule` opsional tanpa mengubah interface `Job`. Menambah dependency (`robfig/cron`) sekarang cuma buat kebutuhan hipotetis melanggar prinsip yang sudah dipegang repo ini. |
-| 2 | Perlu distributed lock (biar job tidak dobel-run kalau ada >1 instance)? | **Ya, tapi opsional/nil-safe.** `Locker` adalah interface; scheduler jalan normal tanpa lock kalau `nil` (cocok untuk dev/single-instance). Implementasi default: `RedisLocker` (SET NX + TTL) karena Redis sudah ada & wired (`cmd/api/main.go:53-58`). | Topologi produksi saat ini tidak terdeklarasi di repo (`docker-compose.dev.yml` cuma 1 service app, tidak ada k8s manifest) — desain harus aman untuk kedua skenario tanpa memaksa Redis jadi hard dependency scheduler. |
-| 3 | Bagaimana module "mendaftarkan" job tanpa registry generik? | **`main.go` yang merakit**, sama seperti semua wiring lain di repo ini. Module expose method public biasa (mis. `func (m *Module) SyncOpenSessionsFingerprint(ctx) error`) — bukan lewat `Contract` (itu untuk panggilan *antar-module*, bukan main.go memanggil job miliknya sendiri) — lalu `main.go` bungkus jadi `worker.JobFunc{...}` dan `scheduler.Register(...)`. | Konsisten dengan larangan DI container/registry di `module-boundaries.md`; `main.go` sudah jadi satu-satunya tempat yang "tahu semua module secara konkret", jadi wajar dia juga jadi tempat merakit job. |
-| 4 | Error di satu job bikin proses lain ikut down? | **Tidak.** Tiap job jalan di goroutine sendiri, `recover()` per-eksekusi, error di-log via `slog` tapi scheduler & job lain tetap jalan. | Satu job yang salah (mis. koneksi eksternal fingerprint device timeout) tidak boleh mematikan server API. |
-| 5 | Bagaimana graceful shutdown? | Scheduler menerima `context.Context` yang di-cancel di titik yang sama dengan shutdown server (`cmd/api/main.go` baris `<-quit` s.d. `srv.Shutdown`), lalu `scheduler.Stop(timeout)` menunggu job yang sedang berjalan selesai (dibatasi timeout, sama gaya `srv.Shutdown(ctx)` yang sudah pakai `10*time.Second`). | Meniru pola shutdown yang sudah ada, bukan pola baru. |
-
-## Komponen
-
-### `internal/shared/worker/job.go`
-
-```go
-package worker
-
-import "context"
-
-type Job interface {
-    Name() string
-    Run(ctx context.Context) error
-}
-
-// JobFunc membungkus fungsi biasa jadi Job, supaya module tidak perlu bikin
-// struct baru cuma untuk register satu job (mirip http.HandlerFunc).
-type JobFunc struct {
-    JobName string
-    Fn      func(ctx context.Context) error
-}
-
-func (f JobFunc) Name() string                    { return f.JobName }
-func (f JobFunc) Run(ctx context.Context) error   { return f.Fn(ctx) }
+```
+┌──────────────────────┐       ┌─────────────────────┐
+│   cmd/api (HTTP)     │       │   cmd/worker        │
+│                      │       │                     │
+│  Usecase menulis:    │       │  Worker tick loop:  │
+│  - scheduled_jobs    │       │  1. FindDueAndClaim │
+│                      │       │     (10s interval)  │
+│  Tidak ada ticker/   │       │  2. Dispatch via    │
+│  polling di proses   │       │     Registry →      │
+│  API.                │       │     HandlerFunc     │
+└──────────┬───────────┘       └──────────┬──────────┘
+           │                              │
+           ▼                              ▼
+    ┌──────────────────────────────────────────┐
+    │           PostgreSQL                      │
+    │  scheduled_jobs table                    │
+    │  (FOR UPDATE SKIP LOCKED)                │
+    └──────────────────────────────────────────┘
 ```
 
-### `internal/shared/worker/locker.go`
+## Alur Generic
+
+1. **Usecase** (di `cmd/api`) membuat `ScheduledJob` (one-off atau recurring) dan persist
+   ke tabel `scheduled_jobs` via `scheduler.Repository.Save()`.
+2. **Worker** (proses terpisah, `cmd/worker`) menjalankan ticker loop setiap N detik.
+3. Setiap tick, worker mengklaim job yang `status = 'ACTIVE' AND next_run_at <= now`
+   menggunakan `SELECT ... FOR UPDATE SKIP LOCKED` — aman multi-instance.
+4. Job yang diklaim di-set `status = 'PROCESSING'`, lalu handler dipanggil via
+   `Registry.Dispatch(ctx, jobType, payload)`.
+5. Setelah eksekusi:
+   - **Recurring**: `MarkFired()` → hitung `next_run_at` berikutnya dari cron expr → `status = 'ACTIVE'`
+   - **One-off**: `MarkCompleted()` → `status = 'COMPLETED'`
+   - **Error**: `MarkFailed()` → retry jika `retry_count < max_retry`,否则 `status = 'FAILED'`
+
+## Struktur File
+
+```
+internal/shared/scheduler/
+├── domain/
+│   └── scheduled_job/
+│       ├── constant/
+│       │   └── constant.go                          # ScheduleType, Status enums
+│       ├── entity/
+│       │   └── scheduled_job.go                     # Aggregate root + domain methods
+│       └── repository/
+│           └── interfaces.go                        # Repository port
+├── application/
+│   ├── errors.go                                    # ErrHandlerNotFound
+│   ├── registry.go                                  # Registry, HandlerFunc, RetryPolicy, error types
+│   └── worker.go                                    # Worker (ticker loop, processBatch, executeJob)
+└── infrastructure/
+    └── persistence/
+        └── postgres_scheduled_job_repository.go      # Postgres adapter
+
+cmd/worker/
+└── main.go                                          # Entrypoint worker process
+
+migrations/
+└── 20260813000000_create_scheduled_jobs.up.sql
+```
+
+## Database Schema
+
+```sql
+CREATE TABLE scheduled_jobs (
+    id            UUID         PRIMARY KEY,
+    type          VARCHAR(100) NOT NULL,        -- routing key (mis. "fingerprint.sync_open_sessions")
+    payload       JSONB        NOT NULL DEFAULT '{}',
+    schedule_type VARCHAR(20)  NOT NULL CHECK (schedule_type IN ('ONE_OFF', 'RECURRING')),
+    cron_expr     VARCHAR(100),                 -- NULL untuk ONE_OFF
+    run_at        TIMESTAMPTZ,                  -- NULL untuk RECURRING
+    next_run_at   TIMESTAMPTZ  NOT NULL,
+    last_run_at   TIMESTAMPTZ,
+    status        VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE'
+                  CHECK (status IN ('ACTIVE','PROCESSING','PAUSED','COMPLETED','FAILED')),
+    retry_count   INT          NOT NULL DEFAULT 0,
+    max_retry     INT          NOT NULL DEFAULT 3,
+    last_error    TEXT,
+    reference_id  VARCHAR(255),                 -- opaque FK ke entitas bisnis
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_scheduled_jobs_due      ON scheduled_jobs (next_run_at, status) WHERE status = 'ACTIVE';
+CREATE INDEX idx_scheduled_jobs_type_ref ON scheduled_jobs (type, reference_id)  WHERE reference_id IS NOT NULL;
+```
+
+## Domain Model — `domain/scheduled_job/entity/scheduled_job.go`
 
 ```go
-package worker
+type ScheduledJob struct {
+    ID           uuid.UUID
+    Type         string
+    Payload      json.RawMessage
+    ScheduleType constant.ScheduleType    // ONE_OFF | RECURRING
+    CronExpr     *string                  // nil untuk ONE_OFF
+    RunAt        *time.Time               // nil untuk RECURRING
+    NextRunAt    time.Time
+    LastRunAt    *time.Time
+    Status       constant.Status          // ACTIVE | PROCESSING | PAUSED | COMPLETED | FAILED
+    RetryCount   int
+    MaxRetry     int
+    LastError    *string
+    ReferenceID  *string
+    CreatedAt    time.Time
+    UpdatedAt    time.Time
+}
 
-import "context"
-import "time"
+func NewOneOffJob(jobType string, payload json.RawMessage, runAt time.Time) *ScheduledJob
+func NewRecurringJob(jobType string, payload json.RawMessage, cronExpr string,
+                     parser cron.Parser, loc *time.Location) (*ScheduledJob, error)
 
-// Locker mencegah job yang sama jalan bersamaan di >1 instance. Opsional —
-// Scheduler jalan tanpa lock kalau Locker nil (single-instance/dev).
-type Locker interface {
-    // TryAcquire mencoba ambil lock untuk `key`. Kalau berhasil, `ok=true`
-    // dan `release` harus dipanggil setelah job selesai. TTL adalah jaring
-    // pengaman kalau proses crash sebelum release dipanggil.
-    TryAcquire(ctx context.Context, key string, ttl time.Duration) (release func(), ok bool, err error)
+func (j *ScheduledJob) MarkFired(nextRunAt time.Time)    // recurring: advance NextRunAt
+func (j *ScheduledJob) MarkCompleted()                    // one-off: terminal
+func (j *ScheduledJob) MarkFailed(errMsg string)          // increment retry, set FAILED jika max tercapai
+func (j *ScheduledJob) Pause()
+func (j *ScheduledJob) Resume()
+func (j *ScheduledJob) UpdateSchedule(cronExpr string, parser cron.Parser, loc *time.Location) error
+```
+
+## Registry & Handler — `application/registry.go`
+
+```go
+type HandlerFunc func(ctx context.Context, payload json.RawMessage) error
+
+type Registry struct { ... }
+func NewRegistry() *Registry
+func (r *Registry) Register(jobType string, handler HandlerFunc)
+func (r *Registry) Dispatch(ctx context.Context, jobType string, payload json.RawMessage) error
+
+// Error types untuk signaling retry behavior
+type RetryableError struct{ Err error }  // akan di-retry
+type FatalError     struct{ Err error }  // langsung FAILED, no retry
+func IsFatal(err error) bool
+
+// RetryPolicy: configurable max retry per job type
+type RetryPolicy struct { ... }
+func NewRetryPolicy(defaultMax int) *RetryPolicy
+func (p *RetryPolicy) Register(jobType string, maxRetry int)
+func (p *RetryPolicy) MaxRetryFor(jobType string) int
+```
+
+## Worker — `application/worker.go`
+
+```go
+type Worker struct { ... }
+func NewWorker(repo repository.Repository, registry *Registry, tick time.Duration, logger *slog.Logger) *Worker
+func (w *Worker) Run(ctx context.Context)
+```
+
+`Run()` menjalankan ticker loop:
+- Setiap tick: `FindDueAndClaim()` → klaim batch (max 50) via `FOR UPDATE SKIP LOCKED`
+- Tiap job: `Registry.Dispatch()` → handler execution
+- Error handling: `recover()` per-job, error di-log, job state di-update
+- Context cancellation → graceful stop
+
+## Repository — `domain/scheduled_job/repository/interfaces.go`
+
+```go
+type Repository interface {
+    Save(ctx context.Context, job *entity.ScheduledJob) error
+    FindDueAndClaim(ctx context.Context, now time.Time, limit int) ([]*entity.ScheduledJob, error)
+    Update(ctx context.Context, job *entity.ScheduledJob) error
+    FindByTypeAndReferenceID(ctx context.Context, jobType string, referenceID string) (*entity.ScheduledJob, error)
 }
 ```
 
-### `internal/shared/worker/redis_locker.go`
+`FindDueAndClaim` — dua fase dalam satu transaksi:
+1. `SELECT ... WHERE status='ACTIVE' AND next_run_at <= $1 FOR UPDATE SKIP LOCKED LIMIT $2`
+2. `UPDATE SET status='PROCESSING' WHERE id = ANY(claimed_ids)`
+3. COMMIT → row locks released, jobs dieksekusi di luar transaksi
+
+Implementasi: `infrastructure/persistence/postgres_scheduled_job_repository.go`
+
+## Module Integration
+
+Setiap module expose method `RegisterSchedulerHandlers(registry *application.Registry)` di
+`module.go`. Method ini disebut oleh `cmd/worker/main.go` saat wiring. Module mendaftarkan
+handler untuk job type yang menjadi tanggung jawabnya.
 
 ```go
-package worker
-
-type RedisLocker struct {
-    client *redis.Client
-}
-
-func NewRedisLocker(client *redis.Client) *RedisLocker { return &RedisLocker{client: client} }
-
-func (l *RedisLocker) TryAcquire(ctx context.Context, key string, ttl time.Duration) (func(), bool, error) {
-    ok, err := l.client.SetNX(ctx, "worker:lock:"+key, "1", ttl).Result()
-    if err != nil || !ok {
-        return nil, ok, err
-    }
-    release := func() { l.client.Del(context.Background(), "worker:lock:"+key) }
-    return release, true, nil
+func (m *Module) RegisterSchedulerHandlers(registry *application.Registry) {
+    registry.Register("fingerprint.sync_open_sessions", func(ctx context.Context, payload json.RawMessage) error {
+        // parse payload, panggil use case
+        return m.syncOpenSessionsUC.Execute(ctx, ...)
+    })
 }
 ```
-Sama gaya dengan `internal/modules/identity/infrastructure/cache/redis_rate_limiter.go` (struct
-tipis membungkus `*redis.Client`, method langsung pakai perintah Redis). **Catatan batasan**:
-`Del` di sini tidak compare-and-delete (tidak cek token pemilik) — cukup untuk kasus TTL yang
-jauh lebih besar dari durasi job normal; kalau nanti butuh jaminan lebih ketat, upgrade ke Lua
-script CAS tanpa mengubah interface `Locker`.
 
-### `internal/shared/worker/scheduler.go`
+## Concurrency Safety
 
-```go
-type entry struct {
-    job        Job
-    interval   time.Duration
-    runOnStart bool
-}
+- **`FOR UPDATE SKIP LOCKED`**: Multi-worker instance dapat berjalan bersamaan tanpa
+  double-fire. Worker yang terlambat akan skip row yang sudah dikunci.
+- **Status machine**: `ACTIVE → PROCESSING → ACTIVE/COMPLETED/FAILED` — row lock
+  mencegah race condition saat klaim.
+- **Crash recovery**: Job yang stuck di `PROCESSING` (worker crash saat eksekusi)
+  dapat di-recover oleh monitoring/manual intervention. Future: tambahkan
+  `PROCESSING` timeout detection.
 
-type Scheduler struct {
-    logger *slog.Logger
-    locker Locker // boleh nil
-    lockTTL time.Duration
-    entries []entry
-    wg      sync.WaitGroup
-}
-
-func NewScheduler(logger *slog.Logger, locker Locker) *Scheduler
-
-// Register menambahkan job. Harus dipanggil sebelum Start.
-func (s *Scheduler) Register(job Job, interval time.Duration, runOnStart bool)
-
-// Start menjalankan semua job terdaftar, masing-masing di goroutine sendiri.
-// Berhenti saat ctx di-cancel.
-func (s *Scheduler) Start(ctx context.Context)
-
-// Stop menunggu semua job yang sedang berjalan selesai, dibatasi timeout.
-func (s *Scheduler) Stop(timeout time.Duration)
-```
-
-Isi `Start`: satu goroutine per entry, `select { case <-ctx.Done(): return; case <-ticker.C: s.execute(...) }`,
-plus jalankan langsung sekali di awal kalau `runOnStart`. `execute` membungkus `job.Run` dengan
-`recover()`, akuisisi `Locker` (kalau ada) sebelum run dan `release()` di akhir, dan log
-durasi + hasil (`slog.Info`/`slog.Error`) — level `Info` untuk sukses, `Error` untuk gagal/panic,
-konsisten dengan gaya logging di `cmd/api/main.go` (`lg.Info(...)`, `lg.Error(...)`).
-
-### Config — `internal/shared/config/config.go`
+## Config — `internal/shared/config/config.go`
 
 ```go
 type WorkerConfig struct {
-    Enabled bool
+    Enabled     bool
+    TickSeconds int
 }
 // di Config: Worker WorkerConfig
-// di Load(): Worker: WorkerConfig{Enabled: getEnv("WORKER_ENABLED", "true") != "false"}
-```
-Satu flag global cukup untuk v1 (matikan semua job sekaligus, misal untuk debugging lokal).
-Interval per-job **tidak** dikonfigurasi lewat env generik — itu keputusan tiap module saat
-`Register` (hardcode default yang masuk akal, atau baca env spesifik module itu sendiri kalau
-memang perlu dikonfigurasi, sama seperti `RateLimitConfig` per-domain yang sudah ada).
-
-### Wiring — `cmd/api/main.go`
-
-```go
-scheduler := worker.NewScheduler(lg, worker.NewRedisLocker(redisClient))
-
-if cfg.Worker.Enabled {
-    // contoh consumer: auto-sync fingerprint untuk sesi yang open (opsional,
-    // menyusul docs/plan/fingerprint-attendance-integration.md kalau mau
-    // upgrade dari manual-trigger ke auto-poll)
-    scheduler.Register(
-        worker.JobFunc{JobName: "fingerprint-sync-open-sessions", Fn: akademik.SyncOpenSessionsFingerprint},
-        2*time.Minute, false,
-    )
-}
-
-workerCtx, cancelWorker := context.WithCancel(context.Background())
-scheduler.Start(workerCtx)
-
-// ... existing engine setup & srv.ListenAndServe() goroutine tidak berubah ...
-
-<-quit
-lg.Info("shutdown signal received")
-cancelWorker()
-scheduler.Stop(10 * time.Second)
-
-ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-defer cancel()
-srv.Shutdown(ctx)
+// di Load(): Worker: WorkerConfig{
+//     Enabled:     getEnv("WORKER_ENABLED", "true") != "false",
+//     TickSeconds: parseInt("WORKER_TICK_SECONDS", 10),
+// }
 ```
 
-`akademik.SyncOpenSessionsFingerprint` (kalau dipakai) adalah method public baru di
-`*akademikModule.Module` — bukan bagian dari `Contract` (itu untuk dipanggil module lain, bukan
-`main.go` memanggil job miliknya sendiri) — isinya query semua sesi `status = open`
-(`sessionRepo.List(ctx, ...)` yang sudah ada) lalu panggil
-`SyncAttendanceFromFingerprintUseCase.Execute` per sesi.
+`WORKER_ENABLED=false` untuk development/debugging tanpa background job.
+`WORKER_TICK_SECONDS` mengatur interval polling (default 10 detik).
 
-## Pola Pakai untuk Module Lain
+## Docker Compose — Worker Service
 
-1. Module tidak perlu import `internal/shared/worker` di domain/application layer-nya — cukup
-   punya satu method public di `*Module` yang isinya "jalankan use case X sekali", sama seperti
-   method `RegisterRoutes`/`EnsurePendingUploadLifecycle` yang sudah ada.
-2. `main.go` yang membungkusnya jadi `worker.JobFunc` dan `scheduler.Register(...)` dengan
-   interval yang sesuai kebutuhan job itu.
-3. Kalau job butuh lock antar-instance (mis. karena punya efek samping yang tidak idempoten),
-   pastikan `key` yang dipakai di `Locker` unik per job (default: `job.Name()`).
+```yaml
+worker:
+  image: golang:1.25-alpine
+  container_name: sipon-be_worker
+  restart: unless-stopped
+  env_file: .env
+  working_dir: /workspace
+  command: ["go", "run", "./cmd/worker"]
+  volumes:
+    - .:/workspace
+    - go_mod_cache:/go/pkg/mod
+    - go_build_cache:/root/.cache/go-build
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  networks:
+    - sipon-net
+```
 
-## Fase Pengerjaan
+`cmd/api` dan `cmd/worker` adalah dua proses terpisah dengan entry point berbeda,
+menggunakan database yang sama. API tidak menjalankan ticker/scheduler apapun.
 
-1. **Package inti**: `internal/shared/worker/job.go` (`Job`, `JobFunc`), `locker.go` (interface),
-   `redis_locker.go` (`RedisLocker`), `scheduler.go` (`Scheduler`, `Register`, `Start`, `Stop`).
-   Unit test: job sukses ter-log, job error tidak menghentikan job lain, `runOnStart` jalan
-   sekali di awal, `ctx` cancel menghentikan semua goroutine (pakai `interval` pendek + `context.WithTimeout` di test).
-   `go build ./... && go test ./...`.
-2. **Locker test**: unit test `RedisLocker` pakai `redis` test instance (miniredis atau redis
-   container yang sudah dipakai test lain kalau ada) — dua `TryAcquire` dengan key sama, yang
-   kedua harus `ok=false` sebelum TTL habis.
-3. **Config + wiring dasar**: tambah `WorkerConfig` di `config.go`, buat `scheduler` di
-   `main.go`, sambungkan `cancelWorker()` + `scheduler.Stop(...)` ke urutan shutdown yang sudah
-   ada. **Belum ada job terdaftar** di fase ini — cuma infra kosong yang jalan & shutdown bersih.
-   `go build ./...`, jalankan `go run ./cmd/api`, kirim `SIGTERM`, pastikan log shutdown rapi
-   tanpa goroutine leak/panic.
-4. **Consumer pertama (opsional, kalau mau langsung dipakai)**: tambah method
-   `SyncOpenSessionsFingerprint` di akademik module (setelah plan fingerprint selesai
-   diimplementasikan) dan register sebagai job — ini sekaligus jadi bukti integrasi end-to-end
-   package baru ini.
+## cmd/worker/main.go
+
+Worker entry point:
+1. Load config, init timezone, logger
+2. Connect PostgreSQL & Redis
+3. Construct semua module (sama seperti `cmd/api`)
+4. Buat `application.Registry`, panggil `RegisterSchedulerHandlers()` di setiap module
+5. Buat `application.NewWorker()`, panggil `worker.Run(ctx)`
+6. Graceful shutdown: listen SIGINT/SIGTERM → cancel context → wait
+
+## Perbedaan dengan k-forum-api
+
+| Aspek | k-forum-api | sipon-be |
+|-------|-------------|----------|
+| Message queue | RabbitMQ (outbox → MQ → consumer) | **Tanpa MQ** — worker langsung execute |
+| Delivery | Two-phase: outbox relay + scheduler relay | **Single-phase**: worker langsung dispatch |
+| Error handling | MQ nack/requeue + DLQ | Retry count + status machine di DB |
+| Concurrency | FOR UPDATE SKIP LOCKED + temp hold | FOR UPDATE SKIP LOCKED + status transition |
+| Cron parsing | robfig/cron/v3 | robfig/cron/v3 (sama) |
+| Job model | scheduled_jobs + jobs + event_outbox | **scheduled_jobs saja** |
+
+## Perbedaan dengan Plan Sebelumnya
+
+| Aspek | Plan Lama (in-process) | Plan Baru (separate worker) |
+|-------|----------------------|---------------------------|
+| Lokasi eksekusi | Di proses API (`cmd/api`) | Proses terpisah (`cmd/worker`) |
+| Job definition | Hardcoded di `main.go` via `Register()` | **Persisted di DB** oleh usecase |
+| Storage | In-memory entries | **PostgreSQL** `scheduled_jobs` table |
+| Concurrency | Redis distributed lock (optional) | **FOR UPDATE SKIP LOCKED** (built-in) |
+| Scalability | Single instance | **Multi-worker** safe |
+| Job lifecycle | Ticker per goroutine | **Centralized** ticker loop |
+| Retry | Tidak ada | **Retry count** + max retry per type |
+
+## Cara Menambahkan Job Baru
+
+1. **Definisikan routing key** di module (misal `fingerprint/job_types.go`):
+   ```go
+   const RoutingSyncOpenSessions = "fingerprint.sync_open_sessions"
+   ```
+
+2. **Daftarkan handler** di `module.go`:
+   ```go
+   func (m *Module) RegisterSchedulerHandlers(registry *scheduler.Registry) {
+       registry.Register(RoutingSyncOpenSessions, m.handleSyncOpenSessions)
+   }
+   func (m *Module) handleSyncOpenSessions(ctx context.Context, payload json.RawMessage) error {
+       var p SyncPayload
+       json.Unmarshal(payload, &p)
+       return m.syncUC.Execute(ctx, p.SessionID)
+   }
+   ```
+
+3. **Persist job** dari usecase:
+   ```go
+   // One-off: jalankan 5 menit dari sekarang
+   job := scheduler.NewOneOffJob(RoutingSyncOpenSessions, payload, time.Now().Add(5*time.Minute))
+   scheduledJobRepo.Save(ctx, job)
+
+   // Recurring: setiap 2 menit
+   job, _ := scheduler.NewRecurringJob(RoutingSyncOpenSessions, payload, "*/2 * * * *",
+       cron.NewParser(cron.Minute|cron.Hour|cron.Dom|cron.Month|cron.Dow),
+       timeutil.Loc())
+   scheduledJobRepo.Save(ctx, job)
+   ```
 
 ## Verifikasi
 
-1. `go build ./...` dan `go test ./...` lolos di tiap fase.
-2. Jalankan app lokal dengan `WORKER_ENABLED=true` dan minimal satu job dummy (mis. job yang
-   cuma `slog.Info("tick")`) dengan interval pendek (5s) — pastikan log muncul berkala.
-3. Set `WORKER_ENABLED=false` — pastikan tidak ada job jalan (log tick tidak muncul), tapi
-   server API tetap jalan normal.
-4. Matikan Redis (stop container) sambil scheduler pakai `RedisLocker` — pastikan job tetap
-   jalan (locker gagal acquire → `execute` skip run dengan log warning, bukan crash) **atau**
-   sesuai desain, tentukan perilaku yang diinginkan (fail-open vs fail-closed) dan pastikan itu
-   yang terjadi secara konsisten — dokumentasikan pilihannya di kode.
-5. Kirim `SIGTERM` saat job sedang berjalan (job dummy dengan `time.Sleep(3s)`) — pastikan
-   proses menunggu job selesai (dalam batas timeout `Stop`) sebelum exit, bukan langsung
-   dibunuh di tengah jalan.
+1. `go build ./...` — semua package termasuk `cmd/worker` compile
+2. `go run ./cmd/worker` — worker start, log "scheduler worker started" muncul
+3. Insert manual ke `scheduled_jobs` dengan `next_run_at` di masa lalu:
+   ```sql
+   INSERT INTO scheduled_jobs (id, type, payload, schedule_type, next_run_at, status)
+   VALUES (gen_random_uuid(), 'test.echo', '{}', 'ONE_OFF', now() - interval '1 minute', 'ACTIVE');
+   ```
+   Pastikan worker log eksekusi job tersebut
+4. Kirim SIGTERM ke worker — pastikan graceful stop tanpa panic
+5. `WORKER_ENABLED=false` di `.env` — worker tetap start tapi tidak ada job terdaftar
+6. Multi-instance: jalankan 2 worker sekaligus, pastikan job tidak dieksekusi dobel
+
+## Dependencies
+
+- `github.com/robfig/cron/v3` — cron expression parsing (sudah ditambahkan ke go.mod)
+- PostgreSQL — job persistence + row-level locking
+- Existing `internal/shared/` packages (config, database, logger, timeutil)
+
+## Catatan Implementasi
+
+- `RegisterSchedulerHandlers` saat ini **no-op** di semua module — siap diisi handler
+  sesuai kebutuhan (lihat `docs/plan/fingerprint-attendance-integration.md` untuk
+  consumer pertama yang direncanakan).
+- `timeutil.Loc()` dipakai sebagai timezone untuk evaluasi cron expression, konsisten
+  dengan platform timezone yang sudah ada.
+- `reference_id` adalah opaque string — bisa dipakai untuk dedup/cancel job
+  (misal: "the scrape job for source X") via `FindByTypeAndReferenceID`.
+- Struktur folder mengikuti konvensi DDD yang sama dengan module:
+  `domain/` (entity, constant, repository port), `application/` (worker, registry, errors),
+  `infrastructure/persistence/` (postgres adapter).

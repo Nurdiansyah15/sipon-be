@@ -12,6 +12,7 @@ import (
 	"sipon-be/internal/modules/fingerprint/infrastructure/persistence"
 	fingerprintHTTP "sipon-be/internal/modules/fingerprint/interfaces/http"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -60,4 +61,7 @@ func (m *Module) ListDistinctPinInRange(ctx context.Context, from, to time.Time)
 		result = append(result, ScanPin{PIN: p.PIN, FirstScanAt: p.FirstScanAt})
 	}
 	return result, nil
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

@@ -15,6 +15,7 @@ import (
 	keuanganHTTP "sipon-be/internal/modules/keuangan/interfaces/http"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
+	"sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -224,4 +225,7 @@ func (m *Module) GetOutstandingInvoices(ctx context.Context, santriID string) (*
 
 func (m *Module) HasPaidComponent(ctx context.Context, santriID, componentCode, billingPeriodID string) (bool, error) {
 	return m.invoiceRepo.HasPaidComponent(ctx, santriID, componentCode, billingPeriodID)
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
 }

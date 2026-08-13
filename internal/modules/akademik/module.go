@@ -17,6 +17,7 @@ import (
 	"sipon-be/internal/modules/fingerprint"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
+	schedulerApp "sipon-be/internal/shared/scheduler/application"
 )
 
 type Module struct {
@@ -244,4 +245,7 @@ func (m *Module) GetSantriProgram(ctx context.Context, santriID string) (*Santri
 		ProgramName: info.ProgramName,
 		IsActive:    info.IsActive,
 	}, nil
+}
+
+func (m *Module) RegisterSchedulerHandlers(_ *schedulerApp.Registry) {
 }

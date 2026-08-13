@@ -78,6 +78,31 @@ services:
     networks:
       - sipon-net
 
+  # ── Worker (Background Scheduler) ─────────────────────────────────────────────
+  worker:
+    image: golang:1.25-alpine
+    container_name: sipon-be_worker
+    restart: unless-stopped
+    env_file: .env
+    working_dir: /workspace
+    command: ["go", "run", "./cmd/worker"]
+    volumes:
+      - .:/workspace
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - sipon-net
+
   # ── Migrate (one-shot) ───────────────────────────────────────────────────────
   migrate:
     image: golang:1.25-alpine
