@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"sipon-be/internal/modules/akademik/application"
@@ -12,11 +13,18 @@ import (
 )
 
 type OpenSessionUseCase struct {
-	sessionRepo sesRepo.ActivitySessionRepository
+	sessionRepo      sesRepo.ActivitySessionRepository
+	scheduleJobsUC   *ScheduleSessionJobsUseCase
 }
 
-func NewOpenSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository) *OpenSessionUseCase {
-	return &OpenSessionUseCase{sessionRepo: sessionRepo}
+func NewOpenSessionUseCase(
+	sessionRepo sesRepo.ActivitySessionRepository,
+	scheduleJobsUC *ScheduleSessionJobsUseCase,
+) *OpenSessionUseCase {
+	return &OpenSessionUseCase{
+		sessionRepo:    sessionRepo,
+		scheduleJobsUC: scheduleJobsUC,
+	}
 }
 
 func (uc *OpenSessionUseCase) Execute(ctx context.Context, id string) (*dto.ActivitySessionResponse, error) {
@@ -25,8 +33,6 @@ func (uc *OpenSessionUseCase) Execute(ctx context.Context, id string) (*dto.Acti
 		return nil, application.WrapRepoErr(err, constant.CodeActivitySessionNotFound)
 	}
 
-	// Validasi jendela waktu: hanya bisa dibuka saat sesi berlangsung
-	// (antara starts_at dan ends_at).
 	now := time.Now()
 	if now.Before(session.StartsAt) {
 		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "sesi belum waktunya dibuka (sebelum waktu mulai)", nil)
@@ -41,5 +47,13 @@ func (uc *OpenSessionUseCase) Execute(ctx context.Context, id string) (*dto.Acti
 	if err := uc.sessionRepo.Update(ctx, session); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
+
+	if uc.scheduleJobsUC != nil {
+		if err := uc.scheduleJobsUC.Execute(ctx, session.ID, session.EndsAt); err != nil {
+			slog.Warn("akademik: gagal schedule session jobs",
+				"session_id", session.ID, "error", err)
+		}
+	}
+
 	return MapSessionToResponse(session), nil
 }
