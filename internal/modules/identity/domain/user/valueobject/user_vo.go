@@ -257,6 +257,11 @@ func NormalizeLoginIdentityValue(kind constant.LoginIdentifierKind, rawValue str
 		// sipon-api's own login_identity.go NIS branch.
 		return rawValue, nil
 
+	case constant.LoginIdentifierKindGoogle:
+		// Pass-through: Google Subject (sub) ditentukan Google, bukan user —
+		// hanya perlu non-empty (dicek di atas) dan disimpan apa adanya.
+		return rawValue, nil
+
 	default:
 		return "", kernel.WrapMsg(constant.ErrCodeLoginIdentifierUnknownKind, "Jenis identitas login tidak dikenali", nil)
 	}

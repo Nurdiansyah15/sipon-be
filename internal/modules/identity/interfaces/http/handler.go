@@ -20,6 +20,7 @@ import (
 type IdentityHandler struct {
 	registerUC              *command.RegisterUseCase
 	loginUC                 *command.LoginUseCase
+	googleLoginUC           *command.GoogleLoginUseCase
 	refreshTokenUC          *command.RefreshTokenUseCase
 	changePasswordUC        *command.ChangePasswordLocalUseCase
 	setPasswordUC           *command.SetPasswordLocalUseCase
@@ -40,6 +41,9 @@ type IdentityHandler struct {
 	avatarPresignUC         *command.AvatarPresignUseCase
 	avatarConfirmUC         *command.AvatarConfirmUseCase
 	avatarDeleteUC          *command.AvatarDeleteUseCase
+	getLinkedAccountsUC     *query.GetLinkedAccountsUseCase
+	linkGoogleUC            *command.LinkGoogleUseCase
+	unlinkGoogleUC          *command.UnlinkGoogleUseCase
 
 	createUserUC        *command.CreateUserUseCase
 	resetUserPasswordUC *command.ResetUserPasswordUseCase
@@ -71,6 +75,7 @@ type IdentityHandler struct {
 func NewIdentityHandler(
 	registerUC *command.RegisterUseCase,
 	loginUC *command.LoginUseCase,
+	googleLoginUC *command.GoogleLoginUseCase,
 	refreshTokenUC *command.RefreshTokenUseCase,
 	changePasswordUC *command.ChangePasswordLocalUseCase,
 	setPasswordUC *command.SetPasswordLocalUseCase,
@@ -90,6 +95,9 @@ func NewIdentityHandler(
 	avatarPresignUC *command.AvatarPresignUseCase,
 	avatarConfirmUC *command.AvatarConfirmUseCase,
 	avatarDeleteUC *command.AvatarDeleteUseCase,
+	getLinkedAccountsUC *query.GetLinkedAccountsUseCase,
+	linkGoogleUC *command.LinkGoogleUseCase,
+	unlinkGoogleUC *command.UnlinkGoogleUseCase,
 	createUserUC *command.CreateUserUseCase,
 	resetUserPasswordUC *command.ResetUserPasswordUseCase,
 	deactivateUserUC *command.DeactivateUserUseCase,
@@ -118,6 +126,7 @@ func NewIdentityHandler(
 	return &IdentityHandler{
 		registerUC:              registerUC,
 		loginUC:                 loginUC,
+		googleLoginUC:           googleLoginUC,
 		refreshTokenUC:          refreshTokenUC,
 		changePasswordUC:        changePasswordUC,
 		setPasswordUC:           setPasswordUC,
@@ -138,6 +147,9 @@ func NewIdentityHandler(
 		avatarPresignUC:         avatarPresignUC,
 		avatarConfirmUC:         avatarConfirmUC,
 		avatarDeleteUC:          avatarDeleteUC,
+		getLinkedAccountsUC:     getLinkedAccountsUC,
+		linkGoogleUC:            linkGoogleUC,
+		unlinkGoogleUC:          unlinkGoogleUC,
 		createUserUC:            createUserUC,
 		resetUserPasswordUC:     resetUserPasswordUC,
 		deactivateUserUC:        deactivateUserUC,
@@ -202,6 +214,53 @@ func (h *IdentityHandler) Login(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "login success", resp)
+}
+
+func (h *IdentityHandler) GoogleLogin(c *gin.Context) {
+	var req dto.GoogleLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.googleLoginUC.Execute(c.Request.Context(), req, c.ClientIP())
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "login google success", resp)
+}
+
+func (h *IdentityHandler) GetLinkedAccounts(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	resp, err := h.getLinkedAccountsUC.Execute(c.Request.Context(), userID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "linked accounts retrieved", resp)
+}
+
+func (h *IdentityHandler) LinkGoogle(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	var req dto.LinkGoogleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	if err := h.linkGoogleUC.Execute(c.Request.Context(), userID, req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "Google account linked successfully", nil)
+}
+
+func (h *IdentityHandler) UnlinkGoogle(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if err := h.unlinkGoogleUC.Execute(c.Request.Context(), userID); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "Google account unlinked successfully", nil)
 }
 
 func (h *IdentityHandler) RequestIdentityOTP(c *gin.Context) {

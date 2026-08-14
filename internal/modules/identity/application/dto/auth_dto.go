@@ -1,6 +1,9 @@
 package dto
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type PaginationParams struct {
 	Page  int `form:"page" json:"page" binding:"min=1"`
@@ -394,4 +397,31 @@ type ScopeItem struct {
 type AssignScopeRequest struct {
 	ScopeType  string `json:"scope_type" binding:"required,oneof=gender"`
 	ScopeValue string `json:"scope_value" binding:"required,oneof=male female"`
+}
+
+type GoogleLoginRequest struct {
+	IDToken  string `json:"id_token" binding:"required"`
+	DeviceID string `json:"device_id,omitempty"`
+}
+
+func (r *GoogleLoginRequest) ResolveIDToken() string {
+	return strings.TrimSpace(r.IDToken)
+}
+
+type LinkGoogleRequest struct {
+	IDToken string `json:"id_token" binding:"required"`
+}
+
+func (r *LinkGoogleRequest) ResolveIDToken() string {
+	return strings.TrimSpace(r.IDToken)
+}
+
+type GoogleLinkedAccount struct {
+	Linked    bool    `json:"linked"`
+	Email     *string `json:"email"`
+	CanUnlink bool    `json:"can_unlink"`
+}
+
+type LinkedAccountsResponse struct {
+	Google GoogleLinkedAccount `json:"google"`
 }

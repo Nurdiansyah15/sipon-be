@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -20,10 +21,15 @@ type Config struct {
 	Minio       MinioConfig
 	Fingerprint FingerprintConfig
 	Worker      WorkerConfig
+	Google      GoogleConfig
+}
+
+type GoogleConfig struct {
+	ClientIDs []string
 }
 
 type WorkerConfig struct {
-	Enabled   bool
+	Enabled     bool
 	TickSeconds int
 }
 
@@ -98,7 +104,13 @@ type MinioConfig struct {
 	SecretKey      string
 	Bucket         string
 	PrivateBucket  string
-	UseSSL         bool
+	// UseSSL dipakai untuk endpoint publik (presign/PublicURL) — biasanya
+	// HTTPS di production (reverse proxy di depan MinIO).
+	UseSSL bool
+	// InternalUseSSL dipakai untuk client internal (Stat/Remove object). Di
+	// docker network, minio biasanya plain HTTP (minio:9000) meski endpoint
+	// publiknya HTTPS — jadi pisahkan agar tidak "HTTPS client ke server HTTP".
+	InternalUseSSL bool
 }
 
 func Load() (*Config, error) {
@@ -163,6 +175,7 @@ func Load() (*Config, error) {
 			Bucket:         getEnv("MINIO_BUCKET", "sipon-public"),
 			PrivateBucket:  getEnv("MINIO_PRIVATE_BUCKET", "sipon-private"),
 			UseSSL:         getEnv("MINIO_USE_SSL", "false") == "true",
+			InternalUseSSL: getEnv("MINIO_INTERNAL_USE_SSL", "false") == "true",
 		},
 		Fingerprint: FingerprintConfig{
 			SandboxEnabled: getEnv("FINGERPRINT_SANDBOX_ENABLED", "false") == "true",
@@ -171,8 +184,26 @@ func Load() (*Config, error) {
 			Enabled:     getEnv("WORKER_ENABLED", "true") != "false",
 			TickSeconds: parseInt("WORKER_TICK_SECONDS", 10),
 		},
+		Google: GoogleConfig{
+			ClientIDs: parseCSV("GOOGLE_CLIENT_IDS", nil),
+		},
 	}
 	return cfg, nil
+}
+
+func parseCSV(key string, defaultVal []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return defaultVal
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func getEnv(key, defaultVal string) string {

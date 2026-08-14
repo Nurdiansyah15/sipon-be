@@ -14,6 +14,7 @@ import (
 	userconstant "sipon-be/internal/modules/identity/domain/user/constant"
 	"sipon-be/internal/modules/identity/infrastructure/cache"
 	"sipon-be/internal/modules/identity/infrastructure/external"
+	"sipon-be/internal/modules/identity/infrastructure/external/googleoauth"
 	"sipon-be/internal/modules/identity/infrastructure/persistence"
 	"sipon-be/internal/modules/identity/infrastructure/principal"
 	identityHTTP "sipon-be/internal/modules/identity/interfaces/http"
@@ -90,6 +91,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		cfg.Minio.Bucket,
 		cfg.Minio.PrivateBucket,
 		cfg.Minio.UseSSL,
+		cfg.Minio.InternalUseSSL,
 	)
 
 	sessionRevocationStore := cache.NewRedisSessionRevocationStore(redisClient)
@@ -105,6 +107,16 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	)
 
 	loginUC := command.NewLoginUseCase(userRepo, hasher, tokenGen)
+
+	googleVerifier := googleoauth.NewVerifier()
+
+	googleLoginUC := command.NewGoogleLoginUseCase(
+		userRepo, tokenGen, googleVerifier, cfg.Google.ClientIDs, transactor,
+	)
+
+	getLinkedAccountsUC := query.NewGetLinkedAccountsUseCase(userRepo)
+	linkGoogleUC := command.NewLinkGoogleUseCase(userRepo, googleVerifier, cfg.Google.ClientIDs)
+	unlinkGoogleUC := command.NewUnlinkGoogleUseCase(userRepo)
 
 	refreshTokenUC := command.NewRefreshTokenUseCase(tokenGen, sessionRevocationStore, userRepo)
 
@@ -199,6 +211,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	handler := identityHTTP.NewIdentityHandler(
 		registerUC,
 		loginUC,
+		googleLoginUC,
 		refreshTokenUC,
 		changePasswordUC,
 		setPasswordUC,
@@ -218,6 +231,9 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		avatarPresignUC,
 		avatarConfirmUC,
 		avatarDeleteUC,
+		getLinkedAccountsUC,
+		linkGoogleUC,
+		unlinkGoogleUC,
 		createUserUC,
 		resetUserPasswordUC,
 		deactivateUserUC,

@@ -59,6 +59,7 @@ func NewModule(
 		cfg.Minio.Bucket,
 		cfg.Minio.PrivateBucket,
 		cfg.Minio.UseSSL,
+		cfg.Minio.InternalUseSSL,
 	)
 
 	autoPostingService := journalService.NewAutoPostingService(journalRepo, accountRepo, periodRepo)

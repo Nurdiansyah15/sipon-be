@@ -61,6 +61,7 @@ func RegisterRoutes(
 	{
 		auth.POST("/register", handler.Register)
 		auth.POST("/login", handler.Login)
+		auth.POST("/login/google", handler.GoogleLogin)
 		auth.POST("/request-otp", handler.RequestIdentityOTP)
 		auth.POST("/verify-otp", handler.VerifyIdentityOTP)
 		auth.POST("/refresh-token", handler.RefreshToken)
@@ -86,6 +87,9 @@ func RegisterRoutes(
 			authGroup.GET("/profile", handler.Profile)
 			authGroup.POST("/change-password", handler.ChangePassword)
 			authGroup.POST("/set-password", handler.SetPassword)
+			authGroup.GET("/linked-accounts", handler.GetLinkedAccounts)
+			authGroup.POST("/linked-accounts/google", handler.LinkGoogle)
+			authGroup.DELETE("/linked-accounts/google", handler.UnlinkGoogle)
 			authGroup.POST("/change-email/request", handler.RequestChangeIdentityEmail)
 			authGroup.POST("/change-email/confirm", handler.ConfirmChangeIdentityEmail)
 			authGroup.POST("/change-phone/request", handler.RequestChangeIdentityPhone)

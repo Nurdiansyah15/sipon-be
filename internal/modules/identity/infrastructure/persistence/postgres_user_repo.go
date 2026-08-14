@@ -408,7 +408,7 @@ func (r *PostgresUserRepository) loadCredentials(ctx context.Context, userID str
 		c := &userentity.Credential{
 			ID:            m.ID,
 			UserID:        m.UserID,
-			Type:          userconstant.CredentialTypeLocal,
+			Type:          userconstant.CredentialType(m.Type),
 			SecretHash:    secretHash,
 			LastChangedAt: timePtr(m.LastChangedAt),
 			IsPrimary:     m.IsPrimary,

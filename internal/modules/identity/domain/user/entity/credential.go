@@ -43,6 +43,17 @@ func NewLocalCredentialWithoutPassword(id, userID string, isPrimary bool) *Crede
 	}
 }
 
+func NewGoogleCredential(id, userID string, isPrimary bool) *Credential {
+	now := time.Now()
+	return &Credential{
+		ID:        id,
+		UserID:    userID,
+		Type:      constant.CredentialTypeGoogle,
+		IsPrimary: isPrimary,
+		UpdatedAt: now,
+	}
+}
+
 func (c *Credential) AddLoginIdentity(identity *LoginIdentity) {
 	c.LoginIdentities = append(c.LoginIdentities, identity)
 	c.UpdatedAt = time.Now()

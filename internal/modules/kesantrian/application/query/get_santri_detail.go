@@ -37,11 +37,7 @@ func (uc *GetSantriDetailUseCase) buildResponse(ctx context.Context, s *santrien
 		return nil, application.WrapRepoErr(err, application.ErrCodeNotFound)
 	}
 
-	var avatarURL *string
-	if summary.AvatarKey != nil && *summary.AvatarKey != "" {
-		u := uc.fileUploader.PublicURL(*summary.AvatarKey)
-		avatarURL = &u
-	}
+	avatarURL := resolveAvatarURL(uc.fileUploader, summary.AvatarKey)
 
 	return mapSantriToResponse(s, summary.Username, summary.Email, summary.Fullname, avatarURL), nil
 }

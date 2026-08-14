@@ -34,6 +34,42 @@ var avatarExtByContentType = map[string]string{
 
 const avatarPresignTTL = 10 * time.Minute
 
+// Prefix penyimpanan untuk avatar di users.avatar_key:
+//   - "s3:"   -> objek di MinIO (hasil upload via presign)
+//   - "ext:"  -> URL eksternal (mis. picture Google)
+//
+// Pola ini mengikuti thumbnail article (lihat internal/modules/article/application/thumbnail).
+const (
+	avatarKeyPrefixS3  = "s3:"
+	avatarKeyPrefixExt = "ext:"
+)
+
+// stripAvatarKeyPrefix menghapus prefix "s3:"/"ext:" dari nilai tersimpan.
+// Nilai tanpa prefix (legacy) dikembalikan apa adanya.
+func stripAvatarKeyPrefix(stored string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(stored, avatarKeyPrefixS3), avatarKeyPrefixExt)
+}
+
+// resolveAvatarPublicURL mengubah nilai tersimpan avatar_key menjadi URL
+// publik: "ext:" -> URL asli, selain itu (termasuk "s3:") -> resolve MinIO.
+func resolveAvatarPublicURL(fileUploader ports.FileUploader, stored *string) *string {
+	if stored == nil || *stored == "" {
+		return nil
+	}
+	if strings.HasPrefix(*stored, avatarKeyPrefixExt) {
+		extURL := strings.TrimPrefix(*stored, avatarKeyPrefixExt)
+		if extURL == "" {
+			return nil
+		}
+		return &extURL
+	}
+	u := fileUploader.PublicURL(stripAvatarKeyPrefix(*stored))
+	if u == "" {
+		return nil
+	}
+	return &u
+}
+
 type AvatarPresignUseCase struct {
 	fileUploader ports.FileUploader
 }
@@ -115,15 +151,18 @@ func (uc *AvatarConfirmUseCase) Execute(ctx context.Context, userID, key string)
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mempromosikan unggahan avatar", err)
 	}
 
-	user.AvatarKey = &finalKey
+	storedKey := avatarKeyPrefixS3 + finalKey
+	user.AvatarKey = &storedKey
 	if err := uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		return uc.userRepo.Update(txCtx, user)
 	}); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan data avatar", err)
 	}
 
-	if oldKey != nil && *oldKey != finalKey {
-		if err := uc.fileUploader.MarkDeleted(ctx, *oldKey); err != nil {
+	// Hapus avatar lama hanya jika tersimpan di MinIO (prefix "s3:" atau legacy
+	// tanpa prefix). Avatar eksternal ("ext:") bukan milik MinIO — lewati.
+	if oldKey != nil && !strings.HasPrefix(*oldKey, avatarKeyPrefixExt) && stripAvatarKeyPrefix(*oldKey) != finalKey {
+		if err := uc.fileUploader.MarkDeleted(ctx, stripAvatarKeyPrefix(*oldKey)); err != nil {
 			slog.Warn("identity: best-effort hapus avatar lama gagal", "key", *oldKey, "error", err)
 		}
 	}
@@ -168,8 +207,10 @@ func (uc *AvatarDeleteUseCase) Execute(ctx context.Context, userID string) (*dto
 
 	oldKey := user.AvatarKey
 
-	if oldKey != nil && *oldKey != "" {
-		if err := uc.fileUploader.MarkDeleted(ctx, *oldKey); err != nil {
+	// Avatar eksternal (prefix "ext:", mis. picture Google) tidak tersimpan di
+	// MinIO — tidak ada yang perlu dihapus dari storage.
+	if oldKey != nil && *oldKey != "" && !strings.HasPrefix(*oldKey, avatarKeyPrefixExt) {
+		if err := uc.fileUploader.MarkDeleted(ctx, stripAvatarKeyPrefix(*oldKey)); err != nil {
 			return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menghapus avatar lama", err)
 		}
 	}

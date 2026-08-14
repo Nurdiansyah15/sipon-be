@@ -18,7 +18,7 @@ type MinioFileUploader struct {
 	bucket        string
 }
 
-func NewMinioFileUploader(endpoint, publicEndpoint, accessKey, secretKey, bucket string, useSSL bool) (*MinioFileUploader, error) {
+func NewMinioFileUploader(endpoint, publicEndpoint, accessKey, secretKey, bucket string, useSSL, internalUseSSL bool) (*MinioFileUploader, error) {
 	if endpoint == "" || accessKey == "" || secretKey == "" {
 		return nil, nil
 	}
@@ -31,7 +31,7 @@ func NewMinioFileUploader(endpoint, publicEndpoint, accessKey, secretKey, bucket
 
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  creds,
-		Secure: useSSL,
+		Secure: internalUseSSL,
 		Region: defaultSigningRegion,
 	})
 	if err != nil {

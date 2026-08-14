@@ -78,6 +78,7 @@ func NewModule(
 		cfg.Minio.Bucket,
 		cfg.Minio.PrivateBucket,
 		cfg.Minio.UseSSL,
+		cfg.Minio.InternalUseSSL,
 	)
 
 	getSantriUC := query.NewGetSantriUseCase(santriRepo, provisioner, fileUploader)

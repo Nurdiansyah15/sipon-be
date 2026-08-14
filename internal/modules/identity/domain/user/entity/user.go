@@ -3,6 +3,8 @@ package entity
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"sipon-be/internal/modules/identity/domain/user/constant"
 	"sipon-be/internal/modules/identity/domain/user/valueobject"
 	"sipon-be/internal/shared/kernel"
@@ -189,4 +191,64 @@ func (u *User) SetLocalPassword(hashed valueobject.HashedPassword) error {
 func (u *User) ChangeUsername(newUsername valueobject.Username) {
 	u.Username = newUsername
 	u.UpdatedAt = time.Now()
+}
+
+// LinkGoogleCredential menambahkan Google credential ke user.
+// Ditolak kalau user sudah punya Google credential aktif.
+func (u *User) LinkGoogleCredential(credentialID, googleSub string) error {
+	existing := u.FindCredential(constant.CredentialTypeGoogle)
+	if existing != nil && existing.DeletedAt == nil {
+		return kernel.WrapMsg(constant.ErrCodeGoogleAlreadyLinked, "Akun Google sudah tertaut", nil)
+	}
+
+	now := time.Now()
+	googleCred := &Credential{
+		ID:        credentialID,
+		UserID:    u.ID,
+		Type:      constant.CredentialTypeGoogle,
+		IsPrimary: false,
+		UpdatedAt: now,
+	}
+
+	googleIdentity, err := NewLoginIdentity(
+		uuid.NewString(),
+		u.ID,
+		googleCred.ID,
+		constant.LoginIdentifierKindGoogle,
+		googleSub,
+		false,
+		&now,
+	)
+	if err != nil {
+		return err
+	}
+	googleCred.AddLoginIdentity(googleIdentity)
+	u.AddCredential(googleCred)
+	u.UpdatedAt = now
+	return nil
+}
+
+// UnlinkGoogleCredential melepas credential + login identity GOOGLE dari user
+// (soft-delete in-place). Ditolak kalau user belum punya password lokal,
+// supaya user tidak mengunci diri dari akunnya sendiri.
+func (u *User) UnlinkGoogleCredential() error {
+	if !u.HasLocalPassword() {
+		return kernel.WrapMsg(constant.ErrCodeGoogleUnlinkRequiresPassword, "Wajib memiliki password lokal sebelum unlink Google", nil)
+	}
+	google := u.FindCredential(constant.CredentialTypeGoogle)
+	if google == nil || google.DeletedAt != nil {
+		return kernel.WrapMsg(constant.ErrCodeGoogleNotLinked, "Akun Google tidak tertaut", nil)
+	}
+
+	now := time.Now()
+	google.DeletedAt = &now
+	google.UpdatedAt = now
+	for _, identity := range google.LoginIdentities {
+		if identity.DeletedAt == nil {
+			identity.DeletedAt = &now
+			identity.UpdatedAt = now
+		}
+	}
+	u.UpdatedAt = now
+	return nil
 }

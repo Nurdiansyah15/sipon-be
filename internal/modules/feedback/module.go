@@ -48,6 +48,7 @@ func NewModule(
 		cfg.Minio.Bucket,
 		cfg.Minio.PrivateBucket,
 		cfg.Minio.UseSSL,
+		cfg.Minio.InternalUseSSL,
 	)
 
 	listFeedbacks := query.NewListFeedbacksUseCase(feedbackRepo, attachmentRepo, likeRepo, identityGW)

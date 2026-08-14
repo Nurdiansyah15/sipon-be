@@ -28,6 +28,11 @@ func NewLoginIdentity(id, userID, credentialID string, kind constant.LoginIdenti
 		return nil, err
 	}
 
+	status := constant.LoginIdentityStatusUnverified
+	if verifiedAt != nil {
+		status = constant.LoginIdentityStatusVerified
+	}
+
 	now := time.Now()
 	return &LoginIdentity{
 		ID:           id,
@@ -35,7 +40,7 @@ func NewLoginIdentity(id, userID, credentialID string, kind constant.LoginIdenti
 		CredentialID: credentialID,
 		Kind:         kind,
 		Value:        normalizedValue,
-		Status:       constant.LoginIdentityStatusUnverified,
+		Status:       status,
 		IsPrimary:    isPrimary,
 		VerifiedAt:   verifiedAt,
 		CreatedAt:    now,

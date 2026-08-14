@@ -39,6 +39,7 @@ func NewModule(
 		cfg.Minio.SecretKey,
 		cfg.Minio.Bucket,
 		cfg.Minio.UseSSL,
+		cfg.Minio.InternalUseSSL,
 	)
 
 	createArticleUC := command.NewCreateArticleUseCase(articleRepo, fileUploader, transactor)
