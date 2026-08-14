@@ -56,6 +56,9 @@ func (uc *ApproveSantriRequestUseCase) Execute(ctx context.Context, reviewerID, 
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
+	if err := validateGenderMatchesNIS(req.Gender, nis); err != nil {
+		return nil, err
+	}
 
 	if _, err := uc.santriRepo.FindByNIS(ctx, nis.String()); err == nil {
 		return nil, kernel.New(application.ErrCodeConflict)

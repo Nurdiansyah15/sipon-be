@@ -3,6 +3,8 @@ package dto
 import "time"
 
 type UpsertFormulirRequest struct {
+	Gender string `json:"gender" binding:"required"`
+
 	Nickname        *string    `json:"nickname,omitempty"`
 	Program         *string    `json:"program,omitempty"`
 	ProgramID       *string    `json:"program_id,omitempty"`

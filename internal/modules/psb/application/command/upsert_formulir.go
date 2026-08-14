@@ -50,6 +50,10 @@ func NewUpsertFormulirUseCase(
 }
 
 func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req dto.UpsertFormulirRequest) (*dto.PendaftarResponse, error) {
+	if req.Gender != "1" && req.Gender != "2" {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "jenis kelamin tidak valid (harus '1' laki-laki atau '2' perempuan)", nil)
+	}
+
 	if err := uc.ensureNotSantri(ctx, userID); err != nil {
 		return nil, err
 	}
@@ -67,7 +71,7 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 
 	if p == nil {
 		isNew = true
-		p, err = pentity.NewPendaftar(uuid.NewString(), userID, setting.ID, "1", req.Program)
+		p, err = pentity.NewPendaftar(uuid.NewString(), userID, setting.ID, req.Gender, req.Program)
 		if err != nil {
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)
 		}
@@ -80,7 +84,7 @@ func (uc *UpsertFormulirUseCase) Execute(ctx context.Context, userID string, req
 	}
 
 	err = p.UpsertFormulir(func(p *pentity.Pendaftar) {
-		p.Gender = "1"
+		p.Gender = req.Gender
 		p.Program = req.Program
 		p.ProgramID = req.ProgramID
 		p.Nickname = req.Nickname

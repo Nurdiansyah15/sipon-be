@@ -39,6 +39,9 @@ func (uc *CreateSantriUseCase) Execute(ctx context.Context, req dto.CreateSantri
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity, err)
 	}
+	if err := validateGenderMatchesNIS(req.Gender, nis); err != nil {
+		return nil, err
+	}
 
 	_, err = uc.santriRepo.FindByNIS(ctx, nis.String())
 	if err == nil {
