@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/kesantrian/domain/santri/entity"
+	santriscope "sipon-be/internal/modules/kesantrian/domain/santri/scope"
 )
 
 type SantriListQuery struct {
@@ -12,6 +13,9 @@ type SantriListQuery struct {
 	Limit    int
 	SortBy   string
 	SortType string
+	// Scope membatasi daftar santri sesuai akses scope user. Zero value
+	// (santriscope.ScopeSet{}) diperlakukan sebagai tanpa filter.
+	Scope santriscope.ScopeSet
 }
 
 type SantriListResult struct {

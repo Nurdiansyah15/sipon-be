@@ -25,6 +25,7 @@ func NewRegistry() *Registry {
 	r.register(&UserSeeder{})
 	r.register(&COASeeder{})
 	r.register(&ProgramSeeder{})
+	r.register(&ScopeSeeder{})
 	return r
 }
 

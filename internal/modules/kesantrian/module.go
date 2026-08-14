@@ -18,7 +18,9 @@ import (
 	"sipon-be/internal/modules/kesantrian/infrastructure/external"
 	"sipon-be/internal/modules/kesantrian/infrastructure/identitygateway"
 	"sipon-be/internal/modules/kesantrian/infrastructure/persistence"
+	"sipon-be/internal/modules/kesantrian/infrastructure/scopegateway"
 	kesantrianHTTP "sipon-be/internal/modules/kesantrian/interfaces/http"
+	"sipon-be/internal/modules/system"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/scheduler/application"
 )
@@ -56,6 +58,7 @@ func NewModule(
 	cfg *config.Config,
 	identityContract identity.Contract,
 	dokumenAsetContract dokumenAset.Contract,
+	systemContract system.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
 ) *Module {
@@ -65,6 +68,7 @@ func NewModule(
 	transactor := persistence.NewPostgresTransactor(db)
 
 	provisioner := identitygateway.New(identityContract)
+	scopeReader := scopegateway.New(systemContract)
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,
@@ -77,12 +81,13 @@ func NewModule(
 	)
 
 	getSantriUC := query.NewGetSantriUseCase(santriRepo, provisioner, fileUploader)
+	getSantriDetailUC := query.NewGetSantriDetailUseCase(santriRepo, provisioner, fileUploader)
 	updateSantriUC := command.NewUpdateSantriUseCase(santriRepo, provisioner)
 	requestSantriUC := command.NewRequestSantriUseCase(santriRepo, requestRepo, transactor)
 
 	createSantriUC := command.NewCreateSantriUseCase(santriRepo, provisioner, transactor)
 	importSantriUC := command.NewImportSantriUseCase(santriRepo, provisioner, transactor)
-	listSantriUC := query.NewListSantriUseCase(santriRepo, provisioner)
+	listSantriUC := query.NewListSantriUseCase(santriRepo, provisioner, scopeReader)
 	listSantriRequestsUC := query.NewListSantriRequestsUseCase(requestRepo, provisioner)
 	approveSantriRequestUC := command.NewApproveSantriRequestUseCase(requestRepo, santriRepo, provisioner, transactor)
 	rejectSantriRequestUC := command.NewRejectSantriRequestUseCase(requestRepo, transactor)
@@ -132,6 +137,7 @@ func NewModule(
 
 	handler := kesantrianHTTP.NewSantriHandler(
 		getSantriUC,
+		getSantriDetailUC,
 		updateSantriUC,
 		requestSantriUC,
 		createSantriUC,

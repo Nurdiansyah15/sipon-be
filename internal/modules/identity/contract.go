@@ -44,6 +44,23 @@ type Principal struct {
 	Scopes      []ScopeInfo
 }
 
+// UserScopeValue adalah satu scope efektif yang dibawa user lewat role-nya
+// (mis. scope_type "gender" + scope_value "male").
+type UserScopeValue struct {
+	ScopeType  string
+	ScopeValue string
+}
+
+// UserScopeSet adalah himpunan scope efektif user — dipakai module lain
+// (mis. system) untuk memfilter data berbasis scope.
+type UserScopeSet struct {
+	// HasSystemRole true ketika user memegang role superuser (role_type system
+	// yang tidak assignable). Module pemanggil boleh memberi akses penuh.
+	HasSystemRole bool
+	// Values berisi scope unik (deduplicated) lintas seluruh role aktif user.
+	Values []UserScopeValue
+}
+
 type ScopeInfo struct {
 	ScopeType string
 	ScopeID   *string
@@ -61,6 +78,12 @@ type Contract interface {
 	// GetPrincipal resolves a user's roles/permissions/scopes for
 	// permission checks in other modules.
 	GetPrincipal(ctx context.Context, userID string) (*Principal, error)
+
+	// GetUserScopeSet resolves the effective role-scope values a user carries
+	// through their active roles, plus whether the user holds a superuser
+	// (non-assignable system) role. Used by scope-based data filtering in
+	// other modules (e.g. system).
+	GetUserScopeSet(ctx context.Context, userID string) (*UserScopeSet, error)
 
 	// CreateAccountWithNIS provisions a brand-new login account (User +
 	// Credential + 3 LoginIdentity: NIS primary, email, username) for a

@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/application/query"
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
@@ -102,10 +103,11 @@ func (uc *UpdateRoleUseCase) Execute(ctx context.Context, roleID string, req dto
 }
 
 type AssignUserRoleUseCase struct {
-	roleRepo     rolerepo.RoleRepository
-	userRoleRepo rolerepo.UserRoleRepository
-	userRepo     userrepo.UserRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	roleRepo       rolerepo.RoleRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	userRepo       userrepo.UserRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewAssignUserRoleUseCase(
@@ -113,12 +115,14 @@ func NewAssignUserRoleUseCase(
 	userRoleRepo rolerepo.UserRoleRepository,
 	userRepo userrepo.UserRepository,
 	rolePermRepo rolerepo.RolePermissionRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *AssignUserRoleUseCase {
 	return &AssignUserRoleUseCase{
-		roleRepo:     roleRepo,
-		userRoleRepo: userRoleRepo,
-		userRepo:     userRepo,
-		rolePermRepo: rolePermRepo,
+		roleRepo:       roleRepo,
+		userRoleRepo:   userRoleRepo,
+		userRepo:       userRepo,
+		rolePermRepo:   rolePermRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -151,14 +155,17 @@ func (uc *AssignUserRoleUseCase) Execute(ctx context.Context, assignedBy string,
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	invalidatePrincipalUsers(ctx, uc.principalCache, []string{userRole.UserID})
+
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
 }
 
 type UpdateUserRoleUseCase struct {
-	userRoleRepo rolerepo.UserRoleRepository
-	userRepo     userrepo.UserRepository
-	roleRepo     rolerepo.RoleRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	userRepo       userrepo.UserRepository
+	roleRepo       rolerepo.RoleRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewUpdateUserRoleUseCase(
@@ -166,12 +173,14 @@ func NewUpdateUserRoleUseCase(
 	userRepo userrepo.UserRepository,
 	roleRepo rolerepo.RoleRepository,
 	rolePermRepo rolerepo.RolePermissionRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *UpdateUserRoleUseCase {
 	return &UpdateUserRoleUseCase{
-		userRoleRepo: userRoleRepo,
-		userRepo:     userRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
+		userRoleRepo:   userRoleRepo,
+		userRepo:       userRepo,
+		roleRepo:       roleRepo,
+		rolePermRepo:   rolePermRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -187,14 +196,17 @@ func (uc *UpdateUserRoleUseCase) Execute(ctx context.Context, userRoleID string,
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	invalidatePrincipalUsers(ctx, uc.principalCache, []string{userRole.UserID})
+
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
 }
 
 type DeactivateUserRoleUseCase struct {
-	userRoleRepo rolerepo.UserRoleRepository
-	userRepo     userrepo.UserRepository
-	roleRepo     rolerepo.RoleRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	userRepo       userrepo.UserRepository
+	roleRepo       rolerepo.RoleRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewDeactivateUserRoleUseCase(
@@ -202,12 +214,14 @@ func NewDeactivateUserRoleUseCase(
 	userRepo userrepo.UserRepository,
 	roleRepo rolerepo.RoleRepository,
 	rolePermRepo rolerepo.RolePermissionRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *DeactivateUserRoleUseCase {
 	return &DeactivateUserRoleUseCase{
-		userRoleRepo: userRoleRepo,
-		userRepo:     userRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
+		userRoleRepo:   userRoleRepo,
+		userRepo:       userRepo,
+		roleRepo:       roleRepo,
+		rolePermRepo:   rolePermRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -229,14 +243,17 @@ func (uc *DeactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	invalidatePrincipalUsers(ctx, uc.principalCache, []string{userRole.UserID})
+
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
 }
 
 type ReactivateUserRoleUseCase struct {
-	userRoleRepo rolerepo.UserRoleRepository
-	userRepo     userrepo.UserRepository
-	roleRepo     rolerepo.RoleRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	userRepo       userrepo.UserRepository
+	roleRepo       rolerepo.RoleRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewReactivateUserRoleUseCase(
@@ -244,12 +261,14 @@ func NewReactivateUserRoleUseCase(
 	userRepo userrepo.UserRepository,
 	roleRepo rolerepo.RoleRepository,
 	rolePermRepo rolerepo.RolePermissionRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *ReactivateUserRoleUseCase {
 	return &ReactivateUserRoleUseCase{
-		userRoleRepo: userRoleRepo,
-		userRepo:     userRepo,
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
+		userRoleRepo:   userRoleRepo,
+		userRepo:       userRepo,
+		roleRepo:       roleRepo,
+		rolePermRepo:   rolePermRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -276,20 +295,30 @@ func (uc *ReactivateUserRoleUseCase) Execute(ctx context.Context, userRoleID str
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	invalidatePrincipalUsers(ctx, uc.principalCache, []string{userRole.UserID})
+
 	return query.BuildUserRoleItem(ctx, uc.userRepo, uc.roleRepo, uc.rolePermRepo, userRole)
 }
 
 type DeleteUserRoleUseCase struct {
-	userRoleRepo rolerepo.UserRoleRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
-func NewDeleteUserRoleUseCase(userRoleRepo rolerepo.UserRoleRepository) *DeleteUserRoleUseCase {
-	return &DeleteUserRoleUseCase{userRoleRepo: userRoleRepo}
+func NewDeleteUserRoleUseCase(userRoleRepo rolerepo.UserRoleRepository, principalCache ports.PrincipalCacheInvalidator) *DeleteUserRoleUseCase {
+	return &DeleteUserRoleUseCase{userRoleRepo: userRoleRepo, principalCache: principalCache}
 }
 
 func (uc *DeleteUserRoleUseCase) Execute(ctx context.Context, userRoleID string) error {
+	userRole, err := uc.userRoleRepo.FindByID(ctx, strings.TrimSpace(userRoleID))
+	if err != nil {
+		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
+	}
+
 	if err := uc.userRoleRepo.Delete(ctx, strings.TrimSpace(userRoleID)); err != nil {
 		return kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	invalidatePrincipalUsers(ctx, uc.principalCache, []string{userRole.UserID})
 	return nil
 }

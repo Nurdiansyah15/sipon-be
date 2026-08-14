@@ -32,6 +32,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *SantriHandler, ph *PersuratanHan
 		{
 			admin.GET("", h.ListSantri)
 			admin.POST("", h.CreateSantri)
+			admin.GET("/:id", h.GetSantriDetail)
 			admin.POST("/import", h.ImportSantri)
 			admin.GET("/import/template", h.DownloadImportTemplate)
 			admin.GET("/requests", h.ListSantriRequests)

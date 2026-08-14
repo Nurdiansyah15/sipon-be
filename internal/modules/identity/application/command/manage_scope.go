@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/application/ports"
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
 	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
@@ -17,17 +18,23 @@ import (
 )
 
 type AssignRoleScopeUseCase struct {
-	roleRepo      rolerepo.RoleRepository
-	roleScopeRepo rolerepo.RoleScopeRepository
+	roleRepo       rolerepo.RoleRepository
+	roleScopeRepo  rolerepo.RoleScopeRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewAssignRoleScopeUseCase(
 	roleRepo rolerepo.RoleRepository,
 	roleScopeRepo rolerepo.RoleScopeRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *AssignRoleScopeUseCase {
 	return &AssignRoleScopeUseCase{
-		roleRepo:      roleRepo,
-		roleScopeRepo: roleScopeRepo,
+		roleRepo:       roleRepo,
+		roleScopeRepo:  roleScopeRepo,
+		userRoleRepo:   userRoleRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -78,6 +85,8 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan scope role", err)
 	}
 
+	invalidateRoleHolders(ctx, uc.principalCache, uc.userRoleRepo, role.Name)
+
 	return &dto.ScopeItem{
 		ID:         scope.ID,
 		ScopeType:  string(scope.ScopeType),
@@ -86,11 +95,24 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 }
 
 type DeleteRoleScopeUseCase struct {
-	roleScopeRepo rolerepo.RoleScopeRepository
+	roleScopeRepo  rolerepo.RoleScopeRepository
+	roleRepo       rolerepo.RoleRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
-func NewDeleteRoleScopeUseCase(roleScopeRepo rolerepo.RoleScopeRepository) *DeleteRoleScopeUseCase {
-	return &DeleteRoleScopeUseCase{roleScopeRepo: roleScopeRepo}
+func NewDeleteRoleScopeUseCase(
+	roleScopeRepo rolerepo.RoleScopeRepository,
+	roleRepo rolerepo.RoleRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	principalCache ports.PrincipalCacheInvalidator,
+) *DeleteRoleScopeUseCase {
+	return &DeleteRoleScopeUseCase{
+		roleScopeRepo:  roleScopeRepo,
+		roleRepo:       roleRepo,
+		userRoleRepo:   userRoleRepo,
+		principalCache: principalCache,
+	}
 }
 
 func (uc *DeleteRoleScopeUseCase) Execute(ctx context.Context, scopeID string) error {
@@ -99,7 +121,8 @@ func (uc *DeleteRoleScopeUseCase) Execute(ctx context.Context, scopeID string) e
 		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "ID scope tidak boleh kosong", nil)
 	}
 
-	if _, err := uc.roleScopeRepo.FindByID(ctx, scopeID); err != nil {
+	scope, err := uc.roleScopeRepo.FindByID(ctx, scopeID)
+	if err != nil {
 		var ke *kernel.AppError
 		if errors.As(err, &ke) {
 			switch ke.Code {
@@ -112,6 +135,10 @@ func (uc *DeleteRoleScopeUseCase) Execute(ctx context.Context, scopeID string) e
 
 	if err := uc.roleScopeRepo.Delete(ctx, scopeID); err != nil {
 		return kernel.WrapMsg(application.ErrCodeInternal, "gagal menghapus scope role", err)
+	}
+
+	if role, err := uc.roleRepo.FindByID(ctx, scope.RoleID); err == nil {
+		invalidateRoleHolders(ctx, uc.principalCache, uc.userRoleRepo, role.Name)
 	}
 	return nil
 }

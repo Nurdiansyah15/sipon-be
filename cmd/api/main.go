@@ -23,6 +23,7 @@ import (
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
 	psbModule "sipon-be/internal/modules/psb"
+	systemModule "sipon-be/internal/modules/system"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
@@ -60,6 +61,13 @@ func main() {
 	defer redisClient.Close()
 
 	identity := identityModule.NewModule(db, redisClient, cfg)
+	system := systemModule.NewModule(
+		db,
+		identity, // identity.Contract
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
+
 	dokumenAset := dokumenAsetModule.NewModule(
 		db, cfg,
 		identity.AuthMiddleware(),
@@ -70,6 +78,7 @@ func main() {
 		db, redisClient, cfg,
 		identity,    // identity.Contract
 		dokumenAset, // dokumen_aset.Contract
+		system,      // system.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
@@ -160,6 +169,7 @@ func main() {
 	}
 
 	identity.RegisterRoutes(engine)
+	system.RegisterRoutes(engine)
 	kesantrian.RegisterRoutes(engine)
 	psb.RegisterRoutes(engine)
 	dokumenAset.RegisterRoutes(engine)

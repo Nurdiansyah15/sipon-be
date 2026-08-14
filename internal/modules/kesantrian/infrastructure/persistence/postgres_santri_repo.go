@@ -150,6 +150,16 @@ func (r *PostgresSantriRepository) List(ctx context.Context, q repository.Santri
 		argIdx++
 	}
 
+	// Terjemahkan ScopeSet (kosakata domain santri) ke kolom skema "option".
+	if q.Scope.IsRestricted() {
+		if q.Scope.IsDenied() {
+			return &repository.SantriListResult{Items: []*entity.Santri{}, Total: 0}, nil
+		}
+		where += fmt.Sprintf(` AND "option" = ANY($%d)`, argIdx)
+		args = append(args, q.Scope.AllowedOptions())
+		argIdx++
+	}
+
 	sortCol, ok := santriSortColumns[q.SortBy]
 	if !ok {
 		sortCol = "created_at"

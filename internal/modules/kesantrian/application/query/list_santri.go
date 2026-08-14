@@ -47,18 +47,24 @@ func buildMeta(page, limit int, total int64) dto.Meta {
 type ListSantriUseCase struct {
 	santriRepo  santrirepo.SantriRepository
 	provisioner ports.AccountProvisioner
+	scopeReader ports.ScopeReader
 }
 
-func NewListSantriUseCase(santriRepo santrirepo.SantriRepository, provisioner ports.AccountProvisioner) *ListSantriUseCase {
-	return &ListSantriUseCase{santriRepo: santriRepo, provisioner: provisioner}
+func NewListSantriUseCase(santriRepo santrirepo.SantriRepository, provisioner ports.AccountProvisioner, scopeReader ports.ScopeReader) *ListSantriUseCase {
+	return &ListSantriUseCase{santriRepo: santriRepo, provisioner: provisioner, scopeReader: scopeReader}
 }
 
-func (uc *ListSantriUseCase) Execute(ctx context.Context, req dto.ListSantriQuery) ([]dto.ListSantriItem, dto.Meta, error) {
+func (uc *ListSantriUseCase) Execute(ctx context.Context, userID string, req dto.ListSantriQuery) ([]dto.ListSantriItem, dto.Meta, error) {
 	page, limit := resolvePagination(req.Page, req.Limit)
 
 	var nisFilter *string
 	if trimmed := strings.TrimSpace(req.NIS); trimmed != "" {
 		nisFilter = &trimmed
+	}
+
+	scopeSet, err := uc.scopeReader.GetSantriScopeSet(ctx, userID)
+	if err != nil {
+		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 
 	result, err := uc.santriRepo.List(ctx, santrirepo.SantriListQuery{
@@ -67,6 +73,7 @@ func (uc *ListSantriUseCase) Execute(ctx context.Context, req dto.ListSantriQuer
 		Limit:    limit,
 		SortBy:   req.SortBy,
 		SortType: req.SortType,
+		Scope:    scopeSet,
 	})
 	if err != nil {
 		return nil, dto.Meta{}, kernel.Wrap(application.ErrCodeInternal, err)

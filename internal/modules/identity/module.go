@@ -43,6 +43,9 @@ type Module struct {
 	createAccountWithNISUC *command.CreateAccountWithNISUseCase
 	addNISLoginIdentityUC  *command.AddNISLoginIdentityUseCase
 	updateFullnameUC       *command.UpdateFullnameUseCase
+
+	// getUserScopeSetUC backs Contract.GetUserScopeSet — see contract.go.
+	getUserScopeSetUC *query.GetUserScopeSetUseCase
 }
 
 func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Module {
@@ -163,6 +166,8 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	addNISLoginIdentityUC := command.NewAddNISLoginIdentityUseCase(userRepo)
 	updateFullnameUC := command.NewUpdateFullnameUseCase(userRepo)
 
+	getUserScopeSetUC := query.NewGetUserScopeSetUseCase(userRoleRepo, roleRepo, roleScopeRepo)
+
 	listRolesUC := query.NewListRolesUseCase(roleListRepo)
 	getRoleUC := query.NewGetRoleUseCase(roleRepo, rolePermRepo)
 	listPermissionsUC := query.NewListPermissionsUseCase()
@@ -171,25 +176,25 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	updateRoleUC := command.NewUpdateRoleUseCase(roleRepo, rolePermRepo)
 
 	assignUserRoleUC := command.NewAssignUserRoleUseCase(
-		roleRepo, userRoleRepo, userRepo, rolePermRepo,
+		roleRepo, userRoleRepo, userRepo, rolePermRepo, principalCache,
 	)
 
-	updateUserRoleUC := command.NewUpdateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
-	deactivateUserRoleUC := command.NewDeactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
-	reactivateUserRoleUC := command.NewReactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
-	deleteUserRoleUC := command.NewDeleteUserRoleUseCase(userRoleRepo)
+	updateUserRoleUC := command.NewUpdateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo, principalCache)
+	deactivateUserRoleUC := command.NewDeactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo, principalCache)
+	reactivateUserRoleUC := command.NewReactivateUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo, principalCache)
+	deleteUserRoleUC := command.NewDeleteUserRoleUseCase(userRoleRepo, principalCache)
 
 	listUserRolesUC := query.NewListUserRolesUseCase(
 		userRoleListRepo, userRepo, roleRepo, rolePermRepo,
 	)
 	getUserRoleUC := query.NewGetUserRoleUseCase(userRoleRepo, userRepo, roleRepo, rolePermRepo)
 
-	assignRolePermissionUC := command.NewAssignRolePermissionUseCase(roleRepo, rolePermRepo)
-	deleteRolePermissionUC := command.NewDeleteRolePermissionUseCase(roleRepo, rolePermRepo)
+	assignRolePermissionUC := command.NewAssignRolePermissionUseCase(roleRepo, rolePermRepo, userRoleRepo, principalCache)
+	deleteRolePermissionUC := command.NewDeleteRolePermissionUseCase(roleRepo, rolePermRepo, userRoleRepo, principalCache)
 
 	listScopesUC := query.NewListScopesUseCase(roleScopeRepo)
-	assignRoleScopeUC := command.NewAssignRoleScopeUseCase(roleRepo, roleScopeRepo)
-	deleteRoleScopeUC := command.NewDeleteRoleScopeUseCase(roleScopeRepo)
+	assignRoleScopeUC := command.NewAssignRoleScopeUseCase(roleRepo, roleScopeRepo, userRoleRepo, principalCache)
+	deleteRoleScopeUC := command.NewDeleteRoleScopeUseCase(roleScopeRepo, roleRepo, userRoleRepo, principalCache)
 
 	handler := identityHTTP.NewIdentityHandler(
 		registerUC,
@@ -258,6 +263,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		createAccountWithNISUC: createAccountWithNISUC,
 		addNISLoginIdentityUC:  addNISLoginIdentityUC,
 		updateFullnameUC:       updateFullnameUC,
+		getUserScopeSetUC:      getUserScopeSetUC,
 	}
 }
 
@@ -333,6 +339,21 @@ func (m *Module) CreateAccountWithNIS(ctx context.Context, in CreateAccountInput
 
 func (m *Module) AddNISLoginIdentity(ctx context.Context, userID, nisValue string) error {
 	return m.addNISLoginIdentityUC.Execute(ctx, userID, nisValue)
+}
+
+func (m *Module) GetUserScopeSet(ctx context.Context, userID string) (*UserScopeSet, error) {
+	res, err := m.getUserScopeSetUC.Execute(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	values := make([]UserScopeValue, len(res.Values))
+	for i, v := range res.Values {
+		values[i] = UserScopeValue{ScopeType: v.ScopeType, ScopeValue: v.ScopeValue}
+	}
+	return &UserScopeSet{
+		HasSystemRole: res.HasSystemRole,
+		Values:        values,
+	}, nil
 }
 
 func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname string) error {

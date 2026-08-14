@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/application/ports"
 	"sipon-be/internal/modules/identity/application/query"
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
@@ -17,17 +18,23 @@ import (
 )
 
 type AssignRolePermissionUseCase struct {
-	roleRepo     rolerepo.RoleRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	roleRepo       rolerepo.RoleRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
 func NewAssignRolePermissionUseCase(
 	roleRepo rolerepo.RoleRepository,
 	rolePermRepo rolerepo.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	principalCache ports.PrincipalCacheInvalidator,
 ) *AssignRolePermissionUseCase {
 	return &AssignRolePermissionUseCase{
-		roleRepo:     roleRepo,
-		rolePermRepo: rolePermRepo,
+		roleRepo:       roleRepo,
+		rolePermRepo:   rolePermRepo,
+		userRoleRepo:   userRoleRepo,
+		principalCache: principalCache,
 	}
 }
 
@@ -64,16 +71,30 @@ func (uc *AssignRolePermissionUseCase) Execute(ctx context.Context, roleID, assi
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
 
+	invalidateRoleHolders(ctx, uc.principalCache, uc.userRoleRepo, role.Name)
+
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
 }
 
 type DeleteRolePermissionUseCase struct {
-	roleRepo     rolerepo.RoleRepository
-	rolePermRepo rolerepo.RolePermissionRepository
+	roleRepo       rolerepo.RoleRepository
+	rolePermRepo   rolerepo.RolePermissionRepository
+	userRoleRepo   rolerepo.UserRoleRepository
+	principalCache ports.PrincipalCacheInvalidator
 }
 
-func NewDeleteRolePermissionUseCase(roleRepo rolerepo.RoleRepository, rolePermRepo rolerepo.RolePermissionRepository) *DeleteRolePermissionUseCase {
-	return &DeleteRolePermissionUseCase{roleRepo: roleRepo, rolePermRepo: rolePermRepo}
+func NewDeleteRolePermissionUseCase(
+	roleRepo rolerepo.RoleRepository,
+	rolePermRepo rolerepo.RolePermissionRepository,
+	userRoleRepo rolerepo.UserRoleRepository,
+	principalCache ports.PrincipalCacheInvalidator,
+) *DeleteRolePermissionUseCase {
+	return &DeleteRolePermissionUseCase{
+		roleRepo:       roleRepo,
+		rolePermRepo:   rolePermRepo,
+		userRoleRepo:   userRoleRepo,
+		principalCache: principalCache,
+	}
 }
 
 func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, permissionKey string) (*dto.RoleItem, error) {
@@ -93,6 +114,8 @@ func (uc *DeleteRolePermissionUseCase) Execute(ctx context.Context, roleID, perm
 	if err := uc.rolePermRepo.Delete(ctx, role.ID, roleconstant.PermissionKey(strings.TrimSpace(permissionKey))); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	invalidateRoleHolders(ctx, uc.principalCache, uc.userRoleRepo, role.Name)
 
 	return query.BuildRoleResponse(ctx, uc.roleRepo, uc.rolePermRepo, role.ID)
 }

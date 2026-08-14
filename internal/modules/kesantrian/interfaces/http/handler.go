@@ -14,9 +14,10 @@ import (
 )
 
 type SantriHandler struct {
-	getSantriUC     *query.GetSantriUseCase
-	updateSantriUC  *command.UpdateSantriUseCase
-	requestSantriUC *command.RequestSantriUseCase
+	getSantriUC        *query.GetSantriUseCase
+	getSantriDetailUC  *query.GetSantriDetailUseCase
+	updateSantriUC     *command.UpdateSantriUseCase
+	requestSantriUC    *command.RequestSantriUseCase
 
 	createSantriUC         *command.CreateSantriUseCase
 	importSantriUC         *command.ImportSantriUseCase
@@ -40,6 +41,7 @@ type SantriHandler struct {
 
 func NewSantriHandler(
 	getSantriUC *query.GetSantriUseCase,
+	getSantriDetailUC *query.GetSantriDetailUseCase,
 	updateSantriUC *command.UpdateSantriUseCase,
 	requestSantriUC *command.RequestSantriUseCase,
 	createSantriUC *command.CreateSantriUseCase,
@@ -61,6 +63,7 @@ func NewSantriHandler(
 ) *SantriHandler {
 	return &SantriHandler{
 		getSantriUC:            getSantriUC,
+		getSantriDetailUC:      getSantriDetailUC,
 		updateSantriUC:         updateSantriUC,
 		requestSantriUC:        requestSantriUC,
 		createSantriUC:         createSantriUC,
@@ -90,6 +93,16 @@ func (h *SantriHandler) GetSantri(c *gin.Context) {
 		return
 	}
 	respond.OK(c, "profil santri berhasil diambil", resp)
+}
+
+func (h *SantriHandler) GetSantriDetail(c *gin.Context) {
+	santriID := c.Param("id")
+	resp, err := h.getSantriDetailUC.Execute(c.Request.Context(), santriID)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "detail santri berhasil diambil", resp)
 }
 
 func (h *SantriHandler) UpdateSantri(c *gin.Context) {
@@ -170,12 +183,13 @@ func (h *SantriHandler) DownloadImportTemplate(c *gin.Context) {
 }
 
 func (h *SantriHandler) ListSantri(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	var req dto.ListSantriQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	items, meta, err := h.listSantriUC.Execute(c.Request.Context(), req)
+	items, meta, err := h.listSantriUC.Execute(c.Request.Context(), userID, req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
