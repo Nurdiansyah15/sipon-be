@@ -144,7 +144,7 @@ func (r *PostgresSuratRepository) List(ctx context.Context, q repository.SuratLi
 	return &repository.SuratListResult{Items: items, Total: total}, nil
 }
 
-func (r *PostgresSuratRepository) FindMaxSeqByMonthYear(ctx context.Context, bulan, tahun int) (int, error) {
+func (r *PostgresSuratRepository) FindMaxSeqByMonthYear(ctx context.Context, scopeID *string, bulan, tahun int) (int, error) {
 	execer := execerFromContext(ctx, r.db)
 
 	// Advisory lock must be taken and held on the same tx connection that will
@@ -152,17 +152,18 @@ func (r *PostgresSuratRepository) FindMaxSeqByMonthYear(ctx context.Context, bul
 	// protocol reject multi-statement queries in a prepared statement, so the
 	// lock is executed as its own statement first (pg_advisory_xact_lock is
 	// transaction-scoped, so it stays held until commit/rollback).
+	// Sequence dibagi per scope (scope_id NULL untuk surat global/publik).
 	if _, err := execer.ExecContext(ctx,
-		`SELECT pg_advisory_xact_lock(hashtext('persuratan_seq_' || $1::text || '_' || $2::text))`,
-		strconv.Itoa(bulan), strconv.Itoa(tahun),
+		`SELECT pg_advisory_xact_lock(hashtext('persuratan_seq_' || COALESCE($1::text, 'global') || '_' || $2::text || '_' || $3::text))`,
+		strPtrVal(scopeID), strconv.Itoa(bulan), strconv.Itoa(tahun),
 	); err != nil {
 		return 0, kernel.Wrap(suratconstant.CodeSuratNomorFailed, fmt.Errorf("acquire seq lock: %w", err))
 	}
 
 	var maxSeq sql.NullInt64
 	err := execer.QueryRowContext(ctx,
-		`SELECT COALESCE(MAX(seq), 0) FROM surat WHERE EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $2`,
-		bulan, tahun,
+		`SELECT COALESCE(MAX(seq), 0) FROM surat WHERE EXTRACT(MONTH FROM tanggal) = $1 AND EXTRACT(YEAR FROM tanggal) = $2 AND scope_id IS NOT DISTINCT FROM $3`,
+		bulan, tahun, nullStr(scopeID),
 	).Scan(&maxSeq)
 	if err != nil {
 		return 0, kernel.Wrap(suratconstant.CodeSuratNomorFailed, fmt.Errorf("find max seq: %w", err))

@@ -61,7 +61,7 @@ func (uc *CreateSuratUseCase) Execute(ctx context.Context, createdBy string, tip
 	var created *entity.Surat
 
 	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
-		nomor, seq, err := uc.nomorGenerator.Generate(txCtx, tipe.Kode, int(tgl.Month()), tgl.Year())
+		nomor, seq, err := uc.nomorGenerator.Generate(txCtx, tipe.Kode, scopeID, int(tgl.Month()), tgl.Year())
 		if err != nil {
 			return err
 		}

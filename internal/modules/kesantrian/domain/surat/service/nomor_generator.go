@@ -17,8 +17,8 @@ func NewNomorGenerator(suratRepo repository.SuratRepository) *NomorGenerator {
 	return &NomorGenerator{suratRepo: suratRepo}
 }
 
-func (g *NomorGenerator) Generate(ctx context.Context, kodeTipe string, bulan, tahun int) (string, int, error) {
-	maxSeq, err := g.suratRepo.FindMaxSeqByMonthYear(ctx, bulan, tahun)
+func (g *NomorGenerator) Generate(ctx context.Context, kodeTipe string, scopeID *string, bulan, tahun int) (string, int, error) {
+	maxSeq, err := g.suratRepo.FindMaxSeqByMonthYear(ctx, scopeID, bulan, tahun)
 	if err != nil {
 		return "", 0, kernel.Wrap(constant.CodeSuratNomorFailed, err)
 	}

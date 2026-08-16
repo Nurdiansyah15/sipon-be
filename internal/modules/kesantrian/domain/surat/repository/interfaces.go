@@ -37,7 +37,7 @@ type SuratRepository interface {
 	Delete(ctx context.Context, id string) error
 	FindByID(ctx context.Context, id string) (*entity.Surat, error)
 	List(ctx context.Context, q SuratListQuery) (*SuratListResult, error)
-	FindMaxSeqByMonthYear(ctx context.Context, bulan, tahun int) (int, error)
+	FindMaxSeqByMonthYear(ctx context.Context, scopeID *string, bulan, tahun int) (int, error)
 	SaveDokumenLink(ctx context.Context, link *entity.SuratDokumenAset) error
 	DeleteDokumenLink(ctx context.Context, suratID, dokumenAsetID string) error
 	FindDokumenAsetIDsBySuratID(ctx context.Context, suratID string) ([]string, error)

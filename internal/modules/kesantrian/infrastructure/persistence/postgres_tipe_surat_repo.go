@@ -136,9 +136,9 @@ func (r *PostgresTipeSuratRepository) IsInUse(ctx context.Context, tipeSuratID s
 
 func scanTipeSurat(sc scanner) (*entity.TipeSurat, error) {
 	var (
-		id, nama, kode        string
-		createdBy             sql.NullString
-		createdAt, updatedAt  time.Time
+		id, nama, kode       string
+		createdBy            sql.NullString
+		createdAt, updatedAt time.Time
 	)
 	err := sc.Scan(&id, &nama, &kode, &createdBy, &createdAt, &updatedAt)
 	if err != nil {
