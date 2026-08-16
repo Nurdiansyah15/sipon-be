@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"log"
 
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
 )
 
 type ScopeSeeder struct{}

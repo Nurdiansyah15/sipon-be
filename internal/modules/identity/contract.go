@@ -66,6 +66,18 @@ type ScopeInfo struct {
 	ScopeID   *string
 }
 
+// UserScopeAccess adalah DTO kontrak hasil resolusi akses scope user terhadap
+// satu scope type (master scope kini dimiliki module identity).
+type UserScopeAccess struct {
+	UserID        string
+	ScopeType     string
+	HasAccess     bool
+	HasFullAccess bool
+	// AllowedCodes berisi kode scope yang boleh diakses. Nil/empty saat
+	// HasFullAccess true — pemanggil tidak perlu filter tambahan.
+	AllowedCodes []string
+}
+
 // Contract is the ONLY surface another module may import from identity. No
 // domain entity, no repository interface, no application/ports type ever
 // appears in this signature — only the DTOs declared in this file. See
@@ -82,8 +94,19 @@ type Contract interface {
 	// GetUserScopeSet resolves the effective role-scope values a user carries
 	// through their active roles, plus whether the user holds a superuser
 	// (non-assignable system) role. Used by scope-based data filtering in
-	// other modules (e.g. system).
+	// other modules.
 	GetUserScopeSet(ctx context.Context, userID string) (*UserScopeSet, error)
+
+	// GetUserScopeAccess menghitung akses scope user terhadap satu scope type
+	// (mis. "gender"). Module pemanggil memakai hasilnya untuk memfilter query
+	// resource-nya (IN clause terhadap AllowedCodes, atau tanpa filter saat
+	// HasFullAccess).
+	GetUserScopeAccess(ctx context.Context, userID, scopeType string) (*UserScopeAccess, error)
+
+	// CanAccessResource mengecek apakah user boleh mengakses sebuah resource
+	// yang diklasifikasikan dengan resourceScopeCodes (kode scope master).
+	// Resource tanpa scope (list kosong) dianggap publik.
+	CanAccessResource(ctx context.Context, userID, scopeType string, resourceScopeCodes []string) (bool, error)
 
 	// CreateAccountWithNIS provisions a brand-new login account (User +
 	// Credential + 3 LoginIdentity: NIS primary, email, username) for a

@@ -3,7 +3,7 @@ package valueobject
 import (
 	"strings"
 
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
 	"sipon-be/internal/shared/kernel"
 )
 

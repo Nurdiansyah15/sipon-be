@@ -2,7 +2,10 @@ package dto
 
 import "time"
 
-type ScopeItem struct {
+// MasterScopeItem adalah item master scope (tabel `scopes`). Diberi nama
+// MasterScopeItem agar tidak bertabrakan dengan ScopeItem milik role-scopes
+// (lihat auth_dto.go) yang menyimpan ScopeValue.
+type MasterScopeItem struct {
 	ID          string    `json:"id"`
 	ScopeType   string    `json:"scope_type"`
 	Code        string    `json:"code"`

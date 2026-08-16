@@ -395,8 +395,8 @@ type ScopeItem struct {
 }
 
 type AssignScopeRequest struct {
-	ScopeType  string `json:"scope_type" binding:"required,oneof=gender"`
-	ScopeValue string `json:"scope_value" binding:"required,oneof=male female"`
+	ScopeType  string `json:"scope_type" binding:"required"`
+	ScopeValue string `json:"scope_value" binding:"required"`
 }
 
 type GoogleLoginRequest struct {

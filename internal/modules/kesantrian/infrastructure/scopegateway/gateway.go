@@ -1,4 +1,4 @@
-// Package scopegateway mengadaptasi system.Contract ke ports.ScopeReader milik
+// Package scopegateway mengadaptasi identity.Contract ke ports.ScopeReader milik
 // kesantrian, sekaligus menerjemahkan kode scope sistem ("male"/"female") ke
 // nilai gender domain santri ('1'/'2'). Lihat
 // docs/architecture/module-boundaries.md.
@@ -8,20 +8,21 @@ import (
 	"context"
 
 	santriscope "sipon-be/internal/modules/kesantrian/domain/santri/scope"
-	"sipon-be/internal/modules/system"
+	"sipon-be/internal/modules/identity"
 )
 
-// scopeTypeGender adalah scope type master milik module system yang
-// mengklasifikasikan data santri berdasarkan gender. Nilai ini harus sinkron
-// dengan system/domain/scope/constant.ScopeTypeGender — kesantrian tidak
-// boleh meng-import konstanta itu langsung (batas modul).
+// scopeTypeGender adalah scope type master milik module identity yang
+// mengklasifikasikan data santri berdasarkan gender. Scope type & nilai scope
+// (kode "male"/"female") didefinisikan di master scope identity sebagai sumber
+// kebenaran tunggal; paket ini hanyalah anti-corruption layer yang
+// menerjemahkannya ke kosakata domain santri ('1'/'2').
 const scopeTypeGender = "gender"
 
 type Gateway struct {
-	contract system.Contract
+	contract identity.Contract
 }
 
-func New(contract system.Contract) *Gateway {
+func New(contract identity.Contract) *Gateway {
 	return &Gateway{contract: contract}
 }
 

@@ -25,7 +25,7 @@ func NewRoleScope(id, roleID string, scopeType valueobject.RoleScopeType, scopeV
 		return nil, kernel.WrapMsg(constant.ErrCodeRoleScopeRoleIDRequired, "ID role wajib diisi", nil)
 	}
 
-	normalizedValue, err := valueobject.NewRoleScopeValue(scopeType, scopeValue)
+	normalizedValue, err := valueobject.NormalizeScopeValue(scopeType, scopeValue)
 	if err != nil {
 		return nil, err
 	}

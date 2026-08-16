@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	scopesentity "sipon-be/internal/modules/system/domain/scope/entity"
+	scopesentity "sipon-be/internal/modules/identity/domain/scope/entity"
 )
 
 type ScopeRepository interface {

@@ -20,7 +20,6 @@ import (
 	"sipon-be/internal/modules/kesantrian/infrastructure/persistence"
 	"sipon-be/internal/modules/kesantrian/infrastructure/scopegateway"
 	kesantrianHTTP "sipon-be/internal/modules/kesantrian/interfaces/http"
-	"sipon-be/internal/modules/system"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/scheduler/application"
 )
@@ -58,7 +57,6 @@ func NewModule(
 	cfg *config.Config,
 	identityContract identity.Contract,
 	dokumenAsetContract dokumenAset.Contract,
-	systemContract system.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
 ) *Module {
@@ -68,7 +66,7 @@ func NewModule(
 	transactor := persistence.NewPostgresTransactor(db)
 
 	provisioner := identitygateway.New(identityContract)
-	scopeReader := scopegateway.New(systemContract)
+	scopeReader := scopegateway.New(identityContract)
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,

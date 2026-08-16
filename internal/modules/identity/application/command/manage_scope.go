@@ -8,6 +8,8 @@ import (
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
 	"sipon-be/internal/modules/identity/application/ports"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
+	scoperepo "sipon-be/internal/modules/identity/domain/scope/repository"
 	roleconstant "sipon-be/internal/modules/identity/domain/role/constant"
 	roleentity "sipon-be/internal/modules/identity/domain/role/entity"
 	rolerepo "sipon-be/internal/modules/identity/domain/role/repository"
@@ -22,6 +24,7 @@ type AssignRoleScopeUseCase struct {
 	roleScopeRepo  rolerepo.RoleScopeRepository
 	userRoleRepo   rolerepo.UserRoleRepository
 	principalCache ports.PrincipalCacheInvalidator
+	scopeRepo      scoperepo.ScopeRepository
 }
 
 func NewAssignRoleScopeUseCase(
@@ -29,12 +32,14 @@ func NewAssignRoleScopeUseCase(
 	roleScopeRepo rolerepo.RoleScopeRepository,
 	userRoleRepo rolerepo.UserRoleRepository,
 	principalCache ports.PrincipalCacheInvalidator,
+	scopeRepo scoperepo.ScopeRepository,
 ) *AssignRoleScopeUseCase {
 	return &AssignRoleScopeUseCase{
 		roleRepo:       roleRepo,
 		roleScopeRepo:  roleScopeRepo,
 		userRoleRepo:   userRoleRepo,
 		principalCache: principalCache,
+		scopeRepo:      scopeRepo,
 	}
 }
 
@@ -62,6 +67,13 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 
 	scopeType := rolevo.RoleScopeType(strings.TrimSpace(strings.ToLower(req.ScopeType)))
 	scopeValue := strings.TrimSpace(strings.ToLower(req.ScopeValue))
+
+	// Validasi scope terhadap master scope (sumber kebenaran tunggal). Nilai
+	// role scope harus merujuk ke scope yang terdaftar & aktif di tabel
+	// `scopes` — bukan nilai bebas/hardcoded.
+	if err := uc.validateAgainstMaster(ctx, string(scopeType), scopeValue); err != nil {
+		return nil, err
+	}
 
 	existingScopes, err := uc.roleScopeRepo.FindByRoleID(ctx, roleID)
 	if err == nil {
@@ -92,6 +104,27 @@ func (uc *AssignRoleScopeUseCase) Execute(ctx context.Context, roleID string, re
 		ScopeType:  string(scope.ScopeType),
 		ScopeValue: scope.ScopeValue,
 	}, nil
+}
+
+// validateAgainstMaster memastikan scope_type + scope_value terdaftar dan aktif
+// di master scope (tabel `scopes`). Ini menjaga role_scopes selalu merujuk ke
+// sumber kebenaran tunggal, bukan menyimpan nilai bebas.
+func (uc *AssignRoleScopeUseCase) validateAgainstMaster(ctx context.Context, scopeType, scopeValue string) error {
+	if uc.scopeRepo == nil {
+		return nil
+	}
+	scope, err := uc.scopeRepo.FindByTypeAndCode(ctx, scopeType, scopeValue)
+	if err != nil {
+		var ke *kernel.AppError
+		if errors.As(err, &ke) && ke.Code == scopeconstant.ErrCodeScopeNotFound {
+			return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Scope tidak terdaftar di master scope", nil)
+		}
+		return kernel.WrapMsg(application.ErrCodeInternal, "gagal memvalidasi scope terhadap master", err)
+	}
+	if !scope.IsActive {
+		return kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "Scope tidak aktif di master scope", nil)
+	}
+	return nil
 }
 
 type DeleteRoleScopeUseCase struct {

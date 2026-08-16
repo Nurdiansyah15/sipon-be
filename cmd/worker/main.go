@@ -21,7 +21,6 @@ import (
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
 	psbModule "sipon-be/internal/modules/psb"
-	systemModule "sipon-be/internal/modules/system"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
@@ -60,12 +59,10 @@ func main() {
 	defer redisClient.Close()
 
 	identity := identityModule.NewModule(db, redisClient, cfg)
-	system := systemModule.NewModule(db, identity,
-		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	dokumenAset := dokumenAsetModule.NewModule(db, cfg,
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	kesantrian := kesantrianModule.NewModule(db, redisClient, cfg,
-		identity, dokumenAset, system,
+		identity, dokumenAset,
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	psb := psbModule.NewModule(db, cfg,
 		identity, kesantrian,

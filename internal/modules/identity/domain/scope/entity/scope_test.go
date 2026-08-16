@@ -3,8 +3,8 @@ package entity
 import (
 	"testing"
 
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
-	scopesvo "sipon-be/internal/modules/system/domain/scope/valueobject"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
+	scopesvo "sipon-be/internal/modules/identity/domain/scope/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 

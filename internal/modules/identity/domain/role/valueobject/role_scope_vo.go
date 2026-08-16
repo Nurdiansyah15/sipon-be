@@ -12,33 +12,28 @@ import (
 // untuk hierarki assignment. Menyamakan keduanya adalah bug: role_scopes
 // menyimpan atribut arbitrer (saat ini baru "gender"), bukan level scope
 // hierarkis.
+//
+// Nilai scope (scope_value) TIDAK didefinisikan di sini — sumber kebenaran
+// tunggal berada di master scope (tabel `scopes` milik module identity).
+// Validasi bahwa scope_type + scope_value terdaftar di master dilakukan di
+// application layer (AssignRoleScopeUseCase).
 type RoleScopeType string
-
-const (
-	RoleScopeTypeGender RoleScopeType = "gender"
-)
-
-const (
-	RoleScopeValueMale   = "male"
-	RoleScopeValueFemale = "female"
-)
 
 const (
 	ErrCodeInvalidScopeType  kernel.Code = "INVALID_SCOPE_TYPE"
 	ErrCodeInvalidScopeValue kernel.Code = "INVALID_SCOPE_VALUE"
 )
 
-// NewRoleScopeValue menormalisasi dan memvalidasi scope_value sesuai scope_type-nya.
-// Saat ini hanya "gender" yang didukung; scope_type lain ditolak.
-func NewRoleScopeValue(scopeType RoleScopeType, rawValue string) (string, error) {
-	v := strings.ToLower(strings.TrimSpace(rawValue))
-	switch scopeType {
-	case RoleScopeTypeGender:
-		if v != RoleScopeValueMale && v != RoleScopeValueFemale {
-			return "", kernel.WrapMsg(ErrCodeInvalidScopeValue, "Nilai scope tidak valid untuk gender", nil)
-		}
-		return v, nil
-	default:
-		return "", kernel.WrapMsg(ErrCodeInvalidScopeType, "Jenis scope tidak dikenali", nil)
+// NormalizeScopeValue menormalkan scope_value (lowercase + trim) tanpa
+// memvalidasi nilai spesifik — validasi terhadap master scope dilakukan oleh
+// pemanggil.
+func NormalizeScopeValue(scopeType RoleScopeType, rawValue string) (string, error) {
+	if strings.TrimSpace(string(scopeType)) == "" {
+		return "", kernel.WrapMsg(ErrCodeInvalidScopeType, "Jenis scope wajib diisi", nil)
 	}
+	v := strings.ToLower(strings.TrimSpace(rawValue))
+	if v == "" {
+		return "", kernel.WrapMsg(ErrCodeInvalidScopeValue, "Nilai scope wajib diisi", nil)
+	}
+	return v, nil
 }

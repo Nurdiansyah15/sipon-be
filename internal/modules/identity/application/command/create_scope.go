@@ -6,11 +6,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"sipon-be/internal/modules/system/application"
-	"sipon-be/internal/modules/system/application/dto"
-	scopesentity "sipon-be/internal/modules/system/domain/scope/entity"
-	scoperepo "sipon-be/internal/modules/system/domain/scope/repository"
-	scopesvo "sipon-be/internal/modules/system/domain/scope/valueobject"
+	"sipon-be/internal/modules/identity/application"
+	"sipon-be/internal/modules/identity/application/dto"
+	scopesentity "sipon-be/internal/modules/identity/domain/scope/entity"
+	scoperepo "sipon-be/internal/modules/identity/domain/scope/repository"
+	scopesvo "sipon-be/internal/modules/identity/domain/scope/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -22,7 +22,7 @@ func NewCreateScopeUseCase(scopeRepo scoperepo.ScopeRepository) *CreateScopeUseC
 	return &CreateScopeUseCase{scopeRepo: scopeRepo}
 }
 
-func (uc *CreateScopeUseCase) Execute(ctx context.Context, req dto.CreateScopeRequest) (*dto.ScopeItem, error) {
+func (uc *CreateScopeUseCase) Execute(ctx context.Context, req dto.CreateScopeRequest) (*dto.MasterScopeItem, error) {
 	scopeType, err := scopesvo.NormalizeScopeType(req.ScopeType)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, err.Error(), err)
@@ -47,5 +47,5 @@ func (uc *CreateScopeUseCase) Execute(ctx context.Context, req dto.CreateScopeRe
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal menyimpan scope", err)
 	}
 
-	return dto.ToScopeItem(scope), nil
+	return dto.ToMasterScopeItem(scope), nil
 }

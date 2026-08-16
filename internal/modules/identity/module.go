@@ -31,6 +31,7 @@ import (
 // docs/architecture/module-boundaries.md.
 type Module struct {
 	handler           *identityHTTP.IdentityHandler
+	scopeHandler      *identityHTTP.ScopeHandler
 	middlewareBuilder *identityHTTP.MiddlewareBuilder
 	rateLimiter       ports.RateLimiter
 	principalBuilder  *principal.Builder
@@ -47,6 +48,11 @@ type Module struct {
 
 	// getUserScopeSetUC backs Contract.GetUserScopeSet — see contract.go.
 	getUserScopeSetUC *query.GetUserScopeSetUseCase
+
+	// getUserScopeAccessUC & canAccessResourceUC back Contract scope access
+	// methods — see contract.go. Master scope kini dimiliki identity.
+	getUserScopeAccessUC *query.GetUserScopeAccessUseCase
+	canAccessResourceUC  *query.CanAccessResourceUseCase
 }
 
 func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Module {
@@ -204,9 +210,28 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	assignRolePermissionUC := command.NewAssignRolePermissionUseCase(roleRepo, rolePermRepo, userRoleRepo, principalCache)
 	deleteRolePermissionUC := command.NewDeleteRolePermissionUseCase(roleRepo, rolePermRepo, userRoleRepo, principalCache)
 
+	scopeRepo := persistence.NewPostgresScopeRepository(db)
+
 	listScopesUC := query.NewListScopesUseCase(roleScopeRepo)
-	assignRoleScopeUC := command.NewAssignRoleScopeUseCase(roleRepo, roleScopeRepo, userRoleRepo, principalCache)
+	assignRoleScopeUC := command.NewAssignRoleScopeUseCase(roleRepo, roleScopeRepo, userRoleRepo, principalCache, scopeRepo)
 	deleteRoleScopeUC := command.NewDeleteRoleScopeUseCase(roleScopeRepo, roleRepo, userRoleRepo, principalCache)
+
+	createScopeUC := command.NewCreateScopeUseCase(scopeRepo)
+	updateScopeUC := command.NewUpdateScopeUseCase(scopeRepo)
+	deleteScopeUC := command.NewDeleteScopeUseCase(scopeRepo)
+	listMasterScopesUC := query.NewListMasterScopesUseCase(scopeRepo)
+	getScopeUC := query.NewGetScopeUseCase(scopeRepo)
+
+	getUserScopeAccessUC := query.NewGetUserScopeAccessUseCase(scopeRepo, getUserScopeSetUC)
+	canAccessResourceUC := query.NewCanAccessResourceUseCase(scopeRepo, getUserScopeSetUC)
+
+	scopeHandler := identityHTTP.NewScopeHandler(
+		createScopeUC,
+		updateScopeUC,
+		deleteScopeUC,
+		listMasterScopesUC,
+		getScopeUC,
+	)
 
 	handler := identityHTTP.NewIdentityHandler(
 		registerUC,
@@ -271,6 +296,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 
 	return &Module{
 		handler:                handler,
+		scopeHandler:           scopeHandler,
 		middlewareBuilder:      middlewareBuilder,
 		rateLimiter:            rateLimiter,
 		principalBuilder:       principalBuilder,
@@ -280,12 +306,15 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		addNISLoginIdentityUC:  addNISLoginIdentityUC,
 		updateFullnameUC:       updateFullnameUC,
 		getUserScopeSetUC:      getUserScopeSetUC,
+		getUserScopeAccessUC:   getUserScopeAccessUC,
+		canAccessResourceUC:    canAccessResourceUC,
 	}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	identityHTTP.RegisterRoutes(grp, m.handler, m.middlewareBuilder)
+	identityHTTP.RegisterScopeRoutes(grp, m.scopeHandler, m.middlewareBuilder.JWTAuth(), m.middlewareBuilder.PrincipalLoad())
 }
 
 // RateLimiter exposes the rate limiter for cmd/api/main.go's global
@@ -374,6 +403,24 @@ func (m *Module) GetUserScopeSet(ctx context.Context, userID string) (*UserScope
 
 func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname string) error {
 	return m.updateFullnameUC.Execute(ctx, userID, fullname)
+}
+
+func (m *Module) GetUserScopeAccess(ctx context.Context, userID, scopeType string) (*UserScopeAccess, error) {
+	res, err := m.getUserScopeAccessUC.Execute(ctx, userID, scopeType)
+	if err != nil {
+		return nil, err
+	}
+	return &UserScopeAccess{
+		UserID:        res.UserID,
+		ScopeType:     res.ScopeType,
+		HasAccess:     res.HasAccess,
+		HasFullAccess: res.HasFullAccess,
+		AllowedCodes:  res.AllowedCodes,
+	}, nil
+}
+
+func (m *Module) CanAccessResource(ctx context.Context, userID, scopeType string, resourceScopeCodes []string) (bool, error) {
+	return m.canAccessResourceUC.Execute(ctx, userID, scopeType, resourceScopeCodes)
 }
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {

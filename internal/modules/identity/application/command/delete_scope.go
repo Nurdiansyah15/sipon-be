@@ -5,9 +5,9 @@ import (
 	"errors"
 	"strings"
 
-	"sipon-be/internal/modules/system/application"
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
-	scoperepo "sipon-be/internal/modules/system/domain/scope/repository"
+	"sipon-be/internal/modules/identity/application"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
+	scoperepo "sipon-be/internal/modules/identity/domain/scope/repository"
 	"sipon-be/internal/shared/kernel"
 )
 

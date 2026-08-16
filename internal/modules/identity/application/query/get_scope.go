@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"sipon-be/internal/modules/system/application"
-	"sipon-be/internal/modules/system/application/dto"
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
-	scoperepo "sipon-be/internal/modules/system/domain/scope/repository"
+	"sipon-be/internal/modules/identity/application"
+	"sipon-be/internal/modules/identity/application/dto"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
+	scoperepo "sipon-be/internal/modules/identity/domain/scope/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -20,7 +20,7 @@ func NewGetScopeUseCase(scopeRepo scoperepo.ScopeRepository) *GetScopeUseCase {
 	return &GetScopeUseCase{scopeRepo: scopeRepo}
 }
 
-func (uc *GetScopeUseCase) Execute(ctx context.Context, id string) (*dto.ScopeItem, error) {
+func (uc *GetScopeUseCase) Execute(ctx context.Context, id string) (*dto.MasterScopeItem, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, "ID scope wajib diisi", nil)
@@ -38,5 +38,5 @@ func (uc *GetScopeUseCase) Execute(ctx context.Context, id string) (*dto.ScopeIt
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal mencari scope", err)
 	}
 
-	return dto.ToScopeItem(scope), nil
+	return dto.ToMasterScopeItem(scope), nil
 }

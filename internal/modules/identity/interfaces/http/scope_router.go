@@ -8,15 +8,16 @@ const (
 	permissionManageSystemSettings = "manage_system_settings"
 )
 
-// RegisterRoutes memasang endpoint admin untuk master scope. Semua route
-// dibatasi JWT + principal + permission manage_system_settings.
-func RegisterRoutes(
+// RegisterScopeRoutes memasang endpoint admin untuk master scope. Semua route
+// dibatasi JWT + principal + permission manage_system_settings. Path dipindah
+// ke /api/v1/web/identity/scopes seiring scope domain pindah ke module identity.
+func RegisterScopeRoutes(
 	router *gin.RouterGroup,
-	handler *SystemHandler,
+	handler *ScopeHandler,
 	authMiddleware gin.HandlerFunc,
 	principalMiddleware gin.HandlerFunc,
 ) {
-	api := router.Group("/api/v1/web/system/scopes")
+	api := router.Group("/api/v1/web/identity/scopes")
 	api.Use(authMiddleware)
 	api.Use(principalMiddleware)
 	api.Use(RequirePermission(permissionManageSystemSettings))

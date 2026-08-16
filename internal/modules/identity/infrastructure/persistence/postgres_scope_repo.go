@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
-	scopeconstant "sipon-be/internal/modules/system/domain/scope/constant"
-	scopesentity "sipon-be/internal/modules/system/domain/scope/entity"
-	scopesvo "sipon-be/internal/modules/system/domain/scope/valueobject"
+	scopeconstant "sipon-be/internal/modules/identity/domain/scope/constant"
+	scopesentity "sipon-be/internal/modules/identity/domain/scope/entity"
+	scopesvo "sipon-be/internal/modules/identity/domain/scope/valueobject"
 	"sipon-be/internal/shared/kernel"
 )
 

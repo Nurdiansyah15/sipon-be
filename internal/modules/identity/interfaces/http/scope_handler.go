@@ -3,30 +3,30 @@ package http
 import (
 	"github.com/gin-gonic/gin"
 
-	"sipon-be/internal/modules/system/application/command"
-	"sipon-be/internal/modules/system/application/dto"
-	"sipon-be/internal/modules/system/application/query"
+	"sipon-be/internal/modules/identity/application/command"
+	"sipon-be/internal/modules/identity/application/dto"
+	"sipon-be/internal/modules/identity/application/query"
 	"sipon-be/internal/shared/httperror"
 	"sipon-be/internal/shared/middleware"
 	"sipon-be/internal/shared/respond"
 )
 
-type SystemHandler struct {
+type ScopeHandler struct {
 	createScopeUC *command.CreateScopeUseCase
 	updateScopeUC *command.UpdateScopeUseCase
 	deleteScopeUC *command.DeleteScopeUseCase
-	listScopesUC  *query.ListScopesUseCase
+	listScopesUC  *query.ListMasterScopesUseCase
 	getScopeUC    *query.GetScopeUseCase
 }
 
-func NewSystemHandler(
+func NewScopeHandler(
 	createScopeUC *command.CreateScopeUseCase,
 	updateScopeUC *command.UpdateScopeUseCase,
 	deleteScopeUC *command.DeleteScopeUseCase,
-	listScopesUC *query.ListScopesUseCase,
+	listScopesUC *query.ListMasterScopesUseCase,
 	getScopeUC *query.GetScopeUseCase,
-) *SystemHandler {
-	return &SystemHandler{
+) *ScopeHandler {
+	return &ScopeHandler{
 		createScopeUC: createScopeUC,
 		updateScopeUC: updateScopeUC,
 		deleteScopeUC: deleteScopeUC,
@@ -35,7 +35,7 @@ func NewSystemHandler(
 	}
 }
 
-func (h *SystemHandler) ListScopes(c *gin.Context) {
+func (h *ScopeHandler) ListScopes(c *gin.Context) {
 	var req dto.ListScopesRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		httperror.Handle(c, err)
@@ -49,7 +49,7 @@ func (h *SystemHandler) ListScopes(c *gin.Context) {
 	respond.OK(c, "scopes retrieved", items)
 }
 
-func (h *SystemHandler) GetScope(c *gin.Context) {
+func (h *ScopeHandler) GetScope(c *gin.Context) {
 	id := c.Param("id")
 	resp, err := h.getScopeUC.Execute(c.Request.Context(), id)
 	if err != nil {
@@ -59,7 +59,7 @@ func (h *SystemHandler) GetScope(c *gin.Context) {
 	respond.OK(c, "scope retrieved", resp)
 }
 
-func (h *SystemHandler) CreateScope(c *gin.Context) {
+func (h *ScopeHandler) CreateScope(c *gin.Context) {
 	var req dto.CreateScopeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
@@ -73,7 +73,7 @@ func (h *SystemHandler) CreateScope(c *gin.Context) {
 	respond.Created(c, "scope created", resp)
 }
 
-func (h *SystemHandler) UpdateScope(c *gin.Context) {
+func (h *ScopeHandler) UpdateScope(c *gin.Context) {
 	id := c.Param("id")
 	var req dto.UpdateScopeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,7 +88,7 @@ func (h *SystemHandler) UpdateScope(c *gin.Context) {
 	respond.OK(c, "scope updated", resp)
 }
 
-func (h *SystemHandler) DeleteScope(c *gin.Context) {
+func (h *ScopeHandler) DeleteScope(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.deleteScopeUC.Execute(c.Request.Context(), id); err != nil {
 		httperror.Handle(c, err)

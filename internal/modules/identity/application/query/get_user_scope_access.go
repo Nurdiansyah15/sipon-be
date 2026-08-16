@@ -4,10 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"sipon-be/internal/modules/system/application"
-	"sipon-be/internal/modules/system/application/ports"
-	scoperepo "sipon-be/internal/modules/system/domain/scope/repository"
-	scopeservice "sipon-be/internal/modules/system/domain/scope/service"
+	"sipon-be/internal/modules/identity/application"
+	scoperepo "sipon-be/internal/modules/identity/domain/scope/repository"
+	scopeservice "sipon-be/internal/modules/identity/domain/scope/service"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -20,14 +19,14 @@ type UserScopeAccessResult struct {
 }
 
 type GetUserScopeAccessUseCase struct {
-	scopeRepo      scoperepo.ScopeRepository
-	identityReader ports.IdentityReader
+	scopeRepo         scoperepo.ScopeRepository
+	getUserScopeSetUC *GetUserScopeSetUseCase
 }
 
-func NewGetUserScopeAccessUseCase(scopeRepo scoperepo.ScopeRepository, identityReader ports.IdentityReader) *GetUserScopeAccessUseCase {
+func NewGetUserScopeAccessUseCase(scopeRepo scoperepo.ScopeRepository, getUserScopeSetUC *GetUserScopeSetUseCase) *GetUserScopeAccessUseCase {
 	return &GetUserScopeAccessUseCase{
-		scopeRepo:      scopeRepo,
-		identityReader: identityReader,
+		scopeRepo:         scopeRepo,
+		getUserScopeSetUC: getUserScopeSetUC,
 	}
 }
 
@@ -43,7 +42,7 @@ func (uc *GetUserScopeAccessUseCase) Execute(ctx context.Context, userID, scopeT
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membaca kode scope master", err)
 	}
 
-	userSet, err := uc.identityReader.GetUserScopeSet(ctx, userID)
+	userSet, err := uc.getUserScopeSetUC.Execute(ctx, userID)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal membaca scope user", err)
 	}
@@ -67,14 +66,14 @@ func (uc *GetUserScopeAccessUseCase) Execute(ctx context.Context, userID, scopeT
 }
 
 type CanAccessResourceUseCase struct {
-	scopeRepo      scoperepo.ScopeRepository
-	identityReader ports.IdentityReader
+	scopeRepo         scoperepo.ScopeRepository
+	getUserScopeSetUC *GetUserScopeSetUseCase
 }
 
-func NewCanAccessResourceUseCase(scopeRepo scoperepo.ScopeRepository, identityReader ports.IdentityReader) *CanAccessResourceUseCase {
+func NewCanAccessResourceUseCase(scopeRepo scoperepo.ScopeRepository, getUserScopeSetUC *GetUserScopeSetUseCase) *CanAccessResourceUseCase {
 	return &CanAccessResourceUseCase{
-		scopeRepo:      scopeRepo,
-		identityReader: identityReader,
+		scopeRepo:         scopeRepo,
+		getUserScopeSetUC: getUserScopeSetUC,
 	}
 }
 
@@ -90,7 +89,7 @@ func (uc *CanAccessResourceUseCase) Execute(ctx context.Context, userID, scopeTy
 		return false, kernel.WrapMsg(application.ErrCodeInternal, "gagal membaca kode scope master", err)
 	}
 
-	userSet, err := uc.identityReader.GetUserScopeSet(ctx, userID)
+	userSet, err := uc.getUserScopeSetUC.Execute(ctx, userID)
 	if err != nil {
 		return false, kernel.WrapMsg(application.ErrCodeInternal, "gagal membaca scope user", err)
 	}

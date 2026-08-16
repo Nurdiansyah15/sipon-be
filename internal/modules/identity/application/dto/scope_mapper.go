@@ -1,9 +1,9 @@
 package dto
 
-import scopesentity "sipon-be/internal/modules/system/domain/scope/entity"
+import scopesentity "sipon-be/internal/modules/identity/domain/scope/entity"
 
-func ToScopeItem(s *scopesentity.Scope) *ScopeItem {
-	return &ScopeItem{
+func ToMasterScopeItem(s *scopesentity.Scope) *MasterScopeItem {
+	return &MasterScopeItem{
 		ID:          s.ID,
 		ScopeType:   string(s.ScopeType),
 		Code:        s.Code,
