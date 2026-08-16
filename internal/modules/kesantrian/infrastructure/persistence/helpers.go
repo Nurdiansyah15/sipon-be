@@ -42,6 +42,10 @@ func strFromNull(ns sql.NullString) *string {
 	return &v
 }
 
+func strPtrFromNull(ns sql.NullString) *string {
+	return strFromNull(ns)
+}
+
 func timeFromNull(nt sql.NullTime) *time.Time {
 	if !nt.Valid {
 		return nil

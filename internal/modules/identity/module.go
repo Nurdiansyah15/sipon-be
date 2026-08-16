@@ -51,8 +51,9 @@ type Module struct {
 
 	// getUserScopeAccessUC & canAccessResourceUC back Contract scope access
 	// methods — see contract.go. Master scope kini dimiliki identity.
-	getUserScopeAccessUC *query.GetUserScopeAccessUseCase
-	canAccessResourceUC  *query.CanAccessResourceUseCase
+	getUserScopeAccessUC    *query.GetUserScopeAccessUseCase
+	canAccessResourceUC     *query.CanAccessResourceUseCase
+	getUserScopeAccessIDsUC *query.GetUserScopeAccessIDsUseCase
 }
 
 func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Module {
@@ -224,6 +225,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 
 	getUserScopeAccessUC := query.NewGetUserScopeAccessUseCase(scopeRepo, getUserScopeSetUC)
 	canAccessResourceUC := query.NewCanAccessResourceUseCase(scopeRepo, getUserScopeSetUC)
+	getUserScopeAccessIDsUC := query.NewGetUserScopeAccessIDsUseCase(scopeRepo, getUserScopeSetUC)
 
 	scopeHandler := identityHTTP.NewScopeHandler(
 		createScopeUC,
@@ -295,19 +297,20 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 	)
 
 	return &Module{
-		handler:                handler,
-		scopeHandler:           scopeHandler,
-		middlewareBuilder:      middlewareBuilder,
-		rateLimiter:            rateLimiter,
-		principalBuilder:       principalBuilder,
-		fileUploader:           fileUploader,
-		getUserSummaryUC:       getUserSummaryUC,
-		createAccountWithNISUC: createAccountWithNISUC,
-		addNISLoginIdentityUC:  addNISLoginIdentityUC,
-		updateFullnameUC:       updateFullnameUC,
-		getUserScopeSetUC:      getUserScopeSetUC,
-		getUserScopeAccessUC:   getUserScopeAccessUC,
-		canAccessResourceUC:    canAccessResourceUC,
+		handler:                 handler,
+		scopeHandler:            scopeHandler,
+		middlewareBuilder:       middlewareBuilder,
+		rateLimiter:             rateLimiter,
+		principalBuilder:        principalBuilder,
+		fileUploader:            fileUploader,
+		getUserSummaryUC:        getUserSummaryUC,
+		createAccountWithNISUC:  createAccountWithNISUC,
+		addNISLoginIdentityUC:   addNISLoginIdentityUC,
+		updateFullnameUC:        updateFullnameUC,
+		getUserScopeSetUC:       getUserScopeSetUC,
+		getUserScopeAccessUC:    getUserScopeAccessUC,
+		canAccessResourceUC:     canAccessResourceUC,
+		getUserScopeAccessIDsUC: getUserScopeAccessIDsUC,
 	}
 }
 
@@ -421,6 +424,20 @@ func (m *Module) GetUserScopeAccess(ctx context.Context, userID, scopeType strin
 
 func (m *Module) CanAccessResource(ctx context.Context, userID, scopeType string, resourceScopeCodes []string) (bool, error) {
 	return m.canAccessResourceUC.Execute(ctx, userID, scopeType, resourceScopeCodes)
+}
+
+func (m *Module) GetUserScopeAccessIDs(ctx context.Context, userID, scopeType string) (*UserScopeAccessIDs, error) {
+	res, err := m.getUserScopeAccessIDsUC.Execute(ctx, userID, scopeType)
+	if err != nil {
+		return nil, err
+	}
+	return &UserScopeAccessIDs{
+		UserID:          res.UserID,
+		ScopeType:       res.ScopeType,
+		HasAccess:       res.HasAccess,
+		HasFullAccess:   res.HasFullAccess,
+		AllowedScopeIDs: res.AllowedScopeIDs,
+	}, nil
 }
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {

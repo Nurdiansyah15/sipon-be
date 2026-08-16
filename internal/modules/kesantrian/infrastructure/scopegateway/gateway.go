@@ -7,8 +7,9 @@ package scopegateway
 import (
 	"context"
 
-	santriscope "sipon-be/internal/modules/kesantrian/domain/santri/scope"
 	"sipon-be/internal/modules/identity"
+	ports "sipon-be/internal/modules/kesantrian/application/ports"
+	santriscope "sipon-be/internal/modules/kesantrian/domain/santri/scope"
 )
 
 // scopeTypeGender adalah scope type master milik module identity yang
@@ -48,4 +49,19 @@ func (g *Gateway) GetSantriScopeSet(ctx context.Context, userID string) (santris
 		}
 	}
 	return santriscope.Restricted(options), nil
+}
+
+// GetSuratScopeAccess mengembalikan akses scope user untuk resource surat.
+// AllowedScopeIDs berisi master scope ID (dari identity), karena tabel surat
+// menyimpan scope_id sebagai referensi master scope.
+func (g *Gateway) GetSuratScopeAccess(ctx context.Context, userID string) (*ports.SuratScopeAccess, error) {
+	access, err := g.contract.GetUserScopeAccessIDs(ctx, userID, scopeTypeGender)
+	if err != nil {
+		return &ports.SuratScopeAccess{}, err
+	}
+	return &ports.SuratScopeAccess{
+		HasAccess:       access.HasAccess,
+		HasFullAccess:   access.HasFullAccess,
+		AllowedScopeIDs: access.AllowedScopeIDs,
+	}, nil
 }

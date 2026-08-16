@@ -29,20 +29,20 @@ import (
 // needed yet: kesantrian has no rate limiter of its own and no other module
 // calls into it — YAGNI, see docs/architecture/module-boundaries.md).
 type Module struct {
-	handler                            *kesantrianHTTP.SantriHandler
-	persuratanHandler                  *kesantrianHTTP.PersuratanHandler
-	createSantriFromPendaftaranUC      *command.CreateSantriFromPendaftaranUseCase
-	createSantriUC                     *command.CreateSantriUseCase
-	approveSantriRequestUC             *command.ApproveSantriRequestUseCase
-	listActiveSantriIDsUC              *query.ListActiveSantriIDsUseCase
-	getSantriByUserIDUC                *query.GetSantriByUserIDUseCase
-	getSantriByIDUC                    *query.GetSantriByIDUseCase
-	getSantriByNISUC                   *query.GetSantriByNISUseCase
-	listActiveSantriWithUserIDUC       *query.ListActiveSantriWithUserIDUseCase
-	fileUploader                       ports.FileUploader
-	provisioner                        ports.AccountProvisioner
-	jwtAuth                            gin.HandlerFunc
-	principalLoad                      gin.HandlerFunc
+	handler                       *kesantrianHTTP.SantriHandler
+	persuratanHandler             *kesantrianHTTP.PersuratanHandler
+	createSantriFromPendaftaranUC *command.CreateSantriFromPendaftaranUseCase
+	createSantriUC                *command.CreateSantriUseCase
+	approveSantriRequestUC        *command.ApproveSantriRequestUseCase
+	listActiveSantriIDsUC         *query.ListActiveSantriIDsUseCase
+	getSantriByUserIDUC           *query.GetSantriByUserIDUseCase
+	getSantriByIDUC               *query.GetSantriByIDUseCase
+	getSantriByNISUC              *query.GetSantriByNISUseCase
+	listActiveSantriWithUserIDUC  *query.ListActiveSantriWithUserIDUseCase
+	fileUploader                  ports.FileUploader
+	provisioner                   ports.AccountProvisioner
+	jwtAuth                       gin.HandlerFunc
+	principalLoad                 gin.HandlerFunc
 }
 
 // NewModule takes identity as identity.Contract (not *identity.Module) —
@@ -118,13 +118,13 @@ func NewModule(
 	deleteTipeSuratUC := command.NewDeleteTipeSuratUseCase(tipeSuratRepo)
 	listTipeSuratUC := query.NewListTipeSuratUseCase(tipeSuratRepo)
 	getTipeSuratUC := query.NewGetTipeSuratUseCase(tipeSuratRepo)
-	createSuratUC := command.NewCreateSuratUseCase(suratRepo, tipeSuratRepo, nomorGenerator, transactor)
-	deleteSuratUC := command.NewDeleteSuratUseCase(suratRepo)
-	addSuratDokumenUC := command.NewAddSuratDokumenUseCase(suratRepo)
-	removeSuratDokumenUC := command.NewRemoveSuratDokumenUseCase(suratRepo)
-	listSuratUC := query.NewListSuratUseCase(suratRepo)
-	getSuratUC := query.NewGetSuratUseCase(suratRepo, tipeSuratRepo)
-	getSuratDownloadUC := query.NewGetSuratDownloadUseCase(suratRepo, dokumenAsetReader)
+	createSuratUC := command.NewCreateSuratUseCase(suratRepo, tipeSuratRepo, nomorGenerator, transactor, scopeReader)
+	deleteSuratUC := command.NewDeleteSuratUseCase(suratRepo, scopeReader)
+	addSuratDokumenUC := command.NewAddSuratDokumenUseCase(suratRepo, scopeReader)
+	removeSuratDokumenUC := command.NewRemoveSuratDokumenUseCase(suratRepo, scopeReader)
+	listSuratUC := query.NewListSuratUseCase(suratRepo, scopeReader)
+	getSuratUC := query.NewGetSuratUseCase(suratRepo, tipeSuratRepo, scopeReader)
+	getSuratDownloadUC := query.NewGetSuratDownloadUseCase(suratRepo, dokumenAsetReader, scopeReader)
 
 	persuratanHandler := kesantrianHTTP.NewPersuratanHandler(
 		createTipeSuratUC, updateTipeSuratUC, deleteTipeSuratUC,

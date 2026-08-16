@@ -7,18 +7,19 @@ import (
 )
 
 type Surat struct {
-	ID            string
-	Nomor         string
-	Seq           int
-	TipeSuratID   string
-	Keterangan    *string
-	Tanggal       time.Time
-	CreatedBy     string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID          string
+	Nomor       string
+	Seq         int
+	TipeSuratID string
+	Keterangan  *string
+	Tanggal     time.Time
+	CreatedBy   string
+	ScopeID     *string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-func NewSurat(id, nomor string, seq int, tipeSuratID string, keterangan *string, tanggal time.Time, createdBy string) (*Surat, error) {
+func NewSurat(id, nomor string, seq int, tipeSuratID string, keterangan *string, tanggal time.Time, createdBy string, scopeID *string) (*Surat, error) {
 	if nomor == "" || tipeSuratID == "" || createdBy == "" {
 		return nil, kernel.New("SURAT_INVALID")
 	}
@@ -31,6 +32,7 @@ func NewSurat(id, nomor string, seq int, tipeSuratID string, keterangan *string,
 		Keterangan:  keterangan,
 		Tanggal:     tanggal,
 		CreatedBy:   createdBy,
+		ScopeID:     scopeID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}, nil

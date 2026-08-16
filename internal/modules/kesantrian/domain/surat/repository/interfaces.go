@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	santriscope "sipon-be/internal/modules/kesantrian/domain/santri/scope"
 	"sipon-be/internal/modules/kesantrian/domain/surat/entity"
 )
 
@@ -15,6 +16,10 @@ type SuratListQuery struct {
 	Limit       int
 	SortBy      string
 	SortType    string
+	// Scope membatasi daftar surat sesuai akses scope user. Nilai allowedOptions
+	// di sini adalah master scope ID (bukan kode gender). Zero value diperlakukan
+	// sebagai tanpa filter.
+	Scope santriscope.ScopeSet
 }
 
 type SuratListResult struct {

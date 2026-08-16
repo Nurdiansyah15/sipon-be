@@ -20,6 +20,7 @@ type CreateSuratUseCase struct {
 	tipeSuratRepo  tiperepo.TipeSuratRepository
 	nomorGenerator *service.NomorGenerator
 	transactor     ports.Transactor
+	scopeReader    ports.ScopeReader
 }
 
 func NewCreateSuratUseCase(
@@ -27,12 +28,14 @@ func NewCreateSuratUseCase(
 	tipeSuratRepo tiperepo.TipeSuratRepository,
 	nomorGenerator *service.NomorGenerator,
 	transactor ports.Transactor,
+	scopeReader ports.ScopeReader,
 ) *CreateSuratUseCase {
 	return &CreateSuratUseCase{
 		suratRepo:      suratRepo,
 		tipeSuratRepo:  tipeSuratRepo,
 		nomorGenerator: nomorGenerator,
 		transactor:     transactor,
+		scopeReader:    scopeReader,
 	}
 }
 
@@ -47,6 +50,14 @@ func (uc *CreateSuratUseCase) Execute(ctx context.Context, createdBy string, tip
 		return nil, kernel.New(application.ErrCodeBadRequest)
 	}
 
+	// Auto-fill scope_id dari role scope user pembuat. Nilai scope_id diambil
+	// dari master scope yang boleh diakses user; bila user punya akses penuh
+	// atau tanpa akses scope, scope_id dibiarkan kosong (global/publik).
+	scopeID, err := uc.resolveScopeID(ctx, createdBy)
+	if err != nil {
+		return nil, err
+	}
+
 	var created *entity.Surat
 
 	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
@@ -55,7 +66,7 @@ func (uc *CreateSuratUseCase) Execute(ctx context.Context, createdBy string, tip
 			return err
 		}
 
-		s, err := entity.NewSurat(uuid.NewString(), nomor, seq, tipeSuratID, keterangan, tgl, createdBy)
+		s, err := entity.NewSurat(uuid.NewString(), nomor, seq, tipeSuratID, keterangan, tgl, createdBy, scopeID)
 		if err != nil {
 			return kernel.Wrap(application.ErrCodeInternal, err)
 		}
@@ -84,4 +95,26 @@ func (uc *CreateSuratUseCase) Execute(ctx context.Context, createdBy string, tip
 	}
 
 	return created, nil
+}
+
+// resolveScopeID menetapkan scope_id surat berdasarkan akses scope user.
+// - Tidak ada akses scope -> nil (global/publik).
+// - Akses penuh (HasFullAccess) -> nil (global/publik).
+// - Akses terbatas ke tepat satu scope -> scope_id master tersebut.
+func (uc *CreateSuratUseCase) resolveScopeID(ctx context.Context, userID string) (*string, error) {
+	if uc.scopeReader == nil {
+		return nil, nil
+	}
+	access, err := uc.scopeReader.GetSuratScopeAccess(ctx, userID)
+	if err != nil {
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	if !access.HasAccess || access.HasFullAccess {
+		return nil, nil
+	}
+	if len(access.AllowedScopeIDs) == 0 {
+		return nil, nil
+	}
+	scopeID := access.AllowedScopeIDs[0]
+	return &scopeID, nil
 }

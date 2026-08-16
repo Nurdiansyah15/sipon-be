@@ -78,6 +78,20 @@ type UserScopeAccess struct {
 	AllowedCodes []string
 }
 
+// UserScopeAccessIDs adalah DTO kontrak hasil resolusi akses scope user yang
+// AllowedScopeIDs berisi master scope ID (bukan kode). Dipakai pemanggil yang
+// menyimpan scope_id pada resource (mis. kesantrian.surat) untuk tagging &
+// filter.
+type UserScopeAccessIDs struct {
+	UserID        string
+	ScopeType     string
+	HasAccess     bool
+	HasFullAccess bool
+	// AllowedScopeIDs berisi master scope ID yang boleh diakses. Nil/empty saat
+	// HasFullAccess true.
+	AllowedScopeIDs []string
+}
+
 // Contract is the ONLY surface another module may import from identity. No
 // domain entity, no repository interface, no application/ports type ever
 // appears in this signature — only the DTOs declared in this file. See
@@ -102,6 +116,11 @@ type Contract interface {
 	// resource-nya (IN clause terhadap AllowedCodes, atau tanpa filter saat
 	// HasFullAccess).
 	GetUserScopeAccess(ctx context.Context, userID, scopeType string) (*UserScopeAccess, error)
+
+	// GetUserScopeAccessIDs sama dengan GetUserScopeAccess tetapi
+	// AllowedScopeIDs berisi master scope ID (bukan kode). Dipakai pemanggil
+	// yang menyimpan scope_id pada resource untuk auto-tagging & filter.
+	GetUserScopeAccessIDs(ctx context.Context, userID, scopeType string) (*UserScopeAccessIDs, error)
 
 	// CanAccessResource mengecek apakah user boleh mengakses sebuah resource
 	// yang diklasifikasikan dengan resourceScopeCodes (kode scope master).

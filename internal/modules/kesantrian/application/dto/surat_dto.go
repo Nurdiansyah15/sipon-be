@@ -16,20 +16,22 @@ type SuratResponse struct {
 	Keterangan  *string   `json:"keterangan,omitempty"`
 	Tanggal     string    `json:"tanggal"`
 	CreatedBy   string    `json:"created_by"`
+	ScopeID     *string   `json:"scope_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 }
 
 type SuratDetailResponse struct {
-	ID              string    `json:"id"`
-	Nomor           string    `json:"nomor"`
-	TipeSuratID     string    `json:"tipe_surat_id"`
-	TipeSuratNama   string    `json:"tipe_surat_nama"`
-	TipeSuratKode   string    `json:"tipe_surat_kode"`
-	Keterangan      *string   `json:"keterangan,omitempty"`
-	Tanggal         string    `json:"tanggal"`
-	CreatedBy       string    `json:"created_by"`
-	CreatedAt       time.Time `json:"created_at"`
-	DokumenAsetIDs  []string  `json:"dokumen_aset_ids"`
+	ID             string    `json:"id"`
+	Nomor          string    `json:"nomor"`
+	TipeSuratID    string    `json:"tipe_surat_id"`
+	TipeSuratNama  string    `json:"tipe_surat_nama"`
+	TipeSuratKode  string    `json:"tipe_surat_kode"`
+	Keterangan     *string   `json:"keterangan,omitempty"`
+	Tanggal        string    `json:"tanggal"`
+	CreatedBy      string    `json:"created_by"`
+	ScopeID        *string   `json:"scope_id,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	DokumenAsetIDs []string  `json:"dokumen_aset_ids"`
 }
 
 type ListSuratQuery struct {

@@ -120,12 +120,13 @@ func (h *PersuratanHandler) DeleteTipeSurat(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) ListSurat(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	var q dto.ListSuratQuery
 	if err := c.ShouldBindQuery(&q); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	items, meta, err := h.listSuratUC.Execute(c.Request.Context(), q)
+	items, meta, err := h.listSuratUC.Execute(c.Request.Context(), userID, q)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -134,8 +135,9 @@ func (h *PersuratanHandler) ListSurat(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) GetSurat(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	id := c.Param("id")
-	resp, err := h.getSuratUC.Execute(c.Request.Context(), id)
+	resp, err := h.getSuratUC.Execute(c.Request.Context(), userID, id)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -155,7 +157,7 @@ func (h *PersuratanHandler) CreateSurat(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	detail, err := h.getSuratUC.Execute(c.Request.Context(), resp.ID)
+	detail, err := h.getSuratUC.Execute(c.Request.Context(), userID, resp.ID)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -164,8 +166,9 @@ func (h *PersuratanHandler) CreateSurat(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) DeleteSurat(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	id := c.Param("id")
-	if err := h.deleteSuratUC.Execute(c.Request.Context(), id); err != nil {
+	if err := h.deleteSuratUC.Execute(c.Request.Context(), userID, id); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -173,13 +176,14 @@ func (h *PersuratanHandler) DeleteSurat(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) AddSuratDokumen(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	suratID := c.Param("id")
 	var req dto.AddDokumenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.addSuratDokumenUC.Execute(c.Request.Context(), suratID, req.DokumenAsetID); err != nil {
+	if err := h.addSuratDokumenUC.Execute(c.Request.Context(), userID, suratID, req.DokumenAsetID); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -190,9 +194,10 @@ func (h *PersuratanHandler) AddSuratDokumen(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) RemoveSuratDokumen(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	suratID := c.Param("id")
 	dokumenAsetID := c.Param("dokumenAsetId")
-	if err := h.removeSuratDokumenUC.Execute(c.Request.Context(), suratID, dokumenAsetID); err != nil {
+	if err := h.removeSuratDokumenUC.Execute(c.Request.Context(), userID, suratID, dokumenAsetID); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
@@ -200,9 +205,10 @@ func (h *PersuratanHandler) RemoveSuratDokumen(c *gin.Context) {
 }
 
 func (h *PersuratanHandler) GetSuratDownload(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	suratID := c.Param("id")
 	dokumenAsetID := c.Param("dokumenAsetId")
-	resp, err := h.getSuratDownloadUC.Execute(c.Request.Context(), suratID, dokumenAsetID)
+	resp, err := h.getSuratDownloadUC.Execute(c.Request.Context(), userID, suratID, dokumenAsetID)
 	if err != nil {
 		httperror.Handle(c, err)
 		return

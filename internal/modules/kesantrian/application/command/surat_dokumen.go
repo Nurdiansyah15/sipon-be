@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"sipon-be/internal/modules/kesantrian/application"
+	ports "sipon-be/internal/modules/kesantrian/application/ports"
 	suratconstant "sipon-be/internal/modules/kesantrian/domain/surat/constant"
 	"sipon-be/internal/modules/kesantrian/domain/surat/entity"
 	suratrepo "sipon-be/internal/modules/kesantrian/domain/surat/repository"
@@ -15,17 +16,22 @@ import (
 )
 
 type AddSuratDokumenUseCase struct {
-	suratRepo suratrepo.SuratRepository
+	suratRepo   suratrepo.SuratRepository
+	scopeReader ports.ScopeReader
 }
 
-func NewAddSuratDokumenUseCase(suratRepo suratrepo.SuratRepository) *AddSuratDokumenUseCase {
-	return &AddSuratDokumenUseCase{suratRepo: suratRepo}
+func NewAddSuratDokumenUseCase(suratRepo suratrepo.SuratRepository, scopeReader ports.ScopeReader) *AddSuratDokumenUseCase {
+	return &AddSuratDokumenUseCase{suratRepo: suratRepo, scopeReader: scopeReader}
 }
 
-func (uc *AddSuratDokumenUseCase) Execute(ctx context.Context, suratID, dokumenAsetID string) error {
-	_, err := uc.suratRepo.FindByID(ctx, suratID)
+func (uc *AddSuratDokumenUseCase) Execute(ctx context.Context, userID, suratID, dokumenAsetID string) error {
+	s, err := uc.suratRepo.FindByID(ctx, suratID)
 	if err != nil {
 		return application.WrapRepoErr(err, suratconstant.CodeSuratNotFound)
+	}
+
+	if err := uc.ensureScopeAccess(ctx, userID, s.ScopeID); err != nil {
+		return err
 	}
 
 	link := &entity.SuratDokumenAset{
@@ -46,17 +52,69 @@ func (uc *AddSuratDokumenUseCase) Execute(ctx context.Context, suratID, dokumenA
 	return nil
 }
 
+func (uc *AddSuratDokumenUseCase) ensureScopeAccess(ctx context.Context, userID string, scopeID *string) error {
+	if uc.scopeReader == nil {
+		return nil
+	}
+	access, err := uc.scopeReader.GetSuratScopeAccess(ctx, userID)
+	if err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	if access.HasFullAccess || scopeID == nil {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(access.AllowedScopeIDs))
+	for _, id := range access.AllowedScopeIDs {
+		allowed[id] = struct{}{}
+	}
+	if _, ok := allowed[*scopeID]; !ok {
+		return kernel.New(suratconstant.CodeSuratNotFound)
+	}
+	return nil
+}
+
 type RemoveSuratDokumenUseCase struct {
-	suratRepo suratrepo.SuratRepository
+	suratRepo   suratrepo.SuratRepository
+	scopeReader ports.ScopeReader
 }
 
-func NewRemoveSuratDokumenUseCase(suratRepo suratrepo.SuratRepository) *RemoveSuratDokumenUseCase {
-	return &RemoveSuratDokumenUseCase{suratRepo: suratRepo}
+func NewRemoveSuratDokumenUseCase(suratRepo suratrepo.SuratRepository, scopeReader ports.ScopeReader) *RemoveSuratDokumenUseCase {
+	return &RemoveSuratDokumenUseCase{suratRepo: suratRepo, scopeReader: scopeReader}
 }
 
-func (uc *RemoveSuratDokumenUseCase) Execute(ctx context.Context, suratID, dokumenAsetID string) error {
+func (uc *RemoveSuratDokumenUseCase) Execute(ctx context.Context, userID, suratID, dokumenAsetID string) error {
+	s, err := uc.suratRepo.FindByID(ctx, suratID)
+	if err != nil {
+		return application.WrapRepoErr(err, suratconstant.CodeSuratNotFound)
+	}
+
+	if err := uc.ensureScopeAccess(ctx, userID, s.ScopeID); err != nil {
+		return err
+	}
+
 	if err := uc.suratRepo.DeleteDokumenLink(ctx, suratID, dokumenAsetID); err != nil {
 		return application.WrapRepoErr(err, suratconstant.CodeSuratDokumenNotFound)
+	}
+	return nil
+}
+
+func (uc *RemoveSuratDokumenUseCase) ensureScopeAccess(ctx context.Context, userID string, scopeID *string) error {
+	if uc.scopeReader == nil {
+		return nil
+	}
+	access, err := uc.scopeReader.GetSuratScopeAccess(ctx, userID)
+	if err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	if access.HasFullAccess || scopeID == nil {
+		return nil
+	}
+	allowed := make(map[string]struct{}, len(access.AllowedScopeIDs))
+	for _, id := range access.AllowedScopeIDs {
+		allowed[id] = struct{}{}
+	}
+	if _, ok := allowed[*scopeID]; !ok {
+		return kernel.New(suratconstant.CodeSuratNotFound)
 	}
 	return nil
 }

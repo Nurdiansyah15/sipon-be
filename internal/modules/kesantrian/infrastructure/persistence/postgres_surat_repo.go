@@ -14,7 +14,7 @@ import (
 	"sipon-be/internal/shared/kernel"
 )
 
-const suratColumns = `id, nomor, seq, tipe_surat_id, keterangan, tanggal, created_by, created_at, updated_at`
+const suratColumns = `id, nomor, seq, tipe_surat_id, keterangan, tanggal, created_by, scope_id, created_at, updated_at`
 
 var suratSortColumns = map[string]string{
 	"nomor":      "nomor",
@@ -32,9 +32,9 @@ func NewPostgresSuratRepository(db *sql.DB) *PostgresSuratRepository {
 
 func (r *PostgresSuratRepository) Save(ctx context.Context, s *entity.Surat) error {
 	execer := execerFromContext(ctx, r.db)
-	query := `INSERT INTO surat (` + suratColumns + `) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`
+	query := `INSERT INTO surat (` + suratColumns + `) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`
 	_, err := execer.ExecContext(ctx, query,
-		s.ID, s.Nomor, s.Seq, s.TipeSuratID, nullStr(s.Keterangan), s.Tanggal, s.CreatedBy, s.CreatedAt, s.UpdatedAt,
+		s.ID, s.Nomor, s.Seq, s.TipeSuratID, nullStr(s.Keterangan), s.Tanggal, s.CreatedBy, nullStr(s.ScopeID), s.CreatedAt, s.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -89,6 +89,19 @@ func (r *PostgresSuratRepository) List(ctx context.Context, q repository.SuratLi
 	if q.Search != nil && *q.Search != "" {
 		where += fmt.Sprintf(` AND (nomor ILIKE $%d OR keterangan ILIKE $%d)`, argIdx, argIdx)
 		args = append(args, "%"+*q.Search+"%")
+		argIdx++
+	}
+
+	// Scope: batasi surat sesuai akses scope user.
+	// - IsDenied (restricted kosong) -> tidak ada surat yang boleh diakses.
+	// - IsRestricted -> hanya surat dengan scope_id yang diizinkan atau global
+	//   (scope_id IS NULL dianggap publik).
+	if q.Scope.IsDenied() {
+		return &repository.SuratListResult{Items: []*entity.Surat{}, Total: 0}, nil
+	}
+	if q.Scope.IsRestricted() {
+		where += fmt.Sprintf(` AND (scope_id IS NULL OR scope_id = ANY($%d))`, argIdx)
+		args = append(args, q.Scope.AllowedOptions())
 		argIdx++
 	}
 
@@ -218,11 +231,12 @@ func scanSurat(sc scanner) (*entity.Surat, error) {
 	var (
 		id, nomor, tipeSuratID, createdBy string
 		keterangan                        sql.NullString
+		scopeID                           sql.NullString
 		seq                               int
 		tanggal                           time.Time
 		createdAt, updatedAt              time.Time
 	)
-	err := sc.Scan(&id, &nomor, &seq, &tipeSuratID, &keterangan, &tanggal, &createdBy, &createdAt, &updatedAt)
+	err := sc.Scan(&id, &nomor, &seq, &tipeSuratID, &keterangan, &tanggal, &createdBy, &scopeID, &createdAt, &updatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, kernel.New(suratconstant.CodeSuratNotFound)
@@ -237,6 +251,7 @@ func scanSurat(sc scanner) (*entity.Surat, error) {
 		Keterangan:  strFromNull(keterangan),
 		Tanggal:     tanggal,
 		CreatedBy:   createdBy,
+		ScopeID:     strPtrFromNull(scopeID),
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
 	}, nil
