@@ -15,6 +15,7 @@ type Config struct {
 	JWT       JWTConfig
 	SMTP      SMTPConfig
 	Fonnte    FonnteConfig
+	Firebase  FirebaseConfig
 	Redis     RedisConfig
 	RateLimit RateLimitConfig
 	Minio     MinioConfig
@@ -53,6 +54,14 @@ type SMTPConfig struct {
 type FonnteConfig struct {
 	Token string
 	URL   string
+}
+
+type FirebaseConfig struct {
+	ProjectID           string
+	ServiceAccountPath  string
+	ServiceAccountJSON  string
+	DefaultTopic        string
+	Enabled             bool
 }
 
 type RedisConfig struct {
@@ -126,6 +135,13 @@ func Load() (*Config, error) {
 		Fonnte: FonnteConfig{
 			Token: getEnv("FONNTE_TOKEN", ""),
 			URL:   getEnv("FONNTE_URL", "https://api.fonnte.com/send"),
+		},
+		Firebase: FirebaseConfig{
+			ProjectID:          getEnv("FIREBASE_PROJECT_ID", ""),
+			ServiceAccountPath: getEnv("FIREBASE_SERVICE_ACCOUNT_PATH", ""),
+			ServiceAccountJSON: getEnv("FIREBASE_SERVICE_ACCOUNT_JSON", ""),
+			DefaultTopic:       getEnv("FIREBASE_DEFAULT_TOPIC", "sipon_test"),
+			Enabled:            getEnv("FIREBASE_ENABLED", "true") == "true",
 		},
 		Redis: RedisConfig{
 			Addr: getEnv("REDIS_ADDR", "redis:6379"),

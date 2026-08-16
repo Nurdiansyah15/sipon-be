@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
+	notification "sipon-be/internal/modules/notification"
 	psbModule "sipon-be/internal/modules/psb"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
@@ -127,6 +129,59 @@ func main() {
 	dokumenAset.RegisterRoutes(engine)
 	article.RegisterRoutes(engine)
 	keuangan.RegisterRoutes(engine)
+
+	fcmService, err := notification.NewService(cfg.Firebase)
+	if err != nil {
+		lg.Warn("FCM service not available", slog.Any("error", err))
+	} else {
+		engine.POST("/api/v1/web/notifications/test", func(c *gin.Context) {
+			var payload struct {
+				Topic string            `json:"topic"`
+				Title string            `json:"title"`
+				Body  string            `json:"body"`
+				Data  map[string]string `json:"data"`
+			}
+
+			if err := c.ShouldBindJSON(&payload); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid payload", "error": err.Error()})
+				return
+			}
+
+			topic := strings.TrimSpace(payload.Topic)
+			if topic == "" {
+				topic = cfg.Firebase.DefaultTopic
+			}
+			if title := strings.TrimSpace(payload.Title); title != "" {
+				payload.Title = title
+			} else {
+				payload.Title = "Sipon Notification"
+			}
+			if body := strings.TrimSpace(payload.Body); body != "" {
+				payload.Body = body
+			} else {
+				payload.Body = "Tes notifikasi dari Sipon"
+			}
+			if payload.Data == nil {
+				payload.Data = map[string]string{"type": "test", "route": "/dashboard"}
+			}
+
+			if err := fcmService.Send(c.Request.Context(), notification.SendRequest{
+				Topic: topic,
+				Title: payload.Title,
+				Body:  payload.Body,
+				Data:  payload.Data,
+			}); err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": "failed to send FCM notification", "error": err.Error()})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "notification sent",
+				"topic": topic,
+			})
+		})
+	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
