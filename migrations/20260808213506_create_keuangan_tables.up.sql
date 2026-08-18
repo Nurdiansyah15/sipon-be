@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS fee_components (
     type        VARCHAR(30) NOT NULL CHECK (type IN ('ukt', 'spp', 'daftar_ulang', 'insidental')),
     amount      NUMERIC(14,2) NOT NULL DEFAULT 0,
     is_periodic BOOLEAN NOT NULL DEFAULT false,
-    period_type VARCHAR(20) CHECK (period_type IN ('monthly', 'semesterly', 'yearly', 'once')),
+    period_type VARCHAR(20) CHECK (period_type IN ('monthly', 'semesterly', 'yearly', 'once', 'weekly')),
     description TEXT,
     is_active   BOOLEAN NOT NULL DEFAULT true,
     created_by  UUID NOT NULL,

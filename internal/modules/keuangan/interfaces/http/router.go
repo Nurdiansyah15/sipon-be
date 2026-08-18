@@ -78,6 +78,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *KeuanganHandler, jwtAuth, princi
 		admin.GET("/billing-periods", middleware.RequirePermission("manage_keuangan"), h.ListBillingPeriods)
 		admin.GET("/billing-periods/:id", middleware.RequirePermission("manage_keuangan"), h.GetBillingPeriod)
 		admin.POST("/billing-periods", middleware.RequirePermission("manage_keuangan"), h.CreateBillingPeriod)
+		admin.PUT("/billing-periods/:id", middleware.RequirePermission("manage_keuangan"), h.UpdateBillingPeriod)
 		admin.POST("/billing-periods/:id/open", middleware.RequirePermission("manage_keuangan"), h.OpenBillingPeriod)
 		admin.POST("/billing-periods/:id/close", middleware.RequirePermission("manage_keuangan"), h.CloseBillingPeriod)
 

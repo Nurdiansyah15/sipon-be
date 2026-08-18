@@ -27,7 +27,7 @@ func (uc *ReportOutstandingUseCase) Execute(ctx context.Context, query dto.Outst
 		limit = 20
 	}
 
-	items, total, err := uc.reportReader.OutstandingBySantri(ctx, query.BillingPeriodID, page, limit)
+	items, total, err := uc.reportReader.OutstandingBySantri(ctx, query.BillingPeriodID, query.PeriodID, page, limit)
 	if err != nil {
 		return nil, nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}

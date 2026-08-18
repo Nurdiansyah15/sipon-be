@@ -44,6 +44,7 @@ type PaymentProofResponse struct {
 type PaymentListQuery struct {
 	InvoiceID *string `form:"invoice_id"`
 	Status    *string `form:"status"`
+	PeriodID  *string `form:"period_id"`
 	Page      int     `form:"page"`
 	Limit     int     `form:"limit"`
 }

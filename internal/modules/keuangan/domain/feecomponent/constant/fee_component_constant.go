@@ -16,4 +16,5 @@ const (
 	PeriodSemesterly PeriodType = "semesterly"
 	PeriodYearly     PeriodType = "yearly"
 	PeriodOnce       PeriodType = "once"
+	PeriodWeekly     PeriodType = "weekly"
 )

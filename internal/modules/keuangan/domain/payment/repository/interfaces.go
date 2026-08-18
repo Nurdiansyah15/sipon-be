@@ -10,6 +10,7 @@ import (
 type PaymentListQuery struct {
 	InvoiceID *string
 	Status    *string
+	PeriodID  *string
 	Page      int
 	Limit     int
 }

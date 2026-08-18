@@ -18,7 +18,7 @@ func NewReportSummaryUseCase(reportReader ports.ReportReader) *ReportSummaryUseC
 }
 
 func (uc *ReportSummaryUseCase) Execute(ctx context.Context, query dto.InvoiceSummaryQuery) ([]dto.InvoiceSummaryResponse, error) {
-	items, err := uc.reportReader.InvoiceSummary(ctx, query.BillingPeriodID)
+	items, err := uc.reportReader.InvoiceSummary(ctx, query.BillingPeriodID, query.PeriodID)
 	if err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}

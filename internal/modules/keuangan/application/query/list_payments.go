@@ -25,6 +25,7 @@ func (uc *ListPaymentsUseCase) Execute(ctx context.Context, query dto.PaymentLis
 	repoQuery := payRepo.PaymentListQuery{
 		InvoiceID: query.InvoiceID,
 		Status:    query.Status,
+		PeriodID:  query.PeriodID,
 		Page:      query.Page,
 		Limit:     query.Limit,
 	}

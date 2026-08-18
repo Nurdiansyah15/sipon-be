@@ -13,6 +13,7 @@ type InvoiceSummaryResponse struct {
 
 type InvoiceSummaryQuery struct {
 	BillingPeriodID *string `form:"billing_period_id"`
+	PeriodID        *string `form:"period_id"`
 }
 
 type OutstandingSantriResponse struct {
@@ -23,6 +24,7 @@ type OutstandingSantriResponse struct {
 
 type OutstandingListQuery struct {
 	BillingPeriodID *string `form:"billing_period_id"`
+	PeriodID        *string `form:"period_id"`
 	Page            int     `form:"page"`
 	Limit           int     `form:"limit"`
 }

@@ -114,6 +114,15 @@ func (r *PostgresPaymentRepository) List(ctx context.Context, q repository.Payme
 		args = append(args, *q.Status)
 		argIdx++
 	}
+	if q.PeriodID != nil && *q.PeriodID != "" {
+		where += fmt.Sprintf(` AND invoice_id IN (
+			SELECT i.id FROM invoices i
+			JOIN billing_periods bp ON bp.id = i.billing_period_id
+			WHERE bp.accounting_period_id=$%d
+		)`, argIdx)
+		args = append(args, *q.PeriodID)
+		argIdx++
+	}
 
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM payments `+where, args...)

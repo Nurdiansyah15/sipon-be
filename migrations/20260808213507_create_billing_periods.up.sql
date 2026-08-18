@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS billing_periods (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        VARCHAR(100) NOT NULL,
-    period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('monthly', 'semesterly', 'yearly', 'once')),
+    period_type VARCHAR(20) NOT NULL CHECK (period_type IN ('monthly', 'semesterly', 'yearly', 'once', 'weekly')),
     start_date  DATE NOT NULL,
     end_date    DATE NOT NULL,
     status      VARCHAR(20) NOT NULL DEFAULT 'draft'

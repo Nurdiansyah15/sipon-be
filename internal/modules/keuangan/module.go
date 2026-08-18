@@ -88,7 +88,8 @@ func NewModule(
 	closePeriodUC := command.NewClosePeriodUseCase(periodRepo, accountRepo, journalRepo, transactor)
 	reopenPeriodUC := command.NewReopenPeriodUseCase(periodRepo, journalRepo, transactor)
 	lockPeriodUC := command.NewLockPeriodUseCase(periodRepo)
-	createBillingPeriodUC := command.NewCreateBillingPeriodUseCase(billingPeriodRepo)
+	createBillingPeriodUC := command.NewCreateBillingPeriodUseCase(billingPeriodRepo, periodRepo)
+	updateBillingPeriodUC := command.NewUpdateBillingPeriodUseCase(billingPeriodRepo, periodRepo)
 	openBillingPeriodUC := command.NewOpenBillingPeriodUseCase(billingPeriodRepo)
 	closeBillingPeriodUC := command.NewCloseBillingPeriodUseCase(billingPeriodRepo)
 
@@ -149,6 +150,7 @@ func NewModule(
 		reopenPeriodUC,
 		lockPeriodUC,
 		createBillingPeriodUC,
+		updateBillingPeriodUC,
 		openBillingPeriodUC,
 		closeBillingPeriodUC,
 		listFeeComponentsUC,

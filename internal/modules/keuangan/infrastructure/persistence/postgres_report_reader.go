@@ -20,7 +20,7 @@ func NewPostgresReportReader(db *sql.DB) *PostgresReportReader {
 	return &PostgresReportReader{db: db}
 }
 
-func (r *PostgresReportReader) InvoiceSummary(ctx context.Context, billingPeriodID *string) ([]ports.InvoiceSummaryReadModel, error) {
+func (r *PostgresReportReader) InvoiceSummary(ctx context.Context, billingPeriodID, periodID *string) ([]ports.InvoiceSummaryReadModel, error) {
 	execer := execerFromContext(ctx, r.db)
 
 	where := "WHERE i.deleted_at IS NULL"
@@ -30,6 +30,13 @@ func (r *PostgresReportReader) InvoiceSummary(ctx context.Context, billingPeriod
 	if billingPeriodID != nil && *billingPeriodID != "" {
 		where += fmt.Sprintf(" AND i.billing_period_id = $%d", argIdx)
 		args = append(args, *billingPeriodID)
+		argIdx++
+	}
+	if periodID != nil && *periodID != "" {
+		where += fmt.Sprintf(` AND i.billing_period_id IN (
+			SELECT id FROM billing_periods WHERE accounting_period_id=$%d
+		)`, argIdx)
+		args = append(args, *periodID)
 		argIdx++
 	}
 
@@ -67,7 +74,7 @@ func (r *PostgresReportReader) InvoiceSummary(ctx context.Context, billingPeriod
 	return results, nil
 }
 
-func (r *PostgresReportReader) OutstandingBySantri(ctx context.Context, billingPeriodID *string, page, limit int) ([]ports.OutstandingReadModel, int64, error) {
+func (r *PostgresReportReader) OutstandingBySantri(ctx context.Context, billingPeriodID, periodID *string, page, limit int) ([]ports.OutstandingReadModel, int64, error) {
 	execer := execerFromContext(ctx, r.db)
 
 	offset := (page - 1) * limit
@@ -79,6 +86,13 @@ func (r *PostgresReportReader) OutstandingBySantri(ctx context.Context, billingP
 	if billingPeriodID != nil && *billingPeriodID != "" {
 		where += fmt.Sprintf(" AND i.billing_period_id = $%d", argIdx)
 		args = append(args, *billingPeriodID)
+		argIdx++
+	}
+	if periodID != nil && *periodID != "" {
+		where += fmt.Sprintf(` AND i.billing_period_id IN (
+			SELECT id FROM billing_periods WHERE accounting_period_id=$%d
+		)`, argIdx)
+		args = append(args, *periodID)
 		argIdx++
 	}
 

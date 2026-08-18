@@ -7,9 +7,10 @@ import (
 )
 
 type BillingPeriodListQuery struct {
-	Status *string
-	Page   int
-	Limit  int
+	Status             *string
+	AccountingPeriodID *string
+	Page               int
+	Limit              int
 }
 
 type BillingPeriodListResult struct {

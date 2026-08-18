@@ -19,9 +19,10 @@ func NewListBillingPeriodsUseCase(billingPeriodRepo bpRepo.BillingPeriodReposito
 
 func (uc *ListBillingPeriodsUseCase) Execute(ctx context.Context, query dto.BillingPeriodListQuery) ([]dto.BillingPeriodResponse, *dto.Meta, error) {
 	repoQuery := bpRepo.BillingPeriodListQuery{
-		Status: query.Status,
-		Page:   query.Page,
-		Limit:  query.Limit,
+		Status:             query.Status,
+		AccountingPeriodID: query.AccountingPeriodID,
+		Page:               query.Page,
+		Limit:              query.Limit,
 	}
 	if repoQuery.Page == 0 {
 		repoQuery.Page = 1

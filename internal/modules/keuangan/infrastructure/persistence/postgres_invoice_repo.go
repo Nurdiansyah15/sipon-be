@@ -134,6 +134,13 @@ func (r *PostgresInvoiceRepository) List(ctx context.Context, q repository.Invoi
 		args = append(args, *q.BillingPeriodID)
 		argIdx++
 	}
+	if q.PeriodID != nil && *q.PeriodID != "" {
+		where += fmt.Sprintf(` AND billing_period_id IN (
+			SELECT id FROM billing_periods WHERE accounting_period_id=$%d
+		)`, argIdx)
+		args = append(args, *q.PeriodID)
+		argIdx++
+	}
 
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM invoices `+where, args...)

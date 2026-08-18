@@ -12,6 +12,7 @@ type InvoiceListQuery struct {
 	UserID          *string
 	Status          *string
 	BillingPeriodID *string
+	PeriodID        *string
 	Page            int
 	Limit           int
 }

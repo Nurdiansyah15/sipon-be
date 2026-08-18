@@ -27,6 +27,7 @@ func (uc *ListInvoicesUseCase) Execute(ctx context.Context, query dto.InvoiceLis
 		UserID:          query.UserID,
 		Status:          query.Status,
 		BillingPeriodID: query.BillingPeriodID,
+		PeriodID:        query.PeriodID,
 		Page:            query.Page,
 		Limit:           query.Limit,
 	}

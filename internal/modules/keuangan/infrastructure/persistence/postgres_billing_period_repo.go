@@ -15,7 +15,7 @@ import (
 )
 
 const billingPeriodColumns = `
-	id, name, period_type, start_date, end_date, status, created_by, created_at, updated_at
+	id, name, period_type, accounting_period_id, start_date, end_date, status, created_by, created_at, updated_at
 `
 
 type PostgresBillingPeriodRepository struct {
@@ -30,11 +30,12 @@ func (r *PostgresBillingPeriodRepository) Save(ctx context.Context, period *enti
 	execer := execerFromContext(ctx, r.db)
 
 	query := `INSERT INTO billing_periods (` + billingPeriodColumns + `) VALUES (
-		$1,$2,$3,$4,$5,$6,$7,$8,$9
+		$1,$2,$3,$4,$5,$6,$7,$8,$9,$10
 	)`
 
 	_, err := execer.ExecContext(ctx, query,
-		period.ID, period.Name, string(period.PeriodType), period.StartDate, period.EndDate,
+		period.ID, period.Name, string(period.PeriodType), period.AccountingPeriodID,
+		period.StartDate, period.EndDate,
 		string(period.Status), period.CreatedBy, period.CreatedAt, period.UpdatedAt,
 	)
 	if err != nil {
@@ -81,6 +82,11 @@ func (r *PostgresBillingPeriodRepository) List(ctx context.Context, q repository
 		args = append(args, *q.Status)
 		argIdx++
 	}
+	if q.AccountingPeriodID != nil && *q.AccountingPeriodID != "" {
+		where += fmt.Sprintf(` AND accounting_period_id=$%d`, argIdx)
+		args = append(args, *q.AccountingPeriodID)
+		argIdx++
+	}
 
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM billing_periods `+where, args...)
@@ -118,12 +124,12 @@ func (r *PostgresBillingPeriodRepository) List(ctx context.Context, q repository
 
 func (r *PostgresBillingPeriodRepository) scan(sc scanner) (*entity.BillingPeriod, error) {
 	var (
-		id, name, periodType, status, createdBy string
-		startDate, endDate                      time.Time
-		createdAt, updatedAt                    time.Time
+		id, name, periodType, accountingPeriodID, status, createdBy string
+		startDate, endDate                                           time.Time
+		createdAt, updatedAt                                         time.Time
 	)
 
-	err := sc.Scan(&id, &name, &periodType, &startDate, &endDate, &status, &createdBy, &createdAt, &updatedAt)
+	err := sc.Scan(&id, &name, &periodType, &accountingPeriodID, &startDate, &endDate, &status, &createdBy, &createdAt, &updatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, kernel.WrapMsg(constant.CodeBillingPeriodNotFound, "Periode tagihan tidak ditemukan", nil)
@@ -132,14 +138,15 @@ func (r *PostgresBillingPeriodRepository) scan(sc scanner) (*entity.BillingPerio
 	}
 
 	return &entity.BillingPeriod{
-		ID:         id,
-		Name:       name,
-		PeriodType: feeConst.PeriodType(periodType),
-		StartDate:  startDate,
-		EndDate:    endDate,
-		Status:     constant.BillingPeriodStatus(status),
-		CreatedBy:  createdBy,
-		CreatedAt:  createdAt,
-		UpdatedAt:  updatedAt,
+		ID:                 id,
+		Name:               name,
+		PeriodType:         feeConst.PeriodType(periodType),
+		AccountingPeriodID: accountingPeriodID,
+		StartDate:          startDate,
+		EndDate:            endDate,
+		Status:             constant.BillingPeriodStatus(status),
+		CreatedBy:          createdBy,
+		CreatedAt:          createdAt,
+		UpdatedAt:          updatedAt,
 	}, nil
 }

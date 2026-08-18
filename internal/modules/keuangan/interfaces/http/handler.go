@@ -55,6 +55,7 @@ type KeuanganHandler struct {
 	lockPeriodUC          *command.LockPeriodUseCase
 
 	createBillingPeriodUC *command.CreateBillingPeriodUseCase
+	updateBillingPeriodUC *command.UpdateBillingPeriodUseCase
 	openBillingPeriodUC   *command.OpenBillingPeriodUseCase
 	closeBillingPeriodUC  *command.CloseBillingPeriodUseCase
 
@@ -123,6 +124,7 @@ func NewKeuanganHandler(
 	reopenPeriodUC *command.ReopenPeriodUseCase,
 	lockPeriodUC *command.LockPeriodUseCase,
 	createBillingPeriodUC *command.CreateBillingPeriodUseCase,
+	updateBillingPeriodUC *command.UpdateBillingPeriodUseCase,
 	openBillingPeriodUC *command.OpenBillingPeriodUseCase,
 	closeBillingPeriodUC *command.CloseBillingPeriodUseCase,
 	listFeeComponentsUC *query.ListFeeComponentsUseCase,
@@ -187,6 +189,7 @@ func NewKeuanganHandler(
 		reopenPeriodUC:            reopenPeriodUC,
 		lockPeriodUC:              lockPeriodUC,
 		createBillingPeriodUC:     createBillingPeriodUC,
+		updateBillingPeriodUC:     updateBillingPeriodUC,
 		openBillingPeriodUC:       openBillingPeriodUC,
 		closeBillingPeriodUC:      closeBillingPeriodUC,
 		listFeeComponentsUC:       listFeeComponentsUC,
@@ -998,6 +1001,21 @@ func (h *KeuanganHandler) CreateBillingPeriod(c *gin.Context) {
 		return
 	}
 	respond.Created(c, "periode tagihan berhasil dibuat", resp)
+}
+
+func (h *KeuanganHandler) UpdateBillingPeriod(c *gin.Context) {
+	id := c.Param("id")
+	var req dto.UpdateBillingPeriodRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	resp, err := h.updateBillingPeriodUC.Execute(c.Request.Context(), id, req)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "periode tagihan berhasil diperbarui", resp)
 }
 
 func (h *KeuanganHandler) OpenBillingPeriod(c *gin.Context) {
