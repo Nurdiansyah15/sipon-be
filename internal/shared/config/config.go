@@ -22,6 +22,7 @@ type Config struct {
 	Fingerprint FingerprintConfig
 	Worker      WorkerConfig
 	Google      GoogleConfig
+	RabbitMQ    RabbitMQConfig
 }
 
 type GoogleConfig struct {
@@ -29,8 +30,22 @@ type GoogleConfig struct {
 }
 
 type WorkerConfig struct {
-	Enabled     bool
-	TickSeconds int
+	Enabled      bool
+	TickSeconds  int
+	LeaseSeconds int
+	Mode         string
+	HealthPort   int
+}
+
+// RabbitMQConfig mengatur koneksi dan topology messaging queue.
+type RabbitMQConfig struct {
+	Enabled        bool
+	DSN            string
+	Exchange       string
+	DLXExchange    string
+	Prefetch       int
+	PublishTimeout time.Duration
+	RetryDelays    []time.Duration
 }
 
 // FingerprintConfig mengatur integrasi absensi mesin fingerprint.
@@ -181,11 +196,23 @@ func Load() (*Config, error) {
 			SandboxEnabled: getEnv("FINGERPRINT_SANDBOX_ENABLED", "false") == "true",
 		},
 		Worker: WorkerConfig{
-			Enabled:     getEnv("WORKER_ENABLED", "true") != "false",
-			TickSeconds: parseInt("WORKER_TICK_SECONDS", 10),
+			Enabled:      getEnv("WORKER_ENABLED", "true") != "false",
+			TickSeconds:  parseInt("WORKER_TICK_SECONDS", 10),
+			LeaseSeconds: parseInt("WORKER_LEASE_SECONDS", 300),
+			Mode:         getEnv("WORKER_MODE", "direct"),
+			HealthPort:   parseInt("WORKER_HEALTH_PORT", 9090),
 		},
 		Google: GoogleConfig{
 			ClientIDs: parseCSV("GOOGLE_CLIENT_IDS", nil),
+		},
+		RabbitMQ: RabbitMQConfig{
+			Enabled:        getEnv("RABBITMQ_ENABLED", "false") == "true",
+			DSN:            getEnv("RABBITMQ_DSN", "amqp://sipon:sipon@rabbitmq:5672/"),
+			Exchange:       getEnv("RABBITMQ_EXCHANGE", "sipon.events"),
+			DLXExchange:    getEnv("RABBITMQ_DLX_EXCHANGE", "sipon.events.dlx"),
+			Prefetch:       parseInt("RABBITMQ_PREFETCH", 10),
+			PublishTimeout: time.Duration(parseInt("RABBITMQ_PUBLISH_TIMEOUT_SECONDS", 10)) * time.Second,
+			RetryDelays:    parseRetryDelays("RABBITMQ_RETRY_DELAYS", "60,300,1800"),
 		},
 	}
 	return cfg, nil
@@ -204,6 +231,23 @@ func parseCSV(key string, defaultVal []string) []string {
 		}
 	}
 	return out
+}
+
+func parseRetryDelays(key, defaultVal string) []time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		raw = defaultVal
+	}
+	parts := strings.Split(raw, ",")
+	delays := make([]time.Duration, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 0 {
+				delays = append(delays, time.Duration(n)*time.Second)
+			}
+		}
+	}
+	return delays
 }
 
 func getEnv(key, defaultVal string) string {

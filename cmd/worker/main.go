@@ -2,10 +2,15 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -24,6 +29,10 @@ import (
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
+	"sipon-be/internal/shared/messaging"
+	msgApp "sipon-be/internal/shared/messaging/application"
+	outboxPersistence "sipon-be/internal/shared/messaging/infrastructure/persistence"
+	"sipon-be/internal/shared/messaging/infrastructure/rabbitmq"
 	"sipon-be/internal/shared/scheduler/application"
 	"sipon-be/internal/shared/scheduler/infrastructure/persistence"
 	"sipon-be/internal/shared/timeutil"
@@ -80,29 +89,152 @@ func main() {
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	kesantrian.SetAkademikProvisioner(akademik)
 
-	registry := application.NewRegistry()
-	identity.RegisterSchedulerHandlers(registry)
-	dokumenAset.RegisterSchedulerHandlers(registry)
-	kesantrian.RegisterSchedulerHandlers(registry)
-	psb.RegisterSchedulerHandlers(registry)
-	article.RegisterSchedulerHandlers(registry)
-	keuangan.RegisterSchedulerHandlers(registry)
-	feedback.RegisterSchedulerHandlers(registry)
-	fingerprint.RegisterSchedulerHandlers(registry)
-	akademik.RegisterSchedulerHandlers(registry)
+	// Registrasi handler asynchronous via shared messaging registry. Setiap module
+	// memanggil RegisterMessageHandlers; cmd/worker hanya composition + kumpulkan
+	// binding queue.
+	msgRegistry := messaging.NewRegistry()
+	var bindings []messaging.Binding
+
+	register := func(name string, reg func(*messaging.Registry) ([]messaging.Binding, error)) {
+		b, err := reg(msgRegistry)
+		if err != nil {
+			lg.Error("gagal registrasi message handlers", slog.String("module", name), slog.Any("error", err))
+			os.Exit(1)
+		}
+		bindings = append(bindings, b...)
+	}
+
+	register("identity", identity.RegisterMessageHandlers)
+	register("dokumen_aset", dokumenAset.RegisterMessageHandlers)
+	register("kesantrian", kesantrian.RegisterMessageHandlers)
+	register("psb", psb.RegisterMessageHandlers)
+	register("article", article.RegisterMessageHandlers)
+	register("keuangan", keuangan.RegisterMessageHandlers)
+	register("feedback", feedback.RegisterMessageHandlers)
+	register("fingerprint", fingerprint.RegisterMessageHandlers)
+	register("akademik", akademik.RegisterMessageHandlers)
 
 	scheduledJobRepo := persistence.NewPostgresScheduledJobRepository(db)
-	worker := application.NewWorker(
+
+	dispatcher := application.NewDispatcher(
 		scheduledJobRepo,
-		registry,
 		time.Duration(cfg.Worker.TickSeconds)*time.Second,
+		time.Duration(cfg.Worker.LeaseSeconds)*time.Second,
 		lg,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go worker.Run(ctx)
+	outboxRepo := outboxPersistence.NewPostgresOutboxRepository(db)
+	transactor := database.NewTransactor(db)
+	messageJobRepo := outboxPersistence.NewPostgresMessageJobRepository(db)
+
+	metrics := &msgApp.Metrics{}
+
+	useOutbox := cfg.Worker.Mode == "outbox"
+	if useOutbox && !cfg.RabbitMQ.Enabled {
+		lg.Error("WORKER_MODE=outbox membutuhkan RABBITMQ_ENABLED=true")
+		os.Exit(1)
+	}
+
+	var wg sync.WaitGroup
+
+	// Deklarasi RabbitMQ topology (exchange, queue per role, retry, DLQ) bila
+	// RABBITMQ_ENABLED=true. Idempotent dan durable terhadap restart broker.
+	if cfg.RabbitMQ.Enabled {
+		if err := declareRabbitMQTopology(cfg, bindings, lg); err != nil {
+			lg.Warn("gagal declare RabbitMQ topology", slog.Any("error", err))
+		}
+	}
+
+	if useOutbox {
+		// Mode outbox: Scheduler Dispatcher hanya menulis event_outbox; eksekusi
+		// handler dilakukan oleh Message Consumer melalui RabbitMQ.
+		dispatcher.WithOutboxMode(outboxRepo, transactor)
+
+		publisher, err := rabbitmq.NewPublisher(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Exchange, cfg.RabbitMQ.PublishTimeout)
+		if err != nil {
+			lg.Error("gagal init RabbitMQ publisher", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer publisher.Close()
+
+		// Outbox Relay: event_outbox -> RabbitMQ (dengan publisher confirm).
+		outboxRelay := msgApp.NewOutboxRelay(outboxRepo, publisher, msgApp.OutboxRelayOptions{
+			Interval:  2 * time.Second,
+			Lease:     30 * time.Second,
+			BaseDelay: 30 * time.Second,
+			MaxDelay:  30 * time.Minute,
+		}, lg).WithMetrics(metrics)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			outboxRelay.Start(ctx)
+		}()
+
+		// Message Consumer: RabbitMQ -> message_jobs -> module handler.
+		consumer, err := rabbitmq.NewConsumer(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Prefetch)
+		if err != nil {
+			lg.Error("gagal init RabbitMQ consumer", slog.Any("error", err))
+			os.Exit(1)
+		}
+		defer consumer.Close()
+
+		msgConsumer := msgApp.NewMessageConsumer(
+			consumer,
+			messageJobRepo,
+			msgRegistry,
+			messaging.NewRetryPolicy(5),
+			publisher,
+			msgApp.MessageConsumerOptions{
+				Lease:       5 * time.Minute,
+				BaseDelay:   30 * time.Second,
+				MaxDelay:    30 * time.Minute,
+				RetryDelays: cfg.RabbitMQ.RetryDelays,
+			},
+			lg,
+		).WithMetrics(metrics)
+
+		queues := map[string]struct{}{}
+		for _, b := range bindings {
+			queues[b.Queue] = struct{}{}
+		}
+		for q := range queues {
+			queue := q
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := msgConsumer.Start(ctx, queue); err != nil {
+					lg.Error("consumer stopped", slog.String("queue", queue), slog.Any("error", err))
+				}
+			}()
+		}
+
+		startHealthServer(cfg, db, publisher, metrics, lg)
+	} else {
+		// Mode direct: compatibility bridge sampai outbox/RabbitMQ consumer aktif.
+		dispatcher.WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
+			msg, err := messaging.NewMessage(jobType, payload)
+			if err != nil {
+				return &application.FatalError{Err: err}
+			}
+			if err := msgRegistry.Dispatch(ctx, msg); err != nil {
+				if messaging.IsFatal(err) {
+					return &application.FatalError{Err: err}
+				}
+				return err
+			}
+			return nil
+		})
+		startHealthServer(cfg, db, nil, metrics, lg)
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		dispatcher.Run(ctx)
+	}()
 
 	lg.Info("worker started, waiting for scheduled jobs")
 
@@ -113,6 +245,98 @@ func main() {
 	lg.Info("shutdown signal received")
 	cancel()
 
-	time.Sleep(2 * time.Second)
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		lg.Info("all goroutines stopped gracefully")
+	case <-time.After(10 * time.Second):
+		lg.Warn("shutdown timeout; force exit")
+	}
 	lg.Info("worker stopped")
+}
+
+// startHealthServer menyediakan endpoint /healthz (DB + RabbitMQ) dan /metrics
+// pada port terpisah dari proses worker.
+func startHealthServer(
+	cfg *config.Config,
+	db *sql.DB,
+	publisher *rabbitmq.RabbitMQPublisher,
+	metrics *msgApp.Metrics,
+	lg *slog.Logger,
+) {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		dbErr := db.PingContext(r.Context())
+		status := "ok"
+		dbStatus := "ok"
+		if dbErr != nil {
+			dbStatus = dbErr.Error()
+			status = "degraded"
+		}
+
+		rabbitStatus := "disabled"
+		if publisher != nil {
+			if err := publisher.Ping(r.Context()); err != nil {
+				rabbitStatus = err.Error()
+				status = "degraded"
+			} else {
+				rabbitStatus = "ok"
+			}
+		}
+
+		if status != "ok" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+		writeJSON(w, map[string]any{
+			"status":   status,
+			"database": dbStatus,
+			"rabbitmq": rabbitStatus,
+		})
+	})
+
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, metrics.Snapshot())
+	})
+
+	srv := &http.Server{Addr: ":" + strconv.Itoa(cfg.Worker.HealthPort), Handler: mux}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			lg.Warn("health server error", slog.Any("error", err))
+		}
+	}()
+	lg.Info("health server started", slog.Int("port", cfg.Worker.HealthPort))
+}
+
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+// declareRabbitMQTopology menghubungkan ke broker dan mendeklarasikan topology
+// durable berdasarkan binding yang dikumpulkan dari module.
+func declareRabbitMQTopology(cfg *config.Config, bindings []messaging.Binding, lg *slog.Logger) error {
+	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
+		DSN:         cfg.RabbitMQ.DSN,
+		Exchange:    cfg.RabbitMQ.Exchange,
+		DLXExchange: cfg.RabbitMQ.DLXExchange,
+		RetryDelays: cfg.RabbitMQ.RetryDelays,
+	})
+	if err != nil {
+		return err
+	}
+	defer topo.Close()
+
+	if err := topo.Declare(bindings); err != nil {
+		return err
+	}
+	lg.Info("RabbitMQ topology declared",
+		slog.String("exchange", cfg.RabbitMQ.Exchange),
+		slog.Int("bindings", len(bindings)),
+	)
+	return nil
 }

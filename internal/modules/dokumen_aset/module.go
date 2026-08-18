@@ -13,7 +13,7 @@ import (
 	"sipon-be/internal/modules/dokumen_aset/infrastructure/persistence"
 	dokumenAsetHTTP "sipon-be/internal/modules/dokumen_aset/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/scheduler/application"
+	"sipon-be/internal/shared/messaging"
 )
 
 type Module struct {
@@ -80,5 +80,6 @@ func (m *Module) GetDownloadURL(ctx context.Context, id string, isAuthenticated 
 	}, nil
 }
 
-func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
+func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+	return nil, nil
 }

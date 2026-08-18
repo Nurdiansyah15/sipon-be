@@ -16,7 +16,7 @@ import (
 	"sipon-be/internal/modules/psb/infrastructure/persistence"
 	psbHTTP "sipon-be/internal/modules/psb/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/scheduler/application"
+	"sipon-be/internal/shared/messaging"
 )
 
 type Module struct {
@@ -92,5 +92,6 @@ func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays in
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
 }
 
-func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
+func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+	return nil, nil
 }

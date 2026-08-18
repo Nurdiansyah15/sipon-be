@@ -12,7 +12,7 @@ import (
 	"sipon-be/internal/modules/fingerprint/infrastructure/persistence"
 	fingerprintHTTP "sipon-be/internal/modules/fingerprint/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/scheduler/application"
+	"sipon-be/internal/shared/messaging"
 )
 
 type Module struct {
@@ -63,5 +63,6 @@ func (m *Module) ListDistinctPinInRange(ctx context.Context, from, to time.Time)
 	return result, nil
 }
 
-func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
+func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+	return nil, nil
 }

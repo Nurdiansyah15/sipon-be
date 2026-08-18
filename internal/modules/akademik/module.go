@@ -3,8 +3,6 @@ package akademik
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
@@ -17,10 +15,11 @@ import (
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
 	"sipon-be/internal/modules/akademik/infrastructure/persistence"
 	akademikHTTP "sipon-be/internal/modules/akademik/interfaces/http"
+	akademikMQ "sipon-be/internal/modules/akademik/interfaces/mq"
 	"sipon-be/internal/modules/fingerprint"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
-	schedulerApp "sipon-be/internal/shared/scheduler/application"
+	"sipon-be/internal/shared/messaging"
 	schedulerPersistence "sipon-be/internal/shared/scheduler/infrastructure/persistence"
 	"sipon-be/internal/shared/timeutil"
 )
@@ -30,13 +29,12 @@ type Module struct {
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
 
-	getDefaultProgramIDUC    *query.GetAkademikSettingUseCase
-	assignSantriProgramUC    *command.AssignSantriProgramUseCase
-	getSantriProgramUC       *query.GetSantriProgramUseCase
+	getDefaultProgramIDUC *query.GetAkademikSettingUseCase
+	assignSantriProgramUC *command.AssignSantriProgramUseCase
+	getSantriProgramUC    *query.GetSantriProgramUseCase
 
 	syncFingerprintUC  *command.SyncAttendanceFromFingerprintUseCase
-	completeSessionUC  *command.CompleteSessionUseCase
-	scheduledJobRepo   *schedulerPersistence.PostgresScheduledJobRepository
+	autoCloseSessionUC *command.AutoCloseSessionUseCase
 }
 
 func NewModule(
@@ -143,12 +141,21 @@ func NewModule(
 
 	// activity session
 	cronParser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	scheduleJobsUC := command.NewScheduleSessionJobsUseCase(scheduledJobRepo, cronParser, timeutil.Loc())
+	scheduleJobsUC := command.NewScheduleSessionJobsUseCase(
+		scheduledJobRepo,
+		cronParser,
+		timeutil.Loc(),
+		command.ScheduledJobTypes{
+			FingerprintSync:  akademikMQ.RoutingFingerprintSync,
+			SessionAutoClose: akademikMQ.RoutingSessionAutoClose,
+		},
+	)
 	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo)
 	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor)
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo, scheduleJobsUC)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
+	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, scheduledJobRepo, akademikMQ.RoutingFingerprintSync)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
@@ -217,15 +224,14 @@ func NewModule(
 	)
 
 	return &Module{
-		handler:                 handler,
-		jwtAuth:                 jwtAuth,
-		principalLoad:           principalLoad,
-		getDefaultProgramIDUC:   getSettingUC,
-		assignSantriProgramUC:   assignSantriProgramUC,
-		getSantriProgramUC:      getSantriProgramUC,
-		syncFingerprintUC:       syncFingerprintUC,
-		completeSessionUC:       completeSessionUC,
-		scheduledJobRepo:        scheduledJobRepo,
+		handler:               handler,
+		jwtAuth:               jwtAuth,
+		principalLoad:         principalLoad,
+		getDefaultProgramIDUC: getSettingUC,
+		assignSantriProgramUC: assignSantriProgramUC,
+		getSantriProgramUC:    getSantriProgramUC,
+		syncFingerprintUC:     syncFingerprintUC,
+		autoCloseSessionUC:    autoCloseSessionUC,
 	}
 }
 
@@ -263,51 +269,13 @@ func (m *Module) GetSantriProgram(ctx context.Context, santriID string) (*Santri
 	}, nil
 }
 
-func (m *Module) RegisterSchedulerHandlers(registry *schedulerApp.Registry) {
-	registry.Register(command.JobTypeFingerprintSync, m.handleFingerprintSync)
-	registry.Register(command.JobTypeSessionAutoClose, m.handleSessionAutoClose)
-}
-
-func (m *Module) handleFingerprintSync(ctx context.Context, payload json.RawMessage) error {
-	var p struct {
-		SessionID string `json:"session_id"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return &schedulerApp.FatalError{Err: err}
-	}
-	_, err := m.syncFingerprintUC.Execute(ctx, p.SessionID)
-	if err != nil {
-		return &schedulerApp.RetryableError{Err: err}
-	}
-	return nil
-}
-
-func (m *Module) handleSessionAutoClose(ctx context.Context, payload json.RawMessage) error {
-	var p struct {
-		SessionID string `json:"session_id"`
-	}
-	if err := json.Unmarshal(payload, &p); err != nil {
-		return &schedulerApp.FatalError{Err: err}
-	}
-
-	if _, err := m.completeSessionUC.Execute(ctx, p.SessionID); err != nil {
-		slog.Warn("akademik: auto-close sesi gagal",
-			"session_id", p.SessionID, "error", err)
-		return &schedulerApp.RetryableError{Err: err}
-	}
-
-	syncJob, err := m.scheduledJobRepo.FindByTypeAndReferenceID(ctx, command.JobTypeFingerprintSync, p.SessionID)
-	if err != nil {
-		slog.Warn("akademik: gagal cari recurring sync job untuk di-pause",
-			"session_id", p.SessionID, "error", err)
-		return nil
-	}
-	if syncJob != nil && syncJob.Status == "ACTIVE" {
-		syncJob.Pause()
-		if err := m.scheduledJobRepo.Update(ctx, syncJob); err != nil {
-			slog.Warn("akademik: gagal pause recurring sync job",
-				"session_id", p.SessionID, "error", err)
-		}
-	}
-	return nil
+// RegisterMessageHandlers mendaftarkan handler asynchronous module akademik ke
+// shared messaging registry dan mengembalikan binding queue. Layer transport
+// (scheduler worker / consumer MQ) memakai facade ini sebagai satu-satunya pintu
+// registrasi — handler bisnis hidup di interfaces/mq, bukan di module.go.
+func (m *Module) RegisterMessageHandlers(registry *messaging.Registry) ([]messaging.Binding, error) {
+	return akademikMQ.RegisterHandlers(registry, akademikMQ.Dependencies{
+		FingerprintSync:  m.syncFingerprintUC,
+		SessionAutoClose: m.autoCloseSessionUC,
+	})
 }

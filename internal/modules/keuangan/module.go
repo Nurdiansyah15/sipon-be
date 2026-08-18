@@ -15,7 +15,7 @@ import (
 	keuanganHTTP "sipon-be/internal/modules/keuangan/interfaces/http"
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/scheduler/application"
+	"sipon-be/internal/shared/messaging"
 )
 
 type Module struct {
@@ -230,5 +230,6 @@ func (m *Module) HasPaidComponent(ctx context.Context, santriID, componentCode, 
 	return m.invoiceRepo.HasPaidComponent(ctx, santriID, componentCode, billingPeriodID)
 }
 
-func (m *Module) RegisterSchedulerHandlers(_ *application.Registry) {
+func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+	return nil, nil
 }

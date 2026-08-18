@@ -25,6 +25,7 @@ type ScheduledJob struct {
 	MaxRetry     int
 	LastError    *string
 	ReferenceID  *string
+	LeaseUntil   *time.Time
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
 }
