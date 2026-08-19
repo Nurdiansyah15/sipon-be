@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -11,13 +10,12 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 
-	"sipon-be/internal/shared/database"
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
 	"sipon-be/internal/modules/scheduler/domain/scheduled_job/constant"
 	"sipon-be/internal/modules/scheduler/domain/scheduled_job/entity"
-	"sipon-be/internal/modules/scheduler/domain/scheduled_job/repository"
 	schedulerPersistence "sipon-be/internal/modules/scheduler/infrastructure/persistence"
+	"sipon-be/internal/shared/database"
 )
 
 type fakeJobRepo struct {
@@ -36,10 +34,6 @@ func (f *fakeJobRepo) FindByTypeAndReferenceID(ctx context.Context, jobType, ref
 	return nil, nil
 }
 
-func newDispatcher(repo repository.Repository) *SchedulerDispatcher {
-	return NewDispatcher(repo, time.Second, time.Minute, slog.New(slog.DiscardHandler))
-}
-
 func newOneOffJob() *entity.ScheduledJob {
 	return &entity.ScheduledJob{
 		ID:           uuid.New(),
@@ -54,102 +48,6 @@ func newOneOffJob() *entity.ScheduledJob {
 	}
 }
 
-func newRecurringJob() *entity.ScheduledJob {
-	expr := "*/1 * * * *"
-	return &entity.ScheduledJob{
-		ID:           uuid.New(),
-		Type:         "akademik.fingerprint.sync",
-		Payload:      json.RawMessage(`{"session_id":"s1"}`),
-		ScheduleType: constant.ScheduleTypeRecurring,
-		CronExpr:     &expr,
-		NextRunAt:    time.Now(),
-		Status:       constant.StatusProcessing,
-		MaxRetry:     3,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-	}
-}
-
-func TestDispatcher_DirectMode_OneOffCompletes(t *testing.T) {
-	repo := &fakeJobRepo{}
-	called := false
-	dispatcher := newDispatcher(repo).WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-		called = true
-		if jobType != "akademik.session.auto_close" {
-			t.Fatalf("jobType: got %q", jobType)
-		}
-		return nil
-	})
-
-	job := newOneOffJob()
-	if err := dispatcher.dispatchJob(context.Background(), job, time.Now()); err != nil {
-		t.Fatalf("dispatchJob: %v", err)
-	}
-	if !called {
-		t.Fatal("handler tidak dipanggil")
-	}
-	if len(repo.updates) != 1 {
-		t.Fatalf("harus 1 update, got %d", len(repo.updates))
-	}
-	if repo.updates[0].Status != constant.StatusCompleted {
-		t.Fatalf("status harus COMPLETED, got %s", repo.updates[0].Status)
-	}
-	if repo.updates[0].LeaseUntil != nil {
-		t.Fatal("lease harus di-reset setelah selesai")
-	}
-}
-
-func TestDispatcher_DirectMode_RecurringAdvances(t *testing.T) {
-	repo := &fakeJobRepo{}
-	dispatcher := newDispatcher(repo).WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-		return nil
-	})
-
-	job := newRecurringJob()
-	now := time.Now()
-	if err := dispatcher.dispatchJob(context.Background(), job, now); err != nil {
-		t.Fatalf("dispatchJob: %v", err)
-	}
-	if repo.updates[0].Status != constant.StatusActive {
-		t.Fatalf("status harus ACTIVE, got %s", repo.updates[0].Status)
-	}
-	if !repo.updates[0].NextRunAt.After(now) {
-		t.Fatal("next_run_at harus maju untuk recurring job")
-	}
-}
-
-func TestDispatcher_DirectMode_FatalMarksFailed(t *testing.T) {
-	repo := &fakeJobRepo{}
-	dispatcher := newDispatcher(repo).WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-		return &FatalError{Err: errors.New("permanent")}
-	})
-
-	if err := dispatcher.dispatchJob(context.Background(), newOneOffJob(), time.Now()); err != nil {
-		t.Fatalf("dispatchJob: %v", err)
-	}
-	if repo.updates[0].Status != constant.StatusFailed {
-		t.Fatalf("status harus FAILED, got %s", repo.updates[0].Status)
-	}
-}
-
-func TestDispatcher_DirectMode_RetryableIncrementsRetry(t *testing.T) {
-	repo := &fakeJobRepo{}
-	dispatcher := newDispatcher(repo).WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-		return &RetryableError{Err: errors.New("transient")}
-	})
-
-	if err := dispatcher.dispatchJob(context.Background(), newOneOffJob(), time.Now()); err != nil {
-		t.Fatalf("dispatchJob: %v", err)
-	}
-	if repo.updates[0].RetryCount != 1 {
-		t.Fatalf("retry_count harus 1, got %d", repo.updates[0].RetryCount)
-	}
-	if repo.updates[0].Status != constant.StatusActive {
-		t.Fatalf("status harus ACTIVE (utk retry), got %s", repo.updates[0].Status)
-	}
-}
-
-// TestDispatcher_OutboxMode_OneOffWritesOutboxAndCompletes membuktikan Scheduler
 // outboxWriterAdapter mengadaptasi messaging outbox repository ke port
 // scheduler.OutboxWriter (dependency inversion untuk keperluan test).
 type outboxWriterAdapter struct {
@@ -160,8 +58,8 @@ func (a *outboxWriterAdapter) Save(ctx context.Context, routingKey string, paylo
 	return a.repo.Save(ctx, outboxEntity.NewOutboxEntry(routingKey, payload, ""))
 }
 
-// Dispatcher pada mode outbox menulis event_outbox DAN memajukan state scheduled
-// job dalam satu DB transaction, tanpa memanggil handler.
+// Dispatcher selalu memakai pola outbox: menulis event_outbox DAN memajukan
+// state scheduled job dalam satu DB transaction, tanpa memanggil handler.
 func TestDispatcher_OutboxMode_OneOffWritesOutboxAndCompletes(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -174,7 +72,7 @@ func TestDispatcher_OutboxMode_OneOffWritesOutboxAndCompletes(t *testing.T) {
 	transactor := database.NewTransactor(db)
 
 	dispatcher := NewDispatcher(schedRepo, time.Second, time.Minute, slog.New(slog.DiscardHandler)).
-		WithOutboxMode(outboxRepo, transactor)
+		WithOutbox(outboxRepo, transactor)
 
 	job := newOneOffJob()
 
@@ -193,5 +91,14 @@ func TestDispatcher_OutboxMode_OneOffWritesOutboxAndCompletes(t *testing.T) {
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("expectations: %v", err)
+	}
+}
+
+func TestDispatcher_WithoutOutbox_ReturnsError(t *testing.T) {
+	repo := &fakeJobRepo{}
+	dispatcher := NewDispatcher(repo, time.Second, time.Minute, slog.New(slog.DiscardHandler))
+
+	if err := dispatcher.dispatchJob(context.Background(), newOneOffJob(), time.Now()); err == nil {
+		t.Fatal("dispatchJob tanpa outbox harus error")
 	}
 }

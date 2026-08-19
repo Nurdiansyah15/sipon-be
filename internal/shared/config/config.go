@@ -33,7 +33,6 @@ type WorkerConfig struct {
 	Enabled      bool
 	TickSeconds  int
 	LeaseSeconds int
-	Mode         string
 	HealthPort   int
 }
 
@@ -199,7 +198,6 @@ func Load() (*Config, error) {
 			Enabled:      getEnv("WORKER_ENABLED", "true") != "false",
 			TickSeconds:  parseInt("WORKER_TICK_SECONDS", 10),
 			LeaseSeconds: parseInt("WORKER_LEASE_SECONDS", 300),
-			Mode:         getEnv("WORKER_MODE", "direct"),
 			HealthPort:   parseInt("WORKER_HEALTH_PORT", 9090),
 		},
 		Google: GoogleConfig{

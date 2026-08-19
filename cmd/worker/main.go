@@ -34,7 +34,6 @@ import (
 	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 	psbModule "sipon-be/internal/modules/psb"
 	schedulerModule "sipon-be/internal/modules/scheduler"
-	"sipon-be/internal/modules/scheduler/application"
 	schedulerPorts "sipon-be/internal/modules/scheduler/application/ports"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
@@ -146,104 +145,83 @@ func main() {
 	messageJobRepo := outboxPersistence.NewPostgresMessageJobRepository(db)
 
 	metrics := &msgApp.Metrics{}
-	useOutbox := cfg.Worker.Mode == "outbox"
-	if useOutbox && !cfg.RabbitMQ.Enabled {
-		lg.Error("WORKER_MODE=outbox membutuhkan RABBITMQ_ENABLED=true")
+	if !cfg.RabbitMQ.Enabled {
+		lg.Error("pipeline outbox membutuhkan RABBITMQ_ENABLED=true")
 		os.Exit(1)
 	}
 
 	var wg sync.WaitGroup
 
-	// Deklarasi RabbitMQ topology (exchange, queue per role, retry, DLQ) bila
-	// RABBITMQ_ENABLED=true. Idempotent dan durable terhadap restart broker.
-	if cfg.RabbitMQ.Enabled {
-		if err := declareRabbitMQTopology(cfg, bindings, lg); err != nil {
-			lg.Warn("gagal declare RabbitMQ topology", slog.Any("error", err))
-		}
+	// Deklarasi RabbitMQ topology (exchange, queue per role, retry, DLQ).
+	// Idempotent dan durable terhadap restart broker.
+	if err := declareRabbitMQTopology(cfg, bindings, lg); err != nil {
+		lg.Warn("gagal declare RabbitMQ topology", slog.Any("error", err))
 	}
 
-	if useOutbox {
-		// Mode outbox: Scheduler Dispatcher hanya menulis event_outbox; eksekusi
-		// handler dilakukan oleh Message Consumer melalui RabbitMQ.
-		dispatcher.WithOutboxMode(&outboxWriterAdapter{repo: outboxRepo}, transactor)
+	// Scheduler Dispatcher selalu memakai pola outbox: hanya menulis event_outbox;
+	// eksekusi handler dilakukan oleh Message Consumer melalui RabbitMQ.
+	dispatcher.WithOutbox(&outboxWriterAdapter{repo: outboxRepo}, transactor)
 
-		publisher, err := rabbitmq.NewPublisher(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Exchange, cfg.RabbitMQ.PublishTimeout)
-		if err != nil {
-			lg.Error("gagal init RabbitMQ publisher", slog.Any("error", err))
-			os.Exit(1)
-		}
-		defer publisher.Close()
-		msgModule.WithPublisher(publisher)
+	publisher, err := rabbitmq.NewPublisher(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Exchange, cfg.RabbitMQ.PublishTimeout)
+	if err != nil {
+		lg.Error("gagal init RabbitMQ publisher", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer publisher.Close()
+	msgModule.WithPublisher(publisher)
 
-		// Outbox Relay: event_outbox -> RabbitMQ (dengan publisher confirm).
-		outboxRelay := msgApp.NewOutboxRelay(outboxRepo, publisher, msgApp.OutboxRelayOptions{
-			Interval:  2 * time.Second,
-			Lease:     30 * time.Second,
-			BaseDelay: 30 * time.Second,
-			MaxDelay:  30 * time.Minute,
-		}, lg).WithMetrics(metrics)
+	// Outbox Relay: event_outbox -> RabbitMQ (dengan publisher confirm).
+	outboxRelay := msgApp.NewOutboxRelay(outboxRepo, publisher, msgApp.OutboxRelayOptions{
+		Interval:  2 * time.Second,
+		Lease:     30 * time.Second,
+		BaseDelay: 30 * time.Second,
+		MaxDelay:  30 * time.Minute,
+	}, lg).WithMetrics(metrics)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		outboxRelay.Start(ctx)
+	}()
+
+	// Message Consumer: RabbitMQ -> message_jobs -> module handler.
+	consumer, err := rabbitmqconsumer.NewConsumer(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Prefetch)
+	if err != nil {
+		lg.Error("gagal init RabbitMQ consumer", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer consumer.Close()
+
+	msgConsumer := msgApp.NewMessageConsumer(
+		consumer,
+		messageJobRepo,
+		msgModule.Registry(),
+		msgModule.RetryPolicy(),
+		publisher,
+		msgApp.MessageConsumerOptions{
+			Lease:       5 * time.Minute,
+			BaseDelay:   30 * time.Second,
+			MaxDelay:    30 * time.Minute,
+			RetryDelays: cfg.RabbitMQ.RetryDelays,
+		},
+		lg,
+	).WithMetrics(metrics)
+
+	queues := map[string]struct{}{}
+	for _, b := range bindings {
+		queues[b.Queue] = struct{}{}
+	}
+	for q := range queues {
+		queue := q
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			outboxRelay.Start(ctx)
+			if err := msgConsumer.Start(ctx, queue); err != nil {
+				lg.Error("consumer stopped", slog.String("queue", queue), slog.Any("error", err))
+			}
 		}()
-
-		// Message Consumer: RabbitMQ -> message_jobs -> module handler.
-		consumer, err := rabbitmqconsumer.NewConsumer(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Prefetch)
-		if err != nil {
-			lg.Error("gagal init RabbitMQ consumer", slog.Any("error", err))
-			os.Exit(1)
-		}
-		defer consumer.Close()
-
-		msgConsumer := msgApp.NewMessageConsumer(
-			consumer,
-			messageJobRepo,
-			msgModule.Registry(),
-			msgModule.RetryPolicy(),
-			publisher,
-			msgApp.MessageConsumerOptions{
-				Lease:       5 * time.Minute,
-				BaseDelay:   30 * time.Second,
-				MaxDelay:    30 * time.Minute,
-				RetryDelays: cfg.RabbitMQ.RetryDelays,
-			},
-			lg,
-		).WithMetrics(metrics)
-
-		queues := map[string]struct{}{}
-		for _, b := range bindings {
-			queues[b.Queue] = struct{}{}
-		}
-		for q := range queues {
-			queue := q
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if err := msgConsumer.Start(ctx, queue); err != nil {
-					lg.Error("consumer stopped", slog.String("queue", queue), slog.Any("error", err))
-				}
-			}()
-		}
-
-		startHealthServer(cfg, db, publisher, metrics, lg)
-	} else {
-		// Mode direct: compatibility bridge sampai outbox/RabbitMQ consumer aktif.
-		dispatcher.WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-			msg, err := messagingModule.NewMessage(jobType, payload)
-			if err != nil {
-				return &application.FatalError{Err: err}
-			}
-			if err := msgModule.Dispatch(ctx, msg); err != nil {
-				if messagingModule.IsFatal(err) {
-					return &application.FatalError{Err: err}
-				}
-				return err
-			}
-			return nil
-		})
-		startHealthServer(cfg, db, nil, metrics, lg)
 	}
+
+	startHealthServer(cfg, db, publisher, metrics, lg)
 
 	wg.Add(1)
 	go func() {

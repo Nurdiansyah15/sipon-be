@@ -39,8 +39,8 @@ func NewModule(db *sql.DB, tick, lease time.Duration, logger *slog.Logger) *Modu
 	}
 }
 
-// Dispatcher mengembalikan dispatcher internal untuk konfigurasi lanjutan
-// (WithDirectMode / WithOutboxMode).
+// Dispatcher mengembalikan dispatcher internal untuk konfigurasi outbox
+// (WithOutbox) sebelum dijalankan.
 func (m *Module) Dispatcher() *application.SchedulerDispatcher {
 	return m.dispatcher
 }

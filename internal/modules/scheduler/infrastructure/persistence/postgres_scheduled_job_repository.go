@@ -81,11 +81,12 @@ func (r *PostgresScheduledJobRepository) FindDueAndClaim(ctx context.Context, no
 		placeholders := make([]string, len(ids))
 		args := make([]any, len(ids))
 		for i, id := range ids {
-			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			// now=$1, lease_until=$2, id pertama dimulai dari $3
+			placeholders[i] = fmt.Sprintf("$%d", i+3)
 			args[i] = id
 		}
 		query := `UPDATE scheduled_jobs
-			SET status = 'PROCESSING', lease_until = $2, updated_at = $2
+			SET status = 'PROCESSING', lease_until = $2, updated_at = $1
 			WHERE id IN (` + strings.Join(placeholders, ",") + `)`
 		if _, err := tx.ExecContext(ctx, query, append([]any{now, leaseUntil}, args...)...); err != nil {
 			return nil, err
