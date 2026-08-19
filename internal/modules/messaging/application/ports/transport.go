@@ -1,17 +1,21 @@
 package ports
 
-import "context"
+import (
+	"context"
+
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
+)
 
 // Publisher mengirim message ke exchange utama memakai msg.Type sebagai routing
 // key. Implementasi: RabbitMQPublisher (dengan publisher confirm).
 type Publisher interface {
-	Publish(ctx context.Context, msg Message) error
+	Publish(ctx context.Context, msg valueobject.Message) error
 }
 
 // QueuePublisher mengirim message langsung ke sebuah queue (biasanya retry queue)
 // lewat default exchange, tanpa melalui routing key topic.
 type QueuePublisher interface {
-	PublishToQueue(ctx context.Context, queue string, msg Message) error
+	PublishToQueue(ctx context.Context, queue string, msg valueobject.Message) error
 }
 
 // Delivery adalah satu message dari broker yang belum di-ack. Handler bertanggung

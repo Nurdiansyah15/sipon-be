@@ -12,9 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 	messagejobEntity "sipon-be/internal/modules/messaging/domain/message_job/entity"
+	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
 	"sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 )
 
@@ -73,7 +74,7 @@ func TestPilot_EndToEnd_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTopology: %v", err)
 	}
-	if err := topo.Declare([]messaging.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
+	if err := topo.Declare([]valueobject.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
 		t.Fatalf("Declare: %v", err)
 	}
 	_ = topo.Close()
@@ -94,9 +95,9 @@ func TestPilot_EndToEnd_Integration(t *testing.T) {
 	defer cancel()
 
 	// Registry + handler akademik-like.
-	reg := messaging.NewRegistry()
-	handled := make(chan messaging.Message, 1)
-	if err := reg.Register(routing, func(ctx context.Context, msg messaging.Message) error {
+	reg := NewRegistry()
+	handled := make(chan valueobject.Message, 1)
+	if err := reg.Register(routing, func(ctx context.Context, msg valueobject.Message) error {
 		handled <- msg
 		return nil
 	}); err != nil {
@@ -119,7 +120,7 @@ func TestPilot_EndToEnd_Integration(t *testing.T) {
 
 	// Message Consumer
 	msgConsumer := NewMessageConsumer(
-		consumer, msgJobRepo, reg, messaging.NewRetryPolicy(5), pub,
+		consumer, msgJobRepo, reg, messagingpolicy.NewRetryPolicy(5), pub,
 		MessageConsumerOptions{Lease: time.Minute, RetryDelays: []time.Duration{time.Minute}},
 		slog.New(slog.DiscardHandler),
 	)
@@ -151,7 +152,7 @@ func TestPilot_EndToEnd_Integration(t *testing.T) {
 	})
 
 	// 3. Idempotency: duplicate delivery (ID sama) tidak memicu handler lagi.
-	dup := messaging.Message{
+	dup := valueobject.Message{
 		ID: entry.ID, Type: routing, Version: 1,
 		OccurredAt: time.Now(), Payload: entry.Payload, CorrelationID: "corr",
 	}

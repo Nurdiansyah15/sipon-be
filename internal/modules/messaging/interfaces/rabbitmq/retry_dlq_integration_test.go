@@ -8,7 +8,8 @@ import (
 	"testing"
 	"time"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // TestRetryTTLRedelivery_Integration membuktikan message yang masuk retry queue
@@ -34,7 +35,7 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTopology: %v", err)
 	}
-	if err := topo.Declare([]messaging.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
+	if err := topo.Declare([]valueobject.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
 		t.Fatalf("Declare: %v", err)
 	}
 	_ = topo.Close()
@@ -45,8 +46,8 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 	}
 	defer pub.Close()
 
-	msg, _ := messaging.NewMessage(routing, json.RawMessage(`{"x":1}`))
-	retryQ := messaging.RetryQueueName(queue, routing, delay)
+	msg, _ := valueobject.NewMessage(routing, json.RawMessage(`{"x":1}`))
+	retryQ := ports.RetryQueueName(queue, routing, delay)
 	if err := pub.PublishToQueue(context.Background(), retryQ, msg); err != nil {
 		t.Fatalf("PublishToQueue: %v", err)
 	}
@@ -57,9 +58,9 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 	}
 	defer cons.Close()
 
-	received := make(chan messaging.Message, 1)
-	handler := func(ctx context.Context, d messaging.Delivery) error {
-		var got messaging.Message
+	received := make(chan valueobject.Message, 1)
+	handler := func(ctx context.Context, d ports.Delivery) error {
+		var got valueobject.Message
 		if err := json.Unmarshal(d.Body(), &got); err != nil {
 			t.Errorf("unmarshal: %v", err)
 		}
@@ -108,7 +109,7 @@ func TestDLQ_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTopology: %v", err)
 	}
-	if err := topo.Declare([]messaging.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
+	if err := topo.Declare([]valueobject.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
 		t.Fatalf("Declare: %v", err)
 	}
 	_ = topo.Close()
@@ -119,7 +120,7 @@ func TestDLQ_Integration(t *testing.T) {
 	}
 	defer pub.Close()
 
-	msg, _ := messaging.NewMessage(routing, json.RawMessage(`{"x":1}`))
+	msg, _ := valueobject.NewMessage(routing, json.RawMessage(`{"x":1}`))
 	if err := pub.Publish(context.Background(), msg); err != nil {
 		t.Fatalf("Publish: %v", err)
 	}
@@ -135,7 +136,7 @@ func TestDLQ_Integration(t *testing.T) {
 	consCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	go func() {
-		_ = cons.Consume(consCtx, queue, func(ctx context.Context, d messaging.Delivery) error {
+		_ = cons.Consume(consCtx, queue, func(ctx context.Context, d ports.Delivery) error {
 			_ = d.Nack(false)
 			nacked <- struct{}{}
 			return nil
@@ -155,12 +156,12 @@ func TestDLQ_Integration(t *testing.T) {
 	}
 	defer consDLQ.Close()
 
-	dlqReceived := make(chan messaging.Message, 1)
+	dlqReceived := make(chan valueobject.Message, 1)
 	dlqCtx, dCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer dCancel()
 	go func() {
-		_ = consDLQ.Consume(dlqCtx, queue+".dlq", func(ctx context.Context, d messaging.Delivery) error {
-			var got messaging.Message
+		_ = consDLQ.Consume(dlqCtx, queue+".dlq", func(ctx context.Context, d ports.Delivery) error {
+			var got valueobject.Message
 			_ = json.Unmarshal(d.Body(), &got)
 			_ = d.Ack()
 			dlqReceived <- got

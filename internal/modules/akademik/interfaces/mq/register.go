@@ -1,6 +1,9 @@
 package mq
 
-import "sipon-be/internal/shared/messaging"
+import (
+	msgApp "sipon-be/internal/modules/messaging/application"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
+)
 
 // RegisterHandlers mendaftarkan seluruh handler module akademik ke shared registry
 // dan mengembalikan daftar binding queue. Memanggil dengan routing key yang sama
@@ -8,7 +11,7 @@ import "sipon-be/internal/shared/messaging"
 //
 // Handler didaftarkan untuk routing key canonical dan legacy alias sekaligus,
 // sehingga job lama yang masih menyimpan routing key format lama tetap dieksekusi.
-func RegisterHandlers(registry *messaging.Registry, deps Dependencies) ([]messaging.Binding, error) {
+func RegisterHandlers(registry *msgApp.Registry, deps Dependencies) ([]valueobject.Binding, error) {
 	h := handlers{deps: deps}
 
 	if err := registry.Register(RoutingFingerprintSync, h.handleFingerprintSync); err != nil {

@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"time"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 	messagejobEntity "sipon-be/internal/modules/messaging/domain/message_job/entity"
+	messagingerrors "sipon-be/internal/modules/messaging/domain/message_job/errors"
+	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
 	messagejobRepo "sipon-be/internal/modules/messaging/domain/message_job/repository"
 )
 
@@ -23,22 +26,22 @@ type MessageConsumerOptions struct {
 // (message_jobs) SEBELUM handler menjalankan side effect, lalu dispatch ke
 // registry module. Alur: RabbitMQ -> message_jobs -> Module Handler.
 type MessageConsumer struct {
-	consumer       messaging.Consumer
+	consumer       ports.Consumer
 	repo           messagejobRepo.Repository
-	registry       *messaging.Registry
-	policy         *messaging.RetryPolicy
-	retryPublisher messaging.QueuePublisher
+	registry       *Registry
+	policy         *messagingpolicy.RetryPolicy
+	retryPublisher ports.QueuePublisher
 	opts           MessageConsumerOptions
 	metrics        *Metrics
 	logger         *slog.Logger
 }
 
 func NewMessageConsumer(
-	consumer messaging.Consumer,
+	consumer ports.Consumer,
 	repo messagejobRepo.Repository,
-	registry *messaging.Registry,
-	policy *messaging.RetryPolicy,
-	retryPublisher messaging.QueuePublisher,
+	registry *Registry,
+	policy *messagingpolicy.RetryPolicy,
+	retryPublisher ports.QueuePublisher,
 	opts MessageConsumerOptions,
 	logger *slog.Logger,
 ) *MessageConsumer {
@@ -52,7 +55,7 @@ func NewMessageConsumer(
 		opts.MaxDelay = 30 * time.Minute
 	}
 	if policy == nil {
-		policy = messaging.NewRetryPolicy(5)
+		policy = messagingpolicy.NewRetryPolicy(5)
 	}
 	return &MessageConsumer{
 		consumer:       consumer,
@@ -73,14 +76,14 @@ func (c *MessageConsumer) WithMetrics(m *Metrics) *MessageConsumer {
 
 // Start mengonsumsi queue hingga context selesai.
 func (c *MessageConsumer) Start(ctx context.Context, queue string) error {
-	return c.consumer.Consume(ctx, queue, func(ctx context.Context, d messaging.Delivery) error {
+	return c.consumer.Consume(ctx, queue, func(ctx context.Context, d ports.Delivery) error {
 		c.handle(ctx, d, queue)
 		return nil
 	})
 }
 
-func (c *MessageConsumer) handle(ctx context.Context, d messaging.Delivery, queue string) {
-	var msg messaging.Message
+func (c *MessageConsumer) handle(ctx context.Context, d ports.Delivery, queue string) {
+	var msg valueobject.Message
 	if err := json.Unmarshal(d.Body(), &msg); err != nil {
 		c.logger.Warn("consumer: payload tidak valid, kirim ke DLQ", slog.Any("error", err))
 		_ = d.Nack(false)
@@ -165,7 +168,7 @@ func (c *MessageConsumer) handle(ctx context.Context, d messaging.Delivery, queu
 		c.logger.LogAttrs(context.Background(), slog.LevelInfo, "consumer: message sukses", logBase...)
 		_ = d.Ack()
 
-	case messaging.IsFatal(dispatchErr):
+	case messagingerrors.IsFatal(dispatchErr):
 		claimed.Fail(dispatchErr.Error(), now)
 		if err := c.repo.Update(ctx, claimed); err != nil {
 			c.logger.Error("consumer: gagal mark failed (fatal)", slog.String("id", msg.ID.String()), slog.Any("error", err))
@@ -181,8 +184,8 @@ func (c *MessageConsumer) handle(ctx context.Context, d messaging.Delivery, queu
 	default:
 		// Error retryable.
 		if claimed.AttemptCount < claimed.MaxAttempts {
-			delay := messaging.RetryDelayFor(claimed.AttemptCount, c.opts.RetryDelays)
-			retryQ := messaging.RetryQueueName(queue, msg.Type, delay)
+			delay := messagingpolicy.RetryDelayFor(claimed.AttemptCount, c.opts.RetryDelays)
+			retryQ := ports.RetryQueueName(queue, msg.Type, delay)
 
 			// Publish ke retry queue TTL dulu; hanya setelah ter-confirm kita tandai
 			// RETRY_WAIT dan ack pesan asli. Bila gagal, kirim ke DLQ agar tidak hilang.
@@ -201,7 +204,7 @@ func (c *MessageConsumer) handle(ctx context.Context, d messaging.Delivery, queu
 				return
 			}
 
-			nextDelay := messaging.CalculateRetryDelay(claimed.AttemptCount, c.opts.BaseDelay, c.opts.MaxDelay)
+			nextDelay := messagingpolicy.CalculateRetryDelay(claimed.AttemptCount, c.opts.BaseDelay, c.opts.MaxDelay)
 			claimed.ScheduleRetry(dispatchErr.Error(), now.Add(nextDelay), now)
 			if err := c.repo.Update(ctx, claimed); err != nil {
 				c.logger.Error("consumer: gagal mark retry_wait", slog.String("id", msg.ID.String()), slog.Any("error", err))

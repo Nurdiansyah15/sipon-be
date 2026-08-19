@@ -12,7 +12,8 @@ import (
 	"sipon-be/internal/modules/article/infrastructure/scraper"
 	articleHTTP "sipon-be/internal/modules/article/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/messaging"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 type Module struct {
@@ -112,6 +113,6 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 	articleHTTP.RegisterSourceRoutes(grp, m.sourceHandler, m.jwtAuth, m.principalLoad)
 }
 
-func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+func (m *Module) RegisterMessageHandlers(_ *msgApp.Registry) ([]messagingvo.Binding, error) {
 	return nil, nil
 }

@@ -10,8 +10,11 @@ import (
 
 	"github.com/google/uuid"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 	messagejobEntity "sipon-be/internal/modules/messaging/domain/message_job/entity"
+	messagingerrors "sipon-be/internal/modules/messaging/domain/message_job/errors"
+	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
 	messagejobRepo "sipon-be/internal/modules/messaging/domain/message_job/repository"
 )
 
@@ -68,22 +71,22 @@ func (f *fakeDelivery) Nack(requeue bool) error {
 
 type fakeQueuePublisher struct {
 	queue string
-	msgs  []messaging.Message
+	msgs  []valueobject.Message
 }
 
-func (f *fakeQueuePublisher) PublishToQueue(ctx context.Context, queue string, msg messaging.Message) error {
+func (f *fakeQueuePublisher) PublishToQueue(ctx context.Context, queue string, msg valueobject.Message) error {
 	f.queue = queue
 	f.msgs = append(f.msgs, msg)
 	return nil
 }
 
-var _ messaging.QueuePublisher = (*fakeQueuePublisher)(nil)
+var _ ports.QueuePublisher = (*fakeQueuePublisher)(nil)
 
 const routingKey = "akademik.fingerprint.sync"
 
-func newConsumer(t *testing.T, repo messagejobRepo.Repository, pub *fakeQueuePublisher, policy *messaging.RetryPolicy, handler messaging.HandlerFunc) *MessageConsumer {
+func newConsumer(t *testing.T, repo messagejobRepo.Repository, pub *fakeQueuePublisher, policy *messagingpolicy.RetryPolicy, handler HandlerFunc) *MessageConsumer {
 	t.Helper()
-	reg := messaging.NewRegistry()
+	reg := NewRegistry()
 	if err := reg.Register(routingKey, handler); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
@@ -103,7 +106,7 @@ func newConsumer(t *testing.T, repo messagejobRepo.Repository, pub *fakeQueuePub
 	)
 }
 
-func makeDelivery(msg messaging.Message) *fakeDelivery {
+func makeDelivery(msg valueobject.Message) *fakeDelivery {
 	body, _ := json.Marshal(msg)
 	return &fakeDelivery{body: body}
 }
@@ -111,12 +114,12 @@ func makeDelivery(msg messaging.Message) *fakeDelivery {
 func TestConsumer_SuccessAcks(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
 	delivered := false
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, messaging.NewRetryPolicy(5), func(ctx context.Context, msg messaging.Message) error {
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, messagingpolicy.NewRetryPolicy(5), func(ctx context.Context, msg valueobject.Message) error {
 		delivered = true
 		return nil
 	})
 
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	d := makeDelivery(msg)
 
 	c.handle(context.Background(), d, "sipon.worker.scheduler")
@@ -135,11 +138,11 @@ func TestConsumer_SuccessAcks(t *testing.T) {
 
 func TestConsumer_FatalNacksToDLQ(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, messaging.NewRetryPolicy(5), func(ctx context.Context, msg messaging.Message) error {
-		return messaging.NewFatalError(errors.New("permanent"))
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, messagingpolicy.NewRetryPolicy(5), func(ctx context.Context, msg valueobject.Message) error {
+		return messagingerrors.NewFatalError(errors.New("permanent"))
 	})
 
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	d := makeDelivery(msg)
 	c.handle(context.Background(), d, "sipon.worker.scheduler")
 
@@ -154,11 +157,11 @@ func TestConsumer_FatalNacksToDLQ(t *testing.T) {
 func TestConsumer_RetryableSchedulesRetry(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
 	pub := &fakeQueuePublisher{}
-	c := newConsumer(t, repo, pub, messaging.NewRetryPolicy(5), func(ctx context.Context, msg messaging.Message) error {
-		return messaging.NewRetryableError(errors.New("transient"))
+	c := newConsumer(t, repo, pub, messagingpolicy.NewRetryPolicy(5), func(ctx context.Context, msg valueobject.Message) error {
+		return messagingerrors.NewRetryableError(errors.New("transient"))
 	})
 
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	d := makeDelivery(msg)
 	c.handle(context.Background(), d, "sipon.worker.scheduler")
 
@@ -179,11 +182,11 @@ func TestConsumer_RetryableSchedulesRetry(t *testing.T) {
 
 func TestConsumer_RetryExhaustedNacksToDLQ(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, messaging.NewRetryPolicy(1), func(ctx context.Context, msg messaging.Message) error {
-		return messaging.NewRetryableError(errors.New("transient"))
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, messagingpolicy.NewRetryPolicy(1), func(ctx context.Context, msg valueobject.Message) error {
+		return messagingerrors.NewRetryableError(errors.New("transient"))
 	})
 
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	d := makeDelivery(msg)
 	c.handle(context.Background(), d, "sipon.worker.scheduler")
 
@@ -197,14 +200,14 @@ func TestConsumer_RetryExhaustedNacksToDLQ(t *testing.T) {
 
 func TestConsumer_DuplicateSucceededNotRedelivered(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	// Simulasikan message yang sudah sukses.
 	job := messagejobEntity.NewMessageJob(msg.ID, routingKey, msg.Payload, msg.Version, msg.CorrelationID, 5)
 	job.Succeed(time.Now())
 	repo.byID[msg.ID] = job
 
 	delivered := false
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, messaging.NewRetryPolicy(5), func(ctx context.Context, m messaging.Message) error {
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, messagingpolicy.NewRetryPolicy(5), func(ctx context.Context, m valueobject.Message) error {
 		delivered = true
 		return nil
 	})
@@ -222,7 +225,7 @@ func TestConsumer_DuplicateSucceededNotRedelivered(t *testing.T) {
 
 func TestConsumer_InvalidEnvelopeNacksToDLQ(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, messaging.NewRetryPolicy(5), func(ctx context.Context, msg messaging.Message) error {
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, messagingpolicy.NewRetryPolicy(5), func(ctx context.Context, msg valueobject.Message) error {
 		t.Fatal("handler tidak boleh dipanggil untuk envelope invalid")
 		return nil
 	})
@@ -239,14 +242,14 @@ func TestConsumer_InvalidEnvelopeNacksToDLQ(t *testing.T) {
 // 5, tetapi override untuk routingKey=1 memaksa message gagal pada attempt pertama.
 func TestConsumer_PerRoutingKeyPolicy(t *testing.T) {
 	repo := &fakeMsgJobRepo{byID: map[uuid.UUID]*messagejobEntity.MessageJob{}}
-	policy := messaging.NewRetryPolicy(5)
+	policy := messagingpolicy.NewRetryPolicy(5)
 	policy.Register(routingKey, 1)
 
-	c := newConsumer(t, repo, &fakeQueuePublisher{}, policy, func(ctx context.Context, msg messaging.Message) error {
-		return messaging.NewRetryableError(errors.New("transient"))
+	c := newConsumer(t, repo, &fakeQueuePublisher{}, policy, func(ctx context.Context, msg valueobject.Message) error {
+		return messagingerrors.NewRetryableError(errors.New("transient"))
 	})
 
-	msg, _ := messaging.NewMessage(routingKey, json.RawMessage(`{}`))
+	msg, _ := valueobject.NewMessage(routingKey, json.RawMessage(`{}`))
 	d := makeDelivery(msg)
 	c.handle(context.Background(), d, "sipon.worker.scheduler")
 

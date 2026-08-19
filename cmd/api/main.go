@@ -23,6 +23,7 @@ import (
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
 	psbModule "sipon-be/internal/modules/psb"
+	schedulerModule "sipon-be/internal/modules/scheduler"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
@@ -109,10 +110,20 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	// Scheduler: API memakai contract untuk operasi penjadwalan (ScheduleRecurring,
+	// ScheduleOneOff, Pause). Dispatcher (Run) hanya dijalankan di proses worker.
+	scheduler := schedulerModule.NewModule(
+		db,
+		time.Duration(cfg.Worker.TickSeconds)*time.Second,
+		time.Duration(cfg.Worker.LeaseSeconds)*time.Second,
+		lg,
+	)
+
 	akademik := akademikModule.NewModule(
 		db, cfg,
 		kesantrian,  // kesantrian.Contract
 		fingerprint, // fingerprint.Contract
+		scheduler,   // scheduler.Contract
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)

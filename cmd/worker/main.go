@@ -25,18 +25,36 @@ import (
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
+	outboxRepo "sipon-be/internal/modules/messaging/domain/event_outbox/repository"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
+	messagingerrors "sipon-be/internal/modules/messaging/domain/message_job/errors"
+	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
+	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
+	"sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 	psbModule "sipon-be/internal/modules/psb"
+	schedulerModule "sipon-be/internal/modules/scheduler"
+	"sipon-be/internal/modules/scheduler/application"
+	schedulerPorts "sipon-be/internal/modules/scheduler/application/ports"
 	"sipon-be/internal/shared/config"
 	"sipon-be/internal/shared/database"
 	"sipon-be/internal/shared/logger"
-	"sipon-be/internal/shared/messaging"
-	msgApp "sipon-be/internal/shared/messaging/application"
-	outboxPersistence "sipon-be/internal/shared/messaging/infrastructure/persistence"
-	"sipon-be/internal/shared/messaging/infrastructure/rabbitmq"
-	"sipon-be/internal/shared/scheduler/application"
-	"sipon-be/internal/shared/scheduler/infrastructure/persistence"
 	"sipon-be/internal/shared/timeutil"
 )
+
+// outboxWriterAdapter membalik arah dependensi scheduler->messaging: scheduler
+// hanya tahu port OutboxWriter, adapter ini menghubungkannya ke repository outbox
+// milik messaging (composition root).
+type outboxWriterAdapter struct {
+	repo outboxRepo.Repository
+}
+
+func (a *outboxWriterAdapter) Save(ctx context.Context, routingKey string, payload json.RawMessage) error {
+	return a.repo.Save(ctx, outboxEntity.NewOutboxEntry(routingKey, payload, ""))
+}
+
+var _ schedulerPorts.OutboxWriter = (*outboxWriterAdapter)(nil)
 
 func main() {
 	cfg, err := config.Load()
@@ -84,18 +102,22 @@ func main() {
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	fingerprint := fingerprintModule.NewModule(db, cfg,
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
+	scheduler := schedulerModule.NewModule(db,
+		time.Duration(cfg.Worker.TickSeconds)*time.Second,
+		time.Duration(cfg.Worker.LeaseSeconds)*time.Second,
+		lg)
 	akademik := akademikModule.NewModule(db, cfg,
-		kesantrian, fingerprint,
+		kesantrian, fingerprint, scheduler,
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	kesantrian.SetAkademikProvisioner(akademik)
 
 	// Registrasi handler asynchronous via shared messaging registry. Setiap module
 	// memanggil RegisterMessageHandlers; cmd/worker hanya composition + kumpulkan
 	// binding queue.
-	msgRegistry := messaging.NewRegistry()
-	var bindings []messaging.Binding
+	msgRegistry := msgApp.NewRegistry()
+	var bindings []messagingvo.Binding
 
-	register := func(name string, reg func(*messaging.Registry) ([]messaging.Binding, error)) {
+	register := func(name string, reg func(*msgApp.Registry) ([]messagingvo.Binding, error)) {
 		b, err := reg(msgRegistry)
 		if err != nil {
 			lg.Error("gagal registrasi message handlers", slog.String("module", name), slog.Any("error", err))
@@ -114,14 +136,7 @@ func main() {
 	register("fingerprint", fingerprint.RegisterMessageHandlers)
 	register("akademik", akademik.RegisterMessageHandlers)
 
-	scheduledJobRepo := persistence.NewPostgresScheduledJobRepository(db)
-
-	dispatcher := application.NewDispatcher(
-		scheduledJobRepo,
-		time.Duration(cfg.Worker.TickSeconds)*time.Second,
-		time.Duration(cfg.Worker.LeaseSeconds)*time.Second,
-		lg,
-	)
+	dispatcher := scheduler.Dispatcher()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -131,7 +146,6 @@ func main() {
 	messageJobRepo := outboxPersistence.NewPostgresMessageJobRepository(db)
 
 	metrics := &msgApp.Metrics{}
-
 	useOutbox := cfg.Worker.Mode == "outbox"
 	if useOutbox && !cfg.RabbitMQ.Enabled {
 		lg.Error("WORKER_MODE=outbox membutuhkan RABBITMQ_ENABLED=true")
@@ -151,7 +165,7 @@ func main() {
 	if useOutbox {
 		// Mode outbox: Scheduler Dispatcher hanya menulis event_outbox; eksekusi
 		// handler dilakukan oleh Message Consumer melalui RabbitMQ.
-		dispatcher.WithOutboxMode(outboxRepo, transactor)
+		dispatcher.WithOutboxMode(&outboxWriterAdapter{repo: outboxRepo}, transactor)
 
 		publisher, err := rabbitmq.NewPublisher(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Exchange, cfg.RabbitMQ.PublishTimeout)
 		if err != nil {
@@ -185,7 +199,7 @@ func main() {
 			consumer,
 			messageJobRepo,
 			msgRegistry,
-			messaging.NewRetryPolicy(5),
+			messagingpolicy.NewRetryPolicy(5),
 			publisher,
 			msgApp.MessageConsumerOptions{
 				Lease:       5 * time.Minute,
@@ -215,12 +229,12 @@ func main() {
 	} else {
 		// Mode direct: compatibility bridge sampai outbox/RabbitMQ consumer aktif.
 		dispatcher.WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-			msg, err := messaging.NewMessage(jobType, payload)
+			msg, err := messagingvo.NewMessage(jobType, payload)
 			if err != nil {
 				return &application.FatalError{Err: err}
 			}
 			if err := msgRegistry.Dispatch(ctx, msg); err != nil {
-				if messaging.IsFatal(err) {
+				if messagingerrors.IsFatal(err) {
 					return &application.FatalError{Err: err}
 				}
 				return err
@@ -319,7 +333,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 // declareRabbitMQTopology menghubungkan ke broker dan mendeklarasikan topology
 // durable berdasarkan binding yang dikumpulkan dari module.
-func declareRabbitMQTopology(cfg *config.Config, bindings []messaging.Binding, lg *slog.Logger) error {
+func declareRabbitMQTopology(cfg *config.Config, bindings []messagingvo.Binding, lg *slog.Logger) error {
 	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
 		DSN:         cfg.RabbitMQ.DSN,
 		Exchange:    cfg.RabbitMQ.Exchange,

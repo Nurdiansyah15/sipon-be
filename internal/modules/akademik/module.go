@@ -5,7 +5,6 @@ import (
 	"database/sql"
 
 	"github.com/gin-gonic/gin"
-	"github.com/robfig/cron/v3"
 
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/query"
@@ -18,10 +17,10 @@ import (
 	akademikMQ "sipon-be/internal/modules/akademik/interfaces/mq"
 	"sipon-be/internal/modules/fingerprint"
 	"sipon-be/internal/modules/kesantrian"
+	"sipon-be/internal/modules/scheduler"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/messaging"
-	schedulerPersistence "sipon-be/internal/shared/scheduler/infrastructure/persistence"
-	"sipon-be/internal/shared/timeutil"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 type Module struct {
@@ -42,6 +41,7 @@ func NewModule(
 	cfg *config.Config,
 	kesantrianContract kesantrian.Contract,
 	fingerprintContract fingerprint.Contract,
+	schedulerContract scheduler.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
 ) *Module {
@@ -60,7 +60,6 @@ func NewModule(
 	docRequirementRepo := persistence.NewPostgresHerregistrasiDocumentRequirementRepository(db)
 	docRepo := persistence.NewPostgresHerregistrasiDocumentRepository(db)
 	transactor := persistence.NewPostgresTransactor(db)
-	scheduledJobRepo := schedulerPersistence.NewPostgresScheduledJobRepository(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
 	fingerprintGW := fingerprintgateway.New(fingerprintContract)
@@ -140,11 +139,8 @@ func NewModule(
 	getCalendarUC := query.NewGetScheduleCalendarUseCase(scheduleRepo, activityPeriodRepo, activityRepo)
 
 	// activity session
-	cronParser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
 	scheduleJobsUC := command.NewScheduleSessionJobsUseCase(
-		scheduledJobRepo,
-		cronParser,
-		timeutil.Loc(),
+		schedulerContract,
 		command.ScheduledJobTypes{
 			FingerprintSync:  akademikMQ.RoutingFingerprintSync,
 			SessionAutoClose: akademikMQ.RoutingSessionAutoClose,
@@ -155,7 +151,7 @@ func NewModule(
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo, scheduleJobsUC)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
-	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, scheduledJobRepo, akademikMQ.RoutingFingerprintSync)
+	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, schedulerContract, akademikMQ.RoutingFingerprintSync)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
@@ -273,7 +269,7 @@ func (m *Module) GetSantriProgram(ctx context.Context, santriID string) (*Santri
 // shared messaging registry dan mengembalikan binding queue. Layer transport
 // (scheduler worker / consumer MQ) memakai facade ini sebagai satu-satunya pintu
 // registrasi — handler bisnis hidup di interfaces/mq, bukan di module.go.
-func (m *Module) RegisterMessageHandlers(registry *messaging.Registry) ([]messaging.Binding, error) {
+func (m *Module) RegisterMessageHandlers(registry *msgApp.Registry) ([]messagingvo.Binding, error) {
 	return akademikMQ.RegisterHandlers(registry, akademikMQ.Dependencies{
 		FingerprintSync:  m.syncFingerprintUC,
 		SessionAutoClose: m.autoCloseSessionUC,

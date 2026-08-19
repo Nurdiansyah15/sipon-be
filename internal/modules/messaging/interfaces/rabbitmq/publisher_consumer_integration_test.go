@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // TestPublisherConsumer_Integration memverifikasi publisher confirm + consumer
@@ -31,7 +32,7 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTopology: %v", err)
 	}
-	if err := topo.Declare([]messaging.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
+	if err := topo.Declare([]valueobject.Binding{{Queue: queue, RoutingKey: routing}}); err != nil {
 		t.Fatalf("Declare: %v", err)
 	}
 	_ = topo.Close()
@@ -43,7 +44,7 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	}
 	defer pub.Close()
 
-	msg, err := messaging.NewMessage(routing, json.RawMessage(`{"x":1}`))
+	msg, err := valueobject.NewMessage(routing, json.RawMessage(`{"x":1}`))
 	if err != nil {
 		t.Fatalf("NewMessage: %v", err)
 	}
@@ -58,9 +59,9 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	}
 	defer cons.Close()
 
-	received := make(chan messaging.Message, 1)
-	handler := func(ctx context.Context, d messaging.Delivery) error {
-		var got messaging.Message
+	received := make(chan valueobject.Message, 1)
+	handler := func(ctx context.Context, d ports.Delivery) error {
+		var got valueobject.Message
 		if err := json.Unmarshal(d.Body(), &got); err != nil {
 			t.Errorf("unmarshal: %v", err)
 		}

@@ -4,13 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
-
-	"github.com/google/uuid"
 
 	"sipon-be/internal/modules/akademik/application/dto"
-	"sipon-be/internal/shared/scheduler/domain/scheduled_job/constant"
-	"sipon-be/internal/shared/scheduler/domain/scheduled_job/entity"
+	"sipon-be/internal/modules/scheduler"
 )
 
 type stubSessionCompleter struct {
@@ -21,29 +17,27 @@ func (s stubSessionCompleter) Execute(ctx context.Context, id string) (*dto.Acti
 	return nil, s.err
 }
 
-type stubScheduledJobRepo struct {
-	jobs    []*entity.ScheduledJob
-	updates []*entity.ScheduledJob
+type stubSchedulerContract struct {
+	paused  []string
+	pauseFn func(ctx context.Context, jobType, referenceID string) error
 }
 
-func (s *stubScheduledJobRepo) Save(ctx context.Context, j *entity.ScheduledJob) error { return nil }
+func (s *stubSchedulerContract) Run(ctx context.Context) {}
 
-func (s *stubScheduledJobRepo) FindDueAndClaim(ctx context.Context, now time.Time, limit int, leaseUntil time.Time) ([]*entity.ScheduledJob, error) {
-	return nil, nil
-}
-
-func (s *stubScheduledJobRepo) Update(ctx context.Context, j *entity.ScheduledJob) error {
-	s.updates = append(s.updates, j)
+func (s *stubSchedulerContract) ScheduleRecurring(ctx context.Context, in scheduler.ScheduleRecurringInput) error {
 	return nil
 }
 
-func (s *stubScheduledJobRepo) FindByTypeAndReferenceID(ctx context.Context, jobType, referenceID string) (*entity.ScheduledJob, error) {
-	for _, j := range s.jobs {
-		if j.Type == jobType && j.ReferenceID != nil && *j.ReferenceID == referenceID {
-			return j, nil
-		}
+func (s *stubSchedulerContract) ScheduleOneOff(ctx context.Context, in scheduler.ScheduleOneOffInput) error {
+	return nil
+}
+
+func (s *stubSchedulerContract) PauseByTypeAndReferenceID(ctx context.Context, jobType, referenceID string) error {
+	s.paused = append(s.paused, referenceID)
+	if s.pauseFn != nil {
+		return s.pauseFn(ctx, jobType, referenceID)
 	}
-	return nil, nil
+	return nil
 }
 
 const fingerprintSyncType = "akademik.fingerprint.sync"
@@ -51,7 +45,7 @@ const fingerprintSyncType = "akademik.fingerprint.sync"
 func TestAutoCloseSessionUseCase_CompleteError(t *testing.T) {
 	uc := NewAutoCloseSessionUseCase(
 		stubSessionCompleter{err: errors.New("boom")},
-		&stubScheduledJobRepo{},
+		&stubSchedulerContract{},
 		fingerprintSyncType,
 	)
 	if err := uc.Execute(context.Background(), "session-1"); err == nil {
@@ -61,53 +55,13 @@ func TestAutoCloseSessionUseCase_CompleteError(t *testing.T) {
 
 func TestAutoCloseSessionUseCase_PausesActiveSyncJob(t *testing.T) {
 	ref := "session-1"
-	syncJob := &entity.ScheduledJob{
-		ID:          uuid.New(),
-		Type:        fingerprintSyncType,
-		ReferenceID: &ref,
-		Status:      constant.StatusActive,
-	}
-	repo := &stubScheduledJobRepo{jobs: []*entity.ScheduledJob{syncJob}}
+	sc := &stubSchedulerContract{}
 
-	uc := NewAutoCloseSessionUseCase(stubSessionCompleter{}, repo, fingerprintSyncType)
+	uc := NewAutoCloseSessionUseCase(stubSessionCompleter{}, sc, fingerprintSyncType)
 	if err := uc.Execute(context.Background(), ref); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if len(repo.updates) != 1 {
-		t.Fatalf("harus 1 update, got %d", len(repo.updates))
-	}
-	if repo.updates[0].Status != constant.StatusPaused {
-		t.Fatalf("status harus PAUSED, got %s", repo.updates[0].Status)
-	}
-}
-
-func TestAutoCloseSessionUseCase_NoPauseWhenNotActive(t *testing.T) {
-	ref := "session-1"
-	syncJob := &entity.ScheduledJob{
-		ID:          uuid.New(),
-		Type:        fingerprintSyncType,
-		ReferenceID: &ref,
-		Status:      constant.StatusCompleted,
-	}
-	repo := &stubScheduledJobRepo{jobs: []*entity.ScheduledJob{syncJob}}
-
-	uc := NewAutoCloseSessionUseCase(stubSessionCompleter{}, repo, fingerprintSyncType)
-	if err := uc.Execute(context.Background(), ref); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	if len(repo.updates) != 0 {
-		t.Fatalf("completed job tidak boleh di-update, got %d update", len(repo.updates))
-	}
-}
-
-func TestAutoCloseSessionUseCase_NoJobFound(t *testing.T) {
-	repo := &stubScheduledJobRepo{}
-
-	uc := NewAutoCloseSessionUseCase(stubSessionCompleter{}, repo, fingerprintSyncType)
-	if err := uc.Execute(context.Background(), "session-x"); err != nil {
-		t.Fatalf("Execute: %v", err)
-	}
-	if len(repo.updates) != 0 {
-		t.Fatalf("tidak boleh ada update, got %d", len(repo.updates))
+	if len(sc.paused) != 1 || sc.paused[0] != ref {
+		t.Fatalf("harus pause job milik %q, got %v", ref, sc.paused)
 	}
 }

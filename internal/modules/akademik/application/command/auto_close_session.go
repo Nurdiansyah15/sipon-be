@@ -5,8 +5,7 @@ import (
 	"log/slog"
 
 	"sipon-be/internal/modules/akademik/application/dto"
-	"sipon-be/internal/shared/scheduler/domain/scheduled_job/constant"
-	sjRepo "sipon-be/internal/shared/scheduler/domain/scheduled_job/repository"
+	"sipon-be/internal/modules/scheduler"
 )
 
 // SessionCompleter adalah boundary untuk menyelesaikan sesi. Dipenuhi oleh
@@ -22,18 +21,18 @@ var _ SessionCompleter = (*CompleteSessionUseCase)(nil)
 // oleh scheduler setelah sesi ditutup.
 type AutoCloseSessionUseCase struct {
 	completeSessionUC   SessionCompleter
-	scheduledJobRepo    sjRepo.Repository
+	schedulerContract   scheduler.Contract
 	fingerprintSyncType string
 }
 
 func NewAutoCloseSessionUseCase(
 	completeSessionUC SessionCompleter,
-	scheduledJobRepo sjRepo.Repository,
+	schedulerContract scheduler.Contract,
 	fingerprintSyncType string,
 ) *AutoCloseSessionUseCase {
 	return &AutoCloseSessionUseCase{
 		completeSessionUC:   completeSessionUC,
-		scheduledJobRepo:    scheduledJobRepo,
+		schedulerContract:   schedulerContract,
 		fingerprintSyncType: fingerprintSyncType,
 	}
 }
@@ -43,18 +42,9 @@ func (uc *AutoCloseSessionUseCase) Execute(ctx context.Context, sessionID string
 		return err
 	}
 
-	syncJob, err := uc.scheduledJobRepo.FindByTypeAndReferenceID(ctx, uc.fingerprintSyncType, sessionID)
-	if err != nil {
-		slog.Warn("akademik: gagal cari recurring sync job untuk di-pause",
+	if err := uc.schedulerContract.PauseByTypeAndReferenceID(ctx, uc.fingerprintSyncType, sessionID); err != nil {
+		slog.Warn("akademik: gagal pause recurring sync job",
 			"session_id", sessionID, "error", err)
-		return nil
-	}
-	if syncJob != nil && syncJob.Status == constant.StatusActive {
-		syncJob.Pause()
-		if err := uc.scheduledJobRepo.Update(ctx, syncJob); err != nil {
-			slog.Warn("akademik: gagal pause recurring sync job",
-				"session_id", sessionID, "error", err)
-		}
 	}
 	return nil
 }

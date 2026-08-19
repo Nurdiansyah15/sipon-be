@@ -9,9 +9,10 @@ import (
 
 	"github.com/google/uuid"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 	outboxRepo "sipon-be/internal/modules/messaging/domain/event_outbox/repository"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 type fakeOutboxRepo struct {
@@ -46,15 +47,15 @@ var _ outboxRepo.Repository = (*fakeOutboxRepo)(nil)
 
 type fakePublisher struct {
 	err       error
-	published []messaging.Message
+	published []valueobject.Message
 }
 
-func (f *fakePublisher) Publish(ctx context.Context, msg messaging.Message) error {
+func (f *fakePublisher) Publish(ctx context.Context, msg valueobject.Message) error {
 	f.published = append(f.published, msg)
 	return f.err
 }
 
-var _ messaging.Publisher = (*fakePublisher)(nil)
+var _ ports.Publisher = (*fakePublisher)(nil)
 
 func newOutboxRelay(repo *fakeOutboxRepo, pub *fakePublisher) *OutboxRelay {
 	return NewOutboxRelay(repo, pub, OutboxRelayOptions{

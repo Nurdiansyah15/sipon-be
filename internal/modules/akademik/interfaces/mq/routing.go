@@ -1,6 +1,6 @@
 package mq
 
-import "sipon-be/internal/shared/messaging"
+import "sipon-be/internal/modules/messaging/domain/message/valueobject"
 
 // Routing key canonical dengan format <module>.<resource>.<action>.
 const (
@@ -21,7 +21,7 @@ const (
 
 // Bindings memetakan queue consumer role ke routing key yang dilayani module ini.
 // Legacy key tetap di-binding agar job lama tetap sampai ke handler yang sama.
-var Bindings = []messaging.Binding{
+var Bindings = []valueobject.Binding{
 	{Queue: QueueScheduler, RoutingKey: RoutingFingerprintSync},
 	{Queue: QueueScheduler, RoutingKey: RoutingSessionAutoClose},
 	{Queue: QueueScheduler, RoutingKey: LegacyRoutingFingerprintSync},

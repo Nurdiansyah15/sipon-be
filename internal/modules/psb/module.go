@@ -16,7 +16,8 @@ import (
 	"sipon-be/internal/modules/psb/infrastructure/persistence"
 	psbHTTP "sipon-be/internal/modules/psb/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/messaging"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 type Module struct {
@@ -92,6 +93,6 @@ func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays in
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
 }
 
-func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+func (m *Module) RegisterMessageHandlers(_ *msgApp.Registry) ([]messagingvo.Binding, error) {
 	return nil, nil
 }

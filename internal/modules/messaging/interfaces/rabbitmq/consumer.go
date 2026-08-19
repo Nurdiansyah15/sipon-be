@@ -8,7 +8,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
 )
 
 type amqpDelivery struct {
@@ -48,7 +48,7 @@ func NewConsumer(dsn string, prefetch int) (*RabbitMQConsumer, error) {
 
 // Consume menjalankan loop konsumsi sampai context selesai, dengan reconnect bila
 // connection/channel terputus.
-func (c *RabbitMQConsumer) Consume(ctx context.Context, queue string, handler messaging.ConsumerHandler) error {
+func (c *RabbitMQConsumer) Consume(ctx context.Context, queue string, handler ports.ConsumerHandler) error {
 	for {
 		if err := c.ensureChannel(); err != nil {
 			select {

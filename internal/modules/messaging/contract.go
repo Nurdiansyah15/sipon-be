@@ -3,7 +3,8 @@ package messaging
 import (
 	"context"
 
-	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // Contract adalah permukaan outward-facing modul messaging yang dikonsumsi oleh
@@ -12,13 +13,13 @@ import (
 // Contract pada modul bisnis (internal/modules/*).
 type Contract interface {
 	// Registry mengembalikan registry handler pesan.
-	Registry() *ports.Registry
+	Registry() *application.Registry
 	// Register mendaftarkan handler untuk sebuah routing key.
-	Register(routingKey string, handler ports.HandlerFunc) error
+	Register(routingKey string, handler application.HandlerFunc) error
 	// Dispatch mengirim message ke handler yang terdaftar (mode direct).
-	Dispatch(ctx context.Context, msg ports.Message) error
+	Dispatch(ctx context.Context, msg valueobject.Message) error
 	// Publish mengirim message ke broker bila publisher telah dipasang.
-	Publish(ctx context.Context, msg ports.Message) error
+	Publish(ctx context.Context, msg valueobject.Message) error
 }
 
 var _ Contract = (*Module)(nil)

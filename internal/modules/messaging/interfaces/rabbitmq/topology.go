@@ -7,7 +7,8 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // Options konfigurasi koneksi dan topology RabbitMQ.
@@ -69,7 +70,7 @@ func (t *Topology) Close() error {
 
 // Declare membuat topology. Retry queue dan DLQ adalah bagian dari RabbitMQ
 // consumer topology, bukan tanggung jawab business handler atau scheduler worker.
-func (t *Topology) Declare(bindings []messaging.Binding) error {
+func (t *Topology) Declare(bindings []valueobject.Binding) error {
 	if err := t.ch.ExchangeDeclare(t.opts.Exchange, "topic", true, false, false, false, nil); err != nil {
 		return fmt.Errorf("declare exchange %s: %w", t.opts.Exchange, err)
 	}
@@ -109,7 +110,7 @@ func (t *Topology) declareRoleQueue(queue string, routingKeys []string) error {
 			if delay <= 0 {
 				continue
 			}
-			retryQ := messaging.RetryQueueName(queue, key, delay)
+			retryQ := ports.RetryQueueName(queue, key, delay)
 			if _, err := t.ch.QueueDeclare(retryQ, true, false, false, false, amqp.Table{
 				"x-message-ttl":             delay.Milliseconds(),
 				"x-dead-letter-exchange":    t.opts.Exchange,
@@ -131,7 +132,7 @@ func (t *Topology) declareRoleQueue(queue string, routingKeys []string) error {
 	return nil
 }
 
-func groupBindings(bindings []messaging.Binding) map[string][]string {
+func groupBindings(bindings []valueobject.Binding) map[string][]string {
 	queues := make(map[string][]string)
 	for _, b := range bindings {
 		if err := b.Validate(); err != nil {

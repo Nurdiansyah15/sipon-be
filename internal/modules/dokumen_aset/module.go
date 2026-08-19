@@ -13,7 +13,8 @@ import (
 	"sipon-be/internal/modules/dokumen_aset/infrastructure/persistence"
 	dokumenAsetHTTP "sipon-be/internal/modules/dokumen_aset/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/messaging"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 type Module struct {
@@ -80,6 +81,6 @@ func (m *Module) GetDownloadURL(ctx context.Context, id string, isAuthenticated 
 	}, nil
 }
 
-func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+func (m *Module) RegisterMessageHandlers(_ *msgApp.Registry) ([]messagingvo.Binding, error) {
 	return nil, nil
 }

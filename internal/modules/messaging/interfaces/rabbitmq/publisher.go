@@ -10,7 +10,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // RabbitMQPublisher mempublish message ke exchange utama dengan publisher confirm
@@ -41,11 +41,11 @@ func NewPublisher(dsn, exchange string, confirmTimeout time.Duration) (*RabbitMQ
 	return p, nil
 }
 
-func (p *RabbitMQPublisher) Publish(ctx context.Context, msg messaging.Message) error {
+func (p *RabbitMQPublisher) Publish(ctx context.Context, msg valueobject.Message) error {
 	return p.publish(ctx, msg, p.exchange, msg.Type)
 }
 
-func (p *RabbitMQPublisher) PublishToQueue(ctx context.Context, queue string, msg messaging.Message) error {
+func (p *RabbitMQPublisher) PublishToQueue(ctx context.Context, queue string, msg valueobject.Message) error {
 	return p.publish(ctx, msg, "", queue)
 }
 
@@ -56,7 +56,7 @@ func (p *RabbitMQPublisher) Ping(ctx context.Context) error {
 	return p.ensureChannelLocked()
 }
 
-func (p *RabbitMQPublisher) publish(ctx context.Context, msg messaging.Message, exchange, routingKey string) error {
+func (p *RabbitMQPublisher) publish(ctx context.Context, msg valueobject.Message, exchange, routingKey string) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)

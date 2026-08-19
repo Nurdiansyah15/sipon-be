@@ -21,7 +21,8 @@ import (
 	"sipon-be/internal/modules/kesantrian/infrastructure/scopegateway"
 	kesantrianHTTP "sipon-be/internal/modules/kesantrian/interfaces/http"
 	"sipon-be/internal/shared/config"
-	"sipon-be/internal/shared/messaging"
+	msgApp "sipon-be/internal/modules/messaging/application"
+	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // Module's exported surface is method-only, zero exported fields — mirrors
@@ -339,6 +340,6 @@ func (m *Module) ListActiveSantriWithUserID(ctx context.Context) ([]SantriBasicI
 	return infos, nil
 }
 
-func (m *Module) RegisterMessageHandlers(_ *messaging.Registry) ([]messaging.Binding, error) {
+func (m *Module) RegisterMessageHandlers(_ *msgApp.Registry) ([]messagingvo.Binding, error) {
 	return nil, nil
 }

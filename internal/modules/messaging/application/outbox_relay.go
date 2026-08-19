@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/application/ports"
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 	outboxRepo "sipon-be/internal/modules/messaging/domain/event_outbox/repository"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
+	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
 )
 
 // OutboxRelayOptions parameter relay outbox.
@@ -24,7 +26,7 @@ type OutboxRelayOptions struct {
 // setelah broker mengonfirmasi; kegagalan di-retry dengan backoff.
 type OutboxRelay struct {
 	repo      outboxRepo.Repository
-	publisher messaging.Publisher
+	publisher ports.Publisher
 	opts      OutboxRelayOptions
 	metrics   *Metrics
 	logger    *slog.Logger
@@ -32,7 +34,7 @@ type OutboxRelay struct {
 
 func NewOutboxRelay(
 	repo outboxRepo.Repository,
-	publisher messaging.Publisher,
+	publisher ports.Publisher,
 	opts OutboxRelayOptions,
 	logger *slog.Logger,
 ) *OutboxRelay {
@@ -99,7 +101,7 @@ func (r *OutboxRelay) processBatch(ctx context.Context) {
 }
 
 func (r *OutboxRelay) processEntry(ctx context.Context, e *outboxEntity.OutboxEntry, now time.Time) {
-	msg := messaging.Message{
+	msg := valueobject.Message{
 		ID:            e.ID,
 		Type:          e.RoutingKey,
 		Version:       e.Version,
@@ -113,7 +115,7 @@ func (r *OutboxRelay) processEntry(ctx context.Context, e *outboxEntity.OutboxEn
 		if r.metrics != nil {
 			r.metrics.OutboxPublishFail.Add(1)
 		}
-		nextAttempt := now.Add(messaging.CalculateRetryDelay(e.AttemptCount, r.opts.BaseDelay, r.opts.MaxDelay))
+		nextAttempt := now.Add(messagingpolicy.CalculateRetryDelay(e.AttemptCount, r.opts.BaseDelay, r.opts.MaxDelay))
 		if merr := r.repo.MarkFailed(ctx, e.ID, err.Error(), nextAttempt); merr != nil {
 			r.logger.Error("outbox: gagal mark failed",
 				slog.String("id", e.ID.String()), slog.Any("error", merr))

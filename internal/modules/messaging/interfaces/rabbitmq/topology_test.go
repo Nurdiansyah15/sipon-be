@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	messaging "sipon-be/internal/modules/messaging/application/ports"
+	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 )
 
 // TestTopology_Declare_Integration memverifikasi deklarasi topology idempotent
@@ -22,7 +22,7 @@ func TestTopology_Declare_Integration(t *testing.T) {
 		DLXExchange: "sipon.events.test.dlx",
 		RetryDelays: []time.Duration{time.Minute, 5 * time.Minute},
 	}
-	bindings := []messaging.Binding{
+	bindings := []valueobject.Binding{
 		{Queue: "sipon.worker.scheduler.test", RoutingKey: "akademik.fingerprint.sync"},
 		{Queue: "sipon.worker.scheduler.test", RoutingKey: "akademik.session.auto_close"},
 	}
