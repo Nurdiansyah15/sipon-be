@@ -57,9 +57,10 @@ type UpdatePreferenceRequest struct {
 // --- Broadcast ---
 
 type BroadcastRequest struct {
-	Type  string `json:"type" binding:"required"`
-	Title string `json:"title" binding:"required"`
-	Body  string `json:"body" binding:"required"`
+	Type     string   `json:"type" binding:"required"`
+	Title    string   `json:"title" binding:"required"`
+	Body     string   `json:"body" binding:"required"`
+	Channels []string `json:"channels"`
 }
 
 func FormatRFC3339(t time.Time) string {

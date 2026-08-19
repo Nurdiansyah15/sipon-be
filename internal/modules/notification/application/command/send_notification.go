@@ -25,6 +25,8 @@ func (uc *SendNotificationUseCase) Execute(
 	recipientIDs []string,
 	req dto.BroadcastRequest,
 ) error {
+	channels := parseChannels(req.Channels)
+
 	tmpl := application.NotificationTemplate{
 		Type: notifconstant.NotificationType(req.Type),
 		Title: req.Title,
@@ -34,7 +36,7 @@ func (uc *SendNotificationUseCase) Execute(
 			EventType: "broadcast",
 			Bypass:    true,
 		},
-		Channels: []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp},
+		Channels: channels,
 		Bypass:   true,
 	}
 
@@ -45,4 +47,21 @@ func (uc *SendNotificationUseCase) Execute(
 	}
 
 	return uc.dispatcher.Dispatch(ctx, tmpl, target)
+}
+
+func parseChannels(raw []string) []notifconstant.NotificationChannel {
+	if len(raw) == 0 {
+		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+	}
+	channels := make([]notifconstant.NotificationChannel, 0, len(raw))
+	for _, c := range raw {
+		ch := notifconstant.NotificationChannel(c)
+		if ch.IsValid() {
+			channels = append(channels, ch)
+		}
+	}
+	if len(channels) == 0 {
+		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+	}
+	return channels
 }

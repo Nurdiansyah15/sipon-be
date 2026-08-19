@@ -33,3 +33,6 @@ Thumbs.db
 
 # Build
 tmp/
+
+# Credentials
+internal/credentials/*

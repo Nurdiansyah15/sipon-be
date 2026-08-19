@@ -89,6 +89,11 @@ func (dr *DeviceRegistration) Deactivate() {
 	dr.UpdatedAt = time.Now()
 }
 
+func (dr *DeviceRegistration) Activate() {
+	dr.Active = true
+	dr.UpdatedAt = time.Now()
+}
+
 func (dr *DeviceRegistration) RecordSeen() {
 	now := time.Now()
 	dr.LastSeenAt = now

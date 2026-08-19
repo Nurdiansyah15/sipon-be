@@ -36,9 +36,9 @@ func (r *PostgresDeviceRegistrationRepository) Save(ctx context.Context, dr *ent
 func (r *PostgresDeviceRegistrationRepository) Update(ctx context.Context, dr *entity.DeviceRegistration) error {
 	_, err := execerFromContext(ctx, r.db).ExecContext(ctx,
 		`UPDATE device_registrations
-		 SET provider_token=$1, active=$2, last_seen_at=$3, updated_at=$4, timezone=$5
-		 WHERE id=$6`,
-		dr.ProviderToken, dr.Active, dr.LastSeenAt, dr.UpdatedAt, dr.Timezone, dr.ID,
+		 SET user_id=$1, provider_token=$2, active=$3, last_seen_at=$4, updated_at=$5, timezone=$6
+		 WHERE id=$7`,
+		dr.UserID, dr.ProviderToken, dr.Active, dr.LastSeenAt, dr.UpdatedAt, dr.Timezone, dr.ID,
 	)
 	if err != nil {
 		return kernel.Wrap(constant.CodeDevicePersistenceFailed, fmt.Errorf("update device: %w", err))

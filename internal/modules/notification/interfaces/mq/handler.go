@@ -38,7 +38,7 @@ func (h handlers) handleLoginSucceeded(ctx context.Context, msg messaging.Messag
 			EventType: "login_succeeded",
 			EntityID:  p.UserID,
 		},
-		Channels: []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp},
+		Channels: []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp, notifconstant.NotificationChannelPush},
 		Bypass:   true,
 	}
 

@@ -33,8 +33,15 @@ type RegisterDeviceInput struct {
 }
 
 func (uc *RegisterDeviceUseCase) Execute(ctx context.Context, input RegisterDeviceInput) (*entity.DeviceRegistration, error) {
-	existing, err := uc.repo.FindByUserIDAndToken(ctx, input.UserID, input.ProviderToken)
+	// provider_token is globally unique (one physical device install per row), so the
+	// lookup must be by token alone: the same token can legitimately re-register under
+	// a different user (e.g. a shared browser after logout/login), and scoping the
+	// lookup by user_id as well would miss that row and cause the INSERT below to fail
+	// on the unique constraint instead of updating the existing registration.
+	existing, err := uc.repo.FindByToken(ctx, input.ProviderToken)
 	if err == nil && existing != nil {
+		existing.UserID = input.UserID
+		existing.Activate()
 		existing.RecordSeen()
 		if input.Timezone != nil {
 			existing.Timezone = input.Timezone
