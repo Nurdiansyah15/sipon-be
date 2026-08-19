@@ -8,6 +8,7 @@ import (
 
 	"sipon-be/internal/modules/identity"
 	"sipon-be/internal/modules/kesantrian"
+	messaging "sipon-be/internal/modules/messaging"
 	"sipon-be/internal/modules/psb/application/command"
 	ports "sipon-be/internal/modules/psb/application/ports"
 	"sipon-be/internal/modules/psb/application/query"
@@ -16,14 +17,18 @@ import (
 	"sipon-be/internal/modules/psb/infrastructure/persistence"
 	psbHTTP "sipon-be/internal/modules/psb/interfaces/http"
 	"sipon-be/internal/shared/config"
-	messaging "sipon-be/internal/modules/messaging"
 )
 
 type Module struct {
-	handler       *psbHTTP.PsbHandler
-	fileUploader  ports.FileUploader
-	jwtAuth       gin.HandlerFunc
-	principalLoad gin.HandlerFunc
+	handler         *psbHTTP.PsbHandler
+	fileUploader    ports.FileUploader
+	jwtAuth         gin.HandlerFunc
+	principalLoad   gin.HandlerFunc
+	pendaftarAction *command.PendaftarActionUseCase
+	dokumenVerify   *command.DokumenVerifyUseCase
+	dokumenReject   *command.DokumenRejectUseCase
+	adminReview     *command.AdminReviewUseCase
+	generateNIS     *command.GenerateNISUseCase
 }
 
 func NewModule(
@@ -67,8 +72,8 @@ func NewModule(
 
 	dokumenPresign := command.NewDokumenPresignUseCase(fileUploader)
 	dokumenDelete := command.NewDokumenDeleteUseCase(pendaftarRepo, dokumenRepo, fileUploader, settingRepo, transactor)
-	dokumenVerify := command.NewDokumenVerifyUseCase(dokumenRepo)
-	dokumenReject := command.NewDokumenRejectUseCase(dokumenRepo)
+	dokumenVerify := command.NewDokumenVerifyUseCase(dokumenRepo, pendaftarRepo)
+	dokumenReject := command.NewDokumenRejectUseCase(dokumenRepo, pendaftarRepo)
 
 	manageSetting := command.NewManageSettingUseCase(settingRepo)
 	purgePeriod := command.NewPurgePeriodUseCase(settingRepo, pendaftarRepo, dokumenRepo, reviewRepo)
@@ -80,7 +85,17 @@ func NewModule(
 		manageSetting, purgePeriod,
 	)
 
-	return &Module{handler: handler, fileUploader: fileUploader, jwtAuth: jwtAuth, principalLoad: principalLoad}
+	return &Module{
+		handler:         handler,
+		fileUploader:    fileUploader,
+		jwtAuth:         jwtAuth,
+		principalLoad:   principalLoad,
+		pendaftarAction: pendaftarAction,
+		dokumenVerify:   dokumenVerify,
+		dokumenReject:   dokumenReject,
+		adminReview:     adminReview,
+		generateNIS:     generateNIS,
+	}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
@@ -90,6 +105,16 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+// SetOutboxWriter memasang outbox writer ke seluruh use case yang mempublish
+// event notifikasi (submit, verifikasi/tolak dokumen, review admin, generate NIS).
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.pendaftarAction.SetOutboxWriter(w)
+	m.dokumenVerify.SetOutboxWriter(w)
+	m.dokumenReject.SetOutboxWriter(w)
+	m.adminReview.SetOutboxWriter(w)
+	m.generateNIS.SetOutboxWriter(w)
 }
 
 func (m *Module) RegisterMessageHandlers(_ messaging.Contract) ([]messaging.Binding, error) {

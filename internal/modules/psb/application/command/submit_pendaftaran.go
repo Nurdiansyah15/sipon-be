@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -24,6 +25,7 @@ type PendaftarActionUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
 	fileUploader  ports.FileUploader
+	outboxWriter  ports.OutboxWriter
 }
 
 func NewPendaftarActionUseCase(
@@ -35,6 +37,21 @@ func NewPendaftarActionUseCase(
 		pendaftarRepo: pendaftarRepo,
 		dokumenRepo:   dokumenRepo,
 		fileUploader:  fileUploader,
+	}
+}
+
+// SetOutboxWriter memasang outbox writer untuk publikasi event submit.
+func (uc *PendaftarActionUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *PendaftarActionUseCase) publishEvent(ctx context.Context, routingKey, userID, pendaftarID string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{"user_id": userID, "pendaftar_id": pendaftarID})
+	if err := uc.outboxWriter.Save(ctx, routingKey, payload); err != nil {
+		slog.Warn("psb: gagal publish event", "routing_key", routingKey, "pendaftar_id", pendaftarID, "error", err)
 	}
 }
 
@@ -59,6 +76,8 @@ func (uc *PendaftarActionUseCase) SubmitPendaftaran(ctx context.Context, userID,
 	if err := uc.pendaftarRepo.Update(ctx, p); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
+
+	uc.publishEvent(ctx, RoutingPendaftaranSubmitted, userID, p.ID)
 
 	return &dto.MessageResponse{Message: "pendaftaran berhasil diajukan"}, nil
 }
@@ -126,6 +145,8 @@ func (uc *PendaftarActionUseCase) SubmitDaftarUlang(ctx context.Context, userID,
 	if err := uc.pendaftarRepo.Update(ctx, p); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
+
+	uc.publishEvent(ctx, RoutingDaftarUlangSubmitted, userID, p.ID)
 
 	return &dto.MessageResponse{Message: "daftar ulang berhasil diajukan"}, nil
 }

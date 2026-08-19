@@ -23,6 +23,8 @@ import (
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
+	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
+	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
 	notificationModule "sipon-be/internal/modules/notification"
 	psbModule "sipon-be/internal/modules/psb"
 	schedulerModule "sipon-be/internal/modules/scheduler"
@@ -31,8 +33,6 @@ import (
 	"sipon-be/internal/shared/logger"
 	"sipon-be/internal/shared/middleware"
 	"sipon-be/internal/shared/timeutil"
-	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
-	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 )
 
 func main() {
@@ -97,6 +97,9 @@ func main() {
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
+
+	// Wire outbox writer ke psb untuk publikasi event submit/verifikasi/review/NIS.
+	psb.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
 
 	article := articleModule.NewModule(
 		db, cfg,

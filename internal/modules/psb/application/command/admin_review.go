@@ -2,13 +2,16 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 
 	"sipon-be/internal/modules/psb/application"
 	"sipon-be/internal/modules/psb/application/dto"
+	ports "sipon-be/internal/modules/psb/application/ports"
 	dconstant "sipon-be/internal/modules/psb/domain/dokumen/constant"
 	drepo "sipon-be/internal/modules/psb/domain/dokumen/repository"
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
@@ -23,6 +26,7 @@ type AdminReviewUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	reviewRepo    rrepo.PendaftarReviewRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
+	outboxWriter  ports.OutboxWriter
 }
 
 func NewAdminReviewUseCase(
@@ -34,6 +38,25 @@ func NewAdminReviewUseCase(
 		pendaftarRepo: pendaftarRepo,
 		reviewRepo:    reviewRepo,
 		dokumenRepo:   dokumenRepo,
+	}
+}
+
+// SetOutboxWriter memasang outbox writer untuk publikasi event review admin.
+func (uc *AdminReviewUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *AdminReviewUseCase) publishEvent(ctx context.Context, routingKey, userID, pendaftarID string, notes *string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{
+		"user_id":      userID,
+		"pendaftar_id": pendaftarID,
+		"notes":        notes,
+	})
+	if err := uc.outboxWriter.Save(ctx, routingKey, payload); err != nil {
+		slog.Warn("psb: gagal publish event review", "routing_key", routingKey, "pendaftar_id", pendaftarID, "error", err)
 	}
 }
 
@@ -54,6 +77,8 @@ func (uc *AdminReviewUseCase) RequestRevision(ctx context.Context, pendaftarID, 
 	review, _ := rentity.NewPendaftarReview(uuid.NewString(), pendaftarID, rconstant.StagePendaftaran, rconstant.ActionPerluRevisi, adminID, notes)
 	_ = uc.reviewRepo.Save(ctx, review)
 
+	uc.publishEvent(ctx, RoutingRevisionRequested, p.UserID, pendaftarID, notes)
+
 	return &dto.MessageResponse{Message: "permintaan revisi dikirim"}, nil
 }
 
@@ -73,6 +98,8 @@ func (uc *AdminReviewUseCase) Reject(ctx context.Context, pendaftarID, adminID s
 
 	review, _ := rentity.NewPendaftarReview(uuid.NewString(), pendaftarID, rconstant.StagePendaftaran, rconstant.ActionDitolak, adminID, notes)
 	_ = uc.reviewRepo.Save(ctx, review)
+
+	uc.publishEvent(ctx, RoutingPendaftaranRejected, p.UserID, pendaftarID, notes)
 
 	return &dto.MessageResponse{Message: "pendaftaran ditolak"}, nil
 }
@@ -105,6 +132,8 @@ func (uc *AdminReviewUseCase) Accept(ctx context.Context, pendaftarID, adminID s
 
 	review, _ := rentity.NewPendaftarReview(uuid.NewString(), pendaftarID, rconstant.StagePendaftaran, rconstant.ActionDiterima, adminID, nil)
 	_ = uc.reviewRepo.Save(ctx, review)
+
+	uc.publishEvent(ctx, RoutingPendaftaranAccepted, p.UserID, pendaftarID, nil)
 
 	return &dto.MessageResponse{Message: "pendaftaran diterima"}, nil
 }
@@ -142,6 +171,8 @@ func (uc *AdminReviewUseCase) RequestRevisionDaftarUlang(ctx context.Context, pe
 
 	review, _ := rentity.NewPendaftarReview(uuid.NewString(), pendaftarID, rconstant.StageDaftarUlang, rconstant.ActionPerluRevisi, adminID, notes)
 	_ = uc.reviewRepo.Save(ctx, review)
+
+	uc.publishEvent(ctx, RoutingRevisionRequestedDaftarUlang, p.UserID, pendaftarID, notes)
 
 	return &dto.MessageResponse{Message: "permintaan revisi daftar ulang dikirim"}, nil
 }

@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"sipon-be/internal/modules/kesantrian"
@@ -22,6 +24,7 @@ type GenerateNISUseCase struct {
 	settingRepo   srepo.PsbSettingRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
 	kesantrian    ports.KesantrianProvisioner
+	outboxWriter  ports.OutboxWriter
 }
 
 func NewGenerateNISUseCase(
@@ -36,6 +39,11 @@ func NewGenerateNISUseCase(
 		dokumenRepo:   dokumenRepo,
 		kesantrian:    kesantrian,
 	}
+}
+
+// SetOutboxWriter memasang outbox writer untuk publikasi event NIS terbit.
+func (uc *GenerateNISUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
 }
 
 func (uc *GenerateNISUseCase) Execute(ctx context.Context, pendaftarID, adminID string) (*dto.MessageResponse, error) {
@@ -76,9 +84,9 @@ func (uc *GenerateNISUseCase) Execute(ctx context.Context, pendaftarID, adminID 
 	}
 
 	result, err := uc.kesantrian.CreateSantriFromPendaftaran(ctx, kesantrian.CreateSantriFromPendaftaranInput{
-		UserID:    p.UserID,
-		Gender:    p.Gender,
-		EntryYear: entryYear,
+		UserID:                p.UserID,
+		Gender:                p.Gender,
+		EntryYear:             entryYear,
 		ProgramID:             p.ProgramID,
 		Nickname:              p.Nickname,
 		Program:               p.Program,
@@ -137,6 +145,17 @@ func (uc *GenerateNISUseCase) Execute(ctx context.Context, pendaftarID, adminID 
 
 	if err := uc.pendaftarRepo.Update(ctx, p); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
+	}
+
+	if uc.outboxWriter != nil {
+		payload, _ := json.Marshal(map[string]string{
+			"user_id":      p.UserID,
+			"pendaftar_id": pendaftarID,
+			"nis":          result.NIS,
+		})
+		if err := uc.outboxWriter.Save(ctx, RoutingNISGenerated, payload); err != nil {
+			slog.Warn("psb: gagal publish event nis_generated", "pendaftar_id", pendaftarID, "error", err)
+		}
 	}
 
 	return &dto.MessageResponse{Message: "NIS berhasil digenerate, santri telah dibuat"}, nil
