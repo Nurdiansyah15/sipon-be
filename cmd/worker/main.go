@@ -25,12 +25,10 @@ import (
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
+	messagingModule "sipon-be/internal/modules/messaging"
 	msgApp "sipon-be/internal/modules/messaging/application"
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 	outboxRepo "sipon-be/internal/modules/messaging/domain/event_outbox/repository"
-	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
-	messagingerrors "sipon-be/internal/modules/messaging/domain/message_job/errors"
-	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
 	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
 	"sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 	psbModule "sipon-be/internal/modules/psb"
@@ -111,14 +109,15 @@ func main() {
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	kesantrian.SetAkademikProvisioner(akademik)
 
-	// Registrasi handler asynchronous via shared messaging registry. Setiap module
-	// memanggil RegisterMessageHandlers; cmd/worker hanya composition + kumpulkan
-	// binding queue.
-	msgRegistry := msgApp.NewRegistry()
-	var bindings []messagingvo.Binding
+	// Registrasi handler asynchronous via messaging.Contract, sama seperti modul
+	// lain diintegrasikan lewat Contract-nya masing-masing (mis. scheduler.Contract).
+	// Setiap module memanggil RegisterMessageHandlers; cmd/worker hanya composition
+	// + kumpulkan binding queue.
+	msgModule := messagingModule.NewModule(5)
+	var bindings []messagingModule.Binding
 
-	register := func(name string, reg func(*msgApp.Registry) ([]messagingvo.Binding, error)) {
-		b, err := reg(msgRegistry)
+	register := func(name string, reg func(messagingModule.Contract) ([]messagingModule.Binding, error)) {
+		b, err := reg(msgModule)
 		if err != nil {
 			lg.Error("gagal registrasi message handlers", slog.String("module", name), slog.Any("error", err))
 			os.Exit(1)
@@ -173,6 +172,7 @@ func main() {
 			os.Exit(1)
 		}
 		defer publisher.Close()
+		msgModule.WithPublisher(publisher)
 
 		// Outbox Relay: event_outbox -> RabbitMQ (dengan publisher confirm).
 		outboxRelay := msgApp.NewOutboxRelay(outboxRepo, publisher, msgApp.OutboxRelayOptions{
@@ -198,8 +198,8 @@ func main() {
 		msgConsumer := msgApp.NewMessageConsumer(
 			consumer,
 			messageJobRepo,
-			msgRegistry,
-			messagingpolicy.NewRetryPolicy(5),
+			msgModule.Registry(),
+			msgModule.RetryPolicy(),
 			publisher,
 			msgApp.MessageConsumerOptions{
 				Lease:       5 * time.Minute,
@@ -229,12 +229,12 @@ func main() {
 	} else {
 		// Mode direct: compatibility bridge sampai outbox/RabbitMQ consumer aktif.
 		dispatcher.WithDirectMode(func(ctx context.Context, jobType string, payload json.RawMessage) error {
-			msg, err := messagingvo.NewMessage(jobType, payload)
+			msg, err := messagingModule.NewMessage(jobType, payload)
 			if err != nil {
 				return &application.FatalError{Err: err}
 			}
-			if err := msgRegistry.Dispatch(ctx, msg); err != nil {
-				if messagingerrors.IsFatal(err) {
+			if err := msgModule.Dispatch(ctx, msg); err != nil {
+				if messagingModule.IsFatal(err) {
 					return &application.FatalError{Err: err}
 				}
 				return err
@@ -333,7 +333,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 // declareRabbitMQTopology menghubungkan ke broker dan mendeklarasikan topology
 // durable berdasarkan binding yang dikumpulkan dari module.
-func declareRabbitMQTopology(cfg *config.Config, bindings []messagingvo.Binding, lg *slog.Logger) error {
+func declareRabbitMQTopology(cfg *config.Config, bindings []messagingModule.Binding, lg *slog.Logger) error {
 	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
 		DSN:         cfg.RabbitMQ.DSN,
 		Exchange:    cfg.RabbitMQ.Exchange,

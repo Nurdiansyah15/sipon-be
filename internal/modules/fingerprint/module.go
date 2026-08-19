@@ -12,8 +12,7 @@ import (
 	"sipon-be/internal/modules/fingerprint/infrastructure/persistence"
 	fingerprintHTTP "sipon-be/internal/modules/fingerprint/interfaces/http"
 	"sipon-be/internal/shared/config"
-	msgApp "sipon-be/internal/modules/messaging/application"
-	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
+	messaging "sipon-be/internal/modules/messaging"
 )
 
 type Module struct {
@@ -64,6 +63,6 @@ func (m *Module) ListDistinctPinInRange(ctx context.Context, from, to time.Time)
 	return result, nil
 }
 
-func (m *Module) RegisterMessageHandlers(_ *msgApp.Registry) ([]messagingvo.Binding, error) {
+func (m *Module) RegisterMessageHandlers(_ messaging.Contract) ([]messaging.Binding, error) {
 	return nil, nil
 }

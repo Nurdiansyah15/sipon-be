@@ -6,8 +6,7 @@ import (
 	"fmt"
 
 	"sipon-be/internal/modules/akademik/application/command"
-	"sipon-be/internal/modules/messaging/domain/message/valueobject"
-	messagingerrors "sipon-be/internal/modules/messaging/domain/message_job/errors"
+	"sipon-be/internal/modules/messaging"
 )
 
 // Dependencies adalah usecase yang dipanggil handler MQ akademik. Hanya berisi
@@ -22,32 +21,32 @@ type handlers struct {
 	deps Dependencies
 }
 
-func (h handlers) handleFingerprintSync(ctx context.Context, msg valueobject.Message) error {
+func (h handlers) handleFingerprintSync(ctx context.Context, msg messaging.Message) error {
 	var p FingerprintSyncPayload
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
-		return messagingerrors.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingFingerprintSync, err))
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingFingerprintSync, err))
 	}
 	if err := p.Validate(); err != nil {
-		return messagingerrors.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
 	}
 
 	if _, err := h.deps.FingerprintSync.Execute(ctx, p.SessionID); err != nil {
-		return messagingerrors.NewRetryableError(err)
+		return messaging.NewRetryableError(err)
 	}
 	return nil
 }
 
-func (h handlers) handleSessionAutoClose(ctx context.Context, msg valueobject.Message) error {
+func (h handlers) handleSessionAutoClose(ctx context.Context, msg messaging.Message) error {
 	var p SessionAutoClosePayload
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {
-		return messagingerrors.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingSessionAutoClose, err))
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingSessionAutoClose, err))
 	}
 	if err := p.Validate(); err != nil {
-		return messagingerrors.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
 	}
 
 	if err := h.deps.SessionAutoClose.Execute(ctx, p.SessionID); err != nil {
-		return messagingerrors.NewRetryableError(err)
+		return messaging.NewRetryableError(err)
 	}
 	return nil
 }

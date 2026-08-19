@@ -19,8 +19,7 @@ import (
 	"sipon-be/internal/modules/kesantrian"
 	"sipon-be/internal/modules/scheduler"
 	"sipon-be/internal/shared/config"
-	msgApp "sipon-be/internal/modules/messaging/application"
-	messagingvo "sipon-be/internal/modules/messaging/domain/message/valueobject"
+	messaging "sipon-be/internal/modules/messaging"
 )
 
 type Module struct {
@@ -269,7 +268,7 @@ func (m *Module) GetSantriProgram(ctx context.Context, santriID string) (*Santri
 // shared messaging registry dan mengembalikan binding queue. Layer transport
 // (scheduler worker / consumer MQ) memakai facade ini sebagai satu-satunya pintu
 // registrasi — handler bisnis hidup di interfaces/mq, bukan di module.go.
-func (m *Module) RegisterMessageHandlers(registry *msgApp.Registry) ([]messagingvo.Binding, error) {
+func (m *Module) RegisterMessageHandlers(registry messaging.Contract) ([]messaging.Binding, error) {
 	return akademikMQ.RegisterHandlers(registry, akademikMQ.Dependencies{
 		FingerprintSync:  m.syncFingerprintUC,
 		SessionAutoClose: m.autoCloseSessionUC,
