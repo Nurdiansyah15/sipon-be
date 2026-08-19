@@ -19,6 +19,8 @@ func RegisterHandlers(registry messaging.Contract, deps Dependencies) ([]messagi
 		{RoutingPsbPendaftaranAccepted, h.handlePsbPendaftaranAccepted},
 		{RoutingPsbPendaftaranRejected, h.handlePsbPendaftaranRejected},
 		{RoutingPsbNISGenerated, h.handlePsbNISGenerated},
+		{RoutingArticlePublished, h.handleArticlePublished},
+		{RoutingArticlesScraped, h.handleArticlesScraped},
 	}
 
 	for _, r := range registrations {

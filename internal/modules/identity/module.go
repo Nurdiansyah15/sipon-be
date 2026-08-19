@@ -36,6 +36,7 @@ type Module struct {
 	rateLimiter       ports.RateLimiter
 	principalBuilder  *principal.Builder
 	fileUploader      ports.FileUploader
+	db                *sql.DB
 
 	// getUserSummaryUC backs Contract.GetUserSummary — see contract.go.
 	getUserSummaryUC *query.GetUserSummaryUseCase
@@ -306,6 +307,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		rateLimiter:             rateLimiter,
 		principalBuilder:        principalBuilder,
 		fileUploader:            fileUploader,
+		db:                      db,
 		getUserSummaryUC:        getUserSummaryUC,
 		createAccountWithNISUC:  createAccountWithNISUC,
 		addNISLoginIdentityUC:   addNISLoginIdentityUC,
@@ -410,6 +412,24 @@ func (m *Module) GetUserScopeSet(ctx context.Context, userID string) (*UserScope
 
 func (m *Module) UpdateFullname(ctx context.Context, userID string, fullname string) error {
 	return m.updateFullnameUC.Execute(ctx, userID, fullname)
+}
+
+func (m *Module) ListActiveUserIDs(ctx context.Context) ([]string, error) {
+	rows, err := m.db.QueryContext(ctx, `SELECT id FROM users WHERE status = 'ACTIVE' AND deleted_at IS NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }
 
 func (m *Module) GetUserScopeAccess(ctx context.Context, userID, scopeType string) (*UserScopeAccess, error) {

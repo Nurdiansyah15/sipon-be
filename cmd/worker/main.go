@@ -113,6 +113,9 @@ func main() {
 	notification := notificationModule.NewModule(db, cfg,
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 
+	// Wire user provider ke notification untuk broadcast notifikasi article.
+	notification.SetUserProvider(identity)
+
 	// Registrasi handler asynchronous via messaging.Contract, sama seperti modul
 	// lain diintegrasikan lewat Contract-nya masing-masing (mis. scheduler.Contract).
 	// Setiap module memanggil RegisterMessageHandlers; cmd/worker hanya composition
@@ -148,6 +151,9 @@ func main() {
 	outboxRepo := outboxPersistence.NewPostgresOutboxRepository(db)
 	transactor := database.NewTransactor(db)
 	messageJobRepo := outboxPersistence.NewPostgresMessageJobRepository(db)
+
+	// Wire outbox writer ke article untuk publikasi event article published/scraped.
+	article.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
 
 	metrics := &msgApp.Metrics{}
 	if !cfg.RabbitMQ.Enabled {

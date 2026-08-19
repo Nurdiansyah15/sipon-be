@@ -3,6 +3,7 @@ package scraper
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 
 	articlerepo "sipon-be/internal/modules/article/domain/article/repository"
@@ -24,6 +25,11 @@ func NewPipeline(articleRepo articlerepo.ArticleRepository, maxParallel int64) *
 	}
 }
 
+type ScrapeCategoryResult struct {
+	Saved  int
+	Titles []string
+}
+
 func (p *Pipeline) ScrapeCategory(
 	ctx context.Context,
 	baseURL string,
@@ -33,12 +39,12 @@ func (p *Pipeline) ScrapeCategory(
 	categoryID string,
 	articleCategoryID *string,
 	sel Selectors,
-) (int, error) {
+) (ScrapeCategoryResult, error) {
 	feedURL := BuildFeedURL(baseURL, cat.URLSuffix, cat.URLOverride)
 
 	items, err := FetchFeed(ctx, feedURL)
 	if err != nil {
-		return 0, err
+		return ScrapeCategoryResult{}, err
 	}
 
 	items = FilterByKeywords(items, cat.Keywords)
@@ -57,12 +63,14 @@ func (p *Pipeline) ScrapeCategory(
 		items = items[:cat.ArticleLimit]
 	}
 	if len(items) == 0 {
-		return 0, nil
+		return ScrapeCategoryResult{}, nil
 	}
 
 	sem := semaphore.NewWeighted(p.maxParallel)
 	g, gctx := errgroup.WithContext(ctx)
 	var saved atomic.Int64
+	var mu sync.Mutex
+	var titles []string
 
 	for _, it := range items {
 		it := it
@@ -107,6 +115,9 @@ func (p *Pipeline) ScrapeCategory(
 			}
 			_ = articleID
 			saved.Add(1)
+			mu.Lock()
+			titles = append(titles, it.Title)
+			mu.Unlock()
 			return nil
 		})
 	}
@@ -114,7 +125,7 @@ func (p *Pipeline) ScrapeCategory(
 	slog.Info("scrape category completed",
 		"category", cat.CategoryKey, "fetched", len(items), "saved", int(saved.Load()))
 
-	return int(saved.Load()), nil
+	return ScrapeCategoryResult{Saved: int(saved.Load()), Titles: titles}, nil
 }
 
 func firstNonEmpty(vals ...string) string {

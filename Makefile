@@ -13,6 +13,8 @@ help:
 	@echo "    make run            Jalankan HTTP server via container app"
 	@echo "    make swagger        Generate Swagger dari dalam container devtools"
 	@echo "    make swagger-check  Validasi konfigurasi docker compose dev"
+	@echo "    make logs            Tampilkan log semua container dev (tail 100, follow)"
+	@echo "    make minio-init     Inisialisasi bucket MinIO (via container minio-init)"
 	@echo ""
 	@echo "  Migrasi (via container migrate):"
 	@echo "    make migrate-up     Jalankan semua migrasi yang belum dijalankan"
@@ -48,7 +50,9 @@ dev-down:
 dev-all-up:
 	docker compose -f docker-compose.dev.yml down
 	docker compose -f docker-compose.dev.yml up -d --wait
+
 # logs
+logs:
 	docker compose -f docker-compose.dev.yml logs -f --tail=100
 # 	make minio-init
 

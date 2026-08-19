@@ -73,6 +73,10 @@ func NewModule(
 	}
 }
 
+func (m *Module) SetUserProvider(p notifMQ.UserProvider) {
+	m.mqDeps.UserProvider = p
+}
+
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	notifHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)

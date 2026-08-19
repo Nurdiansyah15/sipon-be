@@ -2,13 +2,16 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"strings"
 	"time"
 
 	"sipon-be/internal/modules/article/application"
 	"sipon-be/internal/modules/article/application/dto"
 	articleconst "sipon-be/internal/modules/article/domain/article/constant"
 	articlerepo "sipon-be/internal/modules/article/domain/article/repository"
+	ports "sipon-be/internal/modules/article/application/ports"
 	"sipon-be/internal/modules/article/infrastructure/scraper"
 )
 
@@ -17,6 +20,7 @@ type TriggerScrapeAllUseCase struct {
 	categoryRepo       articlerepo.SourceCategoryRepository
 	scraperSourceRepo  articlerepo.ScraperSourceRepo
 	pipeline           *scraper.Pipeline
+	outboxWriter       ports.OutboxWriter
 }
 
 func NewTriggerScrapeAllUseCase(
@@ -33,8 +37,22 @@ func NewTriggerScrapeAllUseCase(
 	}
 }
 
+func (uc *TriggerScrapeAllUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *TriggerScrapeAllUseCase) publishEvent(ctx context.Context, routingKey string, payload any) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	data, _ := json.Marshal(payload)
+	if err := uc.outboxWriter.Save(ctx, routingKey, data); err != nil {
+		slog.Warn("article: gagal publish scrape event", "routing_key", routingKey, "error", err)
+	}
+}
+
 func (uc *TriggerScrapeAllUseCase) Execute(ctx context.Context, sourceID string) (*dto.ScrapeResult, error) {
-	_, err := uc.sourceRepo.FindByID(ctx, sourceID)
+	source, err := uc.sourceRepo.FindByID(ctx, sourceID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, articleconst.CodeSourceNotFound)
 	}
@@ -46,6 +64,7 @@ func (uc *TriggerScrapeAllUseCase) Execute(ctx context.Context, sourceID string)
 
 	result := &dto.ScrapeResult{}
 	var totalScraped, totalSkipped int
+	var allTitles []string
 
 	for _, cat := range cats {
 		if !cat.IsActive {
@@ -61,7 +80,7 @@ func (uc *TriggerScrapeAllUseCase) Execute(ctx context.Context, sourceID string)
 			continue
 		}
 
-		saved, scrapeErr := uc.pipeline.ScrapeCategory(
+		scrapeRes, scrapeErr := uc.pipeline.ScrapeCategory(
 			ctx,
 			src.BaseURL,
 			src.Category,
@@ -78,14 +97,15 @@ func (uc *TriggerScrapeAllUseCase) Execute(ctx context.Context, sourceID string)
 
 		catItem := dto.ScrapeCategoryItem{
 			CategoryKey: cat.CategoryKey,
-			Saved:       saved,
+			Saved:       scrapeRes.Saved,
 		}
 		if scrapeErr != nil {
 			catItem.Error = scrapeErr.Error()
 		}
 		result.Categories = append(result.Categories, catItem)
-		totalScraped += saved
+		totalScraped += scrapeRes.Saved
 		totalSkipped += 0
+		allTitles = append(allTitles, scrapeRes.Titles...)
 
 		_ = uc.scraperSourceRepo.UpdateLastScrapedCategory(ctx, cat.ID, time.Now())
 	}
@@ -93,6 +113,26 @@ func (uc *TriggerScrapeAllUseCase) Execute(ctx context.Context, sourceID string)
 	result.Scraped = totalScraped
 	result.Skipped = totalSkipped
 
+	if totalScraped > 0 {
+		uc.publishEvent(ctx, RoutingArticlesScraped, map[string]any{
+			"source_id":   sourceID,
+			"source_name": source.Name,
+			"count":       totalScraped,
+			"titles":      allTitles,
+		})
+	}
+
 	slog.Info("scrape all completed", "source_id", sourceID, "scraped", totalScraped)
 	return result, nil
+}
+
+func truncateTitles(titles []string, max int) string {
+	if len(titles) == 0 {
+		return ""
+	}
+	if len(titles) <= max {
+		return strings.Join(titles, ", ")
+	}
+	joined := strings.Join(titles[:max], ", ")
+	return joined + " dan lainnya"
 }

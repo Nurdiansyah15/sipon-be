@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/article/application/command"
 	"sipon-be/internal/modules/article/application/query"
+	ports "sipon-be/internal/modules/article/application/ports"
 	"sipon-be/internal/modules/article/infrastructure/external"
 	"sipon-be/internal/modules/article/infrastructure/persistence"
 	"sipon-be/internal/modules/article/infrastructure/scraper"
@@ -16,10 +17,13 @@ import (
 )
 
 type Module struct {
-	handler       *articleHTTP.ArticleHandler
-	sourceHandler *articleHTTP.SourceHandler
-	jwtAuth       gin.HandlerFunc
-	principalLoad gin.HandlerFunc
+	handler           *articleHTTP.ArticleHandler
+	sourceHandler     *articleHTTP.SourceHandler
+	jwtAuth           gin.HandlerFunc
+	principalLoad     gin.HandlerFunc
+	createArticleUC   *command.CreateArticleUseCase
+	publishArticleUC  *command.PublishArticleUseCase
+	triggerScrapeAllUC *command.TriggerScrapeAllUseCase
 }
 
 func NewModule(
@@ -99,10 +103,13 @@ func NewModule(
 	)
 
 	return &Module{
-		handler:       handler,
-		sourceHandler: sourceHandler,
-		jwtAuth:       jwtAuth,
-		principalLoad: principalLoad,
+		handler:            handler,
+		sourceHandler:      sourceHandler,
+		jwtAuth:            jwtAuth,
+		principalLoad:      principalLoad,
+		createArticleUC:    createArticleUC,
+		publishArticleUC:   publishArticleUC,
+		triggerScrapeAllUC: triggerScrapeAllUC,
 	}
 }
 
@@ -110,6 +117,12 @@ func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	articleHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
 	articleHTTP.RegisterSourceRoutes(grp, m.sourceHandler, m.jwtAuth, m.principalLoad)
+}
+
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.createArticleUC.SetOutboxWriter(w)
+	m.publishArticleUC.SetOutboxWriter(w)
+	m.triggerScrapeAllUC.SetOutboxWriter(w)
 }
 
 func (m *Module) RegisterMessageHandlers(_ messaging.Contract) ([]messaging.Binding, error) {

@@ -76,6 +76,9 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	// Wire user provider ke notification untuk broadcast notifikasi article.
+	notification.SetUserProvider(identity)
+
 	dokumenAset := dokumenAsetModule.NewModule(
 		db, cfg,
 		identity.AuthMiddleware(),
@@ -106,6 +109,9 @@ func main() {
 		identity.AuthMiddleware(),
 		identity.PrincipalMiddleware(),
 	)
+
+	// Wire outbox writer ke article untuk publikasi event article published/scraped.
+	article.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
 
 	keuangan := keuanganModule.NewModule(
 		db, cfg,

@@ -15,6 +15,9 @@ const (
 	RoutingPsbPendaftaranAccepted          = "psb.pendaftaran.accepted"
 	RoutingPsbPendaftaranRejected          = "psb.pendaftaran.rejected"
 	RoutingPsbNISGenerated                 = "psb.pendaftaran.nis_generated"
+
+	RoutingArticlePublished = "article.published"
+	RoutingArticlesScraped  = "article.scraped"
 )
 
 var Bindings = []messaging.Binding{
@@ -28,4 +31,6 @@ var Bindings = []messaging.Binding{
 	{Queue: QueueNotification, RoutingKey: RoutingPsbPendaftaranAccepted},
 	{Queue: QueueNotification, RoutingKey: RoutingPsbPendaftaranRejected},
 	{Queue: QueueNotification, RoutingKey: RoutingPsbNISGenerated},
+	{Queue: QueueNotification, RoutingKey: RoutingArticlePublished},
+	{Queue: QueueNotification, RoutingKey: RoutingArticlesScraped},
 }

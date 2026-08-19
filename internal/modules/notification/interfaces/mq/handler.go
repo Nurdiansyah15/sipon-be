@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"sipon-be/internal/modules/messaging"
 	"sipon-be/internal/modules/notification/application"
@@ -11,8 +12,14 @@ import (
 	notifvo "sipon-be/internal/modules/notification/domain/valueobject"
 )
 
+// UserProvider menyediakan daftar user ID aktif untuk broadcast notifikasi.
+type UserProvider interface {
+	ListActiveUserIDs(ctx context.Context) ([]string, error)
+}
+
 type Dependencies struct {
-	Dispatcher *application.Dispatcher
+	Dispatcher   *application.Dispatcher
+	UserProvider UserProvider
 }
 
 type handlers struct {
@@ -313,4 +320,83 @@ func (h handlers) handlePsbNISGenerated(ctx context.Context, msg messaging.Messa
 	}
 
 	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+func (h handlers) broadcast(ctx context.Context, tmpl application.NotificationTemplate) error {
+	if h.deps.UserProvider == nil {
+		return nil
+	}
+	userIDs, err := h.deps.UserProvider.ListActiveUserIDs(ctx)
+	if err != nil {
+		return messaging.NewRetryableError(fmt.Errorf("gagal ambil daftar user aktif: %w", err))
+	}
+	if len(userIDs) == 0 {
+		return nil
+	}
+	target := application.Target{Mode: application.TargetModeBroadcast, RecipientIDs: userIDs}
+	if err := h.deps.Dispatcher.Dispatch(ctx, tmpl, target); err != nil {
+		return messaging.NewRetryableError(err)
+	}
+	return nil
+}
+
+func (h handlers) handleArticlePublished(ctx context.Context, msg messaging.Message) error {
+	var p ArticlePublishedPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingArticlePublished, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeContent,
+		Title: "Artikel Baru",
+		Body:  p.Title,
+		Payload: notifvo.NotificationPayload{
+			Module:      "article",
+			EventType:   "article_published",
+			EntityID:    p.ArticleID,
+			ClickAction: fmt.Sprintf("/artikel/%s", p.ArticleID),
+		},
+		Channels: pushChannels,
+	}
+
+	return h.broadcast(ctx, tmpl)
+}
+
+func (h handlers) handleArticlesScraped(ctx context.Context, msg messaging.Message) error {
+	var p ArticlesScrapedPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingArticlesScraped, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	body := fmt.Sprintf("%d artikel baru telah ditambahkan", p.Count)
+	if len(p.Titles) > 0 {
+		shown := p.Titles
+		if len(shown) > 3 {
+			shown = shown[:3]
+			body = fmt.Sprintf("%s: %s, dan lainnya", body, strings.Join(shown, ", "))
+		} else {
+			body = fmt.Sprintf("%s: %s", body, strings.Join(shown, ", "))
+		}
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeContent,
+		Title: fmt.Sprintf("Artikel Baru dari %s", p.SourceName),
+		Body:  body,
+		Payload: notifvo.NotificationPayload{
+			Module:      "article",
+			EventType:   "articles_scraped",
+			EntityID:    p.SourceID,
+			ClickAction: "/artikel",
+		},
+		Channels: pushChannels,
+	}
+
+	return h.broadcast(ctx, tmpl)
 }

@@ -87,3 +87,31 @@ func dokumenKindLabel(kind string) string {
 	}
 	return kind
 }
+
+// ArticlePublishedPayload dipakai saat artikel manual dipublikasikan.
+type ArticlePublishedPayload struct {
+	ArticleID string `json:"article_id"`
+	Title     string `json:"title"`
+}
+
+func (p ArticlePublishedPayload) Validate() error {
+	if p.ArticleID == "" || p.Title == "" {
+		return errors.New("article_id dan title wajib diisi")
+	}
+	return nil
+}
+
+// ArticlesScrapedPayload dipakai saat scrape selesai dan ada artikel baru.
+type ArticlesScrapedPayload struct {
+	SourceID   string   `json:"source_id"`
+	SourceName string   `json:"source_name"`
+	Count      int      `json:"count"`
+	Titles     []string `json:"titles"`
+}
+
+func (p ArticlesScrapedPayload) Validate() error {
+	if p.SourceID == "" || p.Count == 0 {
+		return errors.New("source_id dan count wajib diisi")
+	}
+	return nil
+}

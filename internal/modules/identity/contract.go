@@ -143,6 +143,10 @@ type Contract interface {
 	// module that keeps its own profile-like data in sync with identity's
 	// (e.g. kesantrian's update-profile flow).
 	UpdateFullname(ctx context.Context, userID string, fullname string) error
+
+	// ListActiveUserIDs returns all user IDs with ACTIVE status.
+	// Used by notification module for broadcast notifications.
+	ListActiveUserIDs(ctx context.Context) ([]string, error)
 }
 
 var _ Contract = (*Module)(nil)

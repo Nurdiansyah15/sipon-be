@@ -2,6 +2,8 @@ package command
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 
 	"sipon-be/internal/modules/article/application"
 	"sipon-be/internal/modules/article/application/dto"
@@ -19,6 +21,7 @@ type CreateArticleUseCase struct {
 	articleRepo  articlerepo.ArticleRepository
 	fileUploader ports.FileUploader
 	transactor   ports.Transactor
+	outboxWriter ports.OutboxWriter
 }
 
 func NewCreateArticleUseCase(
@@ -30,6 +33,23 @@ func NewCreateArticleUseCase(
 		articleRepo:  articleRepo,
 		fileUploader: fileUploader,
 		transactor:   transactor,
+	}
+}
+
+func (uc *CreateArticleUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *CreateArticleUseCase) publishEvent(ctx context.Context, routingKey, articleID, title string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"article_id": articleID,
+		"title":      title,
+	})
+	if err := uc.outboxWriter.Save(ctx, routingKey, payload); err != nil {
+		slog.Warn("article: gagal publish event", "routing_key", routingKey, "article_id", articleID, "error", err)
 	}
 }
 
@@ -61,6 +81,10 @@ func (uc *CreateArticleUseCase) Execute(ctx context.Context, req dto.CreateArtic
 		return uc.articleRepo.Save(txCtx, article)
 	}); err != nil {
 		return nil, application.WrapConflictErr(err, articleconst.CodeArticlePersistenceFailed)
+	}
+
+	if article.Status == articleconst.ArticleStatusPublished {
+		uc.publishEvent(ctx, RoutingArticlePublished, articleID, article.Title)
 	}
 
 	confirmThumbnailKey(ctx, uc.fileUploader, article.ThumbnailURL)
