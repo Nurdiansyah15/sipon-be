@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"sipon-be/internal/modules/akademik/application/dto"
-	"sipon-be/internal/modules/scheduler"
+	"sipon-be/internal/modules/akademik/application/ports"
 )
 
 // SessionCompleter adalah boundary untuk menyelesaikan sesi. Dipenuhi oleh
@@ -21,18 +21,18 @@ var _ SessionCompleter = (*CompleteSessionUseCase)(nil)
 // oleh scheduler setelah sesi ditutup.
 type AutoCloseSessionUseCase struct {
 	completeSessionUC   SessionCompleter
-	schedulerContract   scheduler.Contract
+	scheduler           ports.Scheduler
 	fingerprintSyncType string
 }
 
 func NewAutoCloseSessionUseCase(
 	completeSessionUC SessionCompleter,
-	schedulerContract scheduler.Contract,
+	scheduler ports.Scheduler,
 	fingerprintSyncType string,
 ) *AutoCloseSessionUseCase {
 	return &AutoCloseSessionUseCase{
 		completeSessionUC:   completeSessionUC,
-		schedulerContract:   schedulerContract,
+		scheduler:           scheduler,
 		fingerprintSyncType: fingerprintSyncType,
 	}
 }
@@ -42,7 +42,7 @@ func (uc *AutoCloseSessionUseCase) Execute(ctx context.Context, sessionID string
 		return err
 	}
 
-	if err := uc.schedulerContract.PauseByTypeAndReferenceID(ctx, uc.fingerprintSyncType, sessionID); err != nil {
+	if err := uc.scheduler.PauseByTypeAndReferenceID(ctx, uc.fingerprintSyncType, sessionID); err != nil {
 		slog.Warn("akademik: gagal pause recurring sync job",
 			"session_id", sessionID, "error", err)
 	}

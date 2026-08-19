@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"sipon-be/internal/modules/scheduler"
+	"sipon-be/internal/modules/akademik/application/ports"
 )
 
 // ScheduledJobTypes memuat routing key yang dipakai command saat membuat job.
@@ -17,23 +17,23 @@ type ScheduledJobTypes struct {
 }
 
 type ScheduleSessionJobsUseCase struct {
-	schedulerContract scheduler.Contract
-	jobTypes          ScheduledJobTypes
+	scheduler ports.Scheduler
+	jobTypes  ScheduledJobTypes
 }
 
 func NewScheduleSessionJobsUseCase(
-	schedulerContract scheduler.Contract,
+	scheduler ports.Scheduler,
 	jobTypes ScheduledJobTypes,
 ) *ScheduleSessionJobsUseCase {
 	return &ScheduleSessionJobsUseCase{
-		schedulerContract: schedulerContract,
-		jobTypes:          jobTypes,
+		scheduler: scheduler,
+		jobTypes:  jobTypes,
 	}
 }
 
 func (uc *ScheduleSessionJobsUseCase) Execute(ctx context.Context, sessionID string, endsAt time.Time) error {
 	syncPayload, _ := json.Marshal(map[string]string{"session_id": sessionID})
-	if err := uc.schedulerContract.ScheduleRecurring(ctx, scheduler.ScheduleRecurringInput{
+	if err := uc.scheduler.ScheduleRecurring(ctx, ports.ScheduleRecurringInput{
 		JobType:     uc.jobTypes.FingerprintSync,
 		Payload:     syncPayload,
 		CronExpr:    "*/1 * * * *",
@@ -43,7 +43,7 @@ func (uc *ScheduleSessionJobsUseCase) Execute(ctx context.Context, sessionID str
 	}
 
 	closePayload, _ := json.Marshal(map[string]string{"session_id": sessionID})
-	return uc.schedulerContract.ScheduleOneOff(ctx, scheduler.ScheduleOneOffInput{
+	return uc.scheduler.ScheduleOneOff(ctx, ports.ScheduleOneOffInput{
 		JobType:     uc.jobTypes.SessionAutoClose,
 		Payload:     closePayload,
 		RunAt:       endsAt,

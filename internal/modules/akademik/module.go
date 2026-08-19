@@ -13,6 +13,7 @@ import (
 	"sipon-be/internal/modules/akademik/infrastructure/fingerprintgateway"
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
 	"sipon-be/internal/modules/akademik/infrastructure/persistence"
+	"sipon-be/internal/modules/akademik/infrastructure/schedulergateway"
 	akademikHTTP "sipon-be/internal/modules/akademik/interfaces/http"
 	akademikMQ "sipon-be/internal/modules/akademik/interfaces/mq"
 	"sipon-be/internal/modules/fingerprint"
@@ -62,6 +63,7 @@ func NewModule(
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
 	fingerprintGW := fingerprintgateway.New(fingerprintContract)
+	schedulerGW := schedulergateway.New(schedulerContract)
 	periodResolver := resolver.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
 	programResolver := resolver.NewSessionProgramResolver(sessionRepo, scheduleRepo, activityPeriodProgramRepo, programRepo)
 
@@ -139,7 +141,7 @@ func NewModule(
 
 	// activity session
 	scheduleJobsUC := command.NewScheduleSessionJobsUseCase(
-		schedulerContract,
+		schedulerGW,
 		command.ScheduledJobTypes{
 			FingerprintSync:  akademikMQ.RoutingFingerprintSync,
 			SessionAutoClose: akademikMQ.RoutingSessionAutoClose,
@@ -150,7 +152,7 @@ func NewModule(
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo, scheduleJobsUC)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
-	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, schedulerContract, akademikMQ.RoutingFingerprintSync)
+	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, schedulerGW, akademikMQ.RoutingFingerprintSync)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
