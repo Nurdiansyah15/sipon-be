@@ -7,9 +7,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
 
-	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/query"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	"sipon-be/internal/modules/akademik/infrastructure/external"
 	"sipon-be/internal/modules/akademik/infrastructure/fingerprintgateway"
 	"sipon-be/internal/modules/akademik/infrastructure/kesantriangateway"
@@ -64,8 +64,8 @@ func NewModule(
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
 	fingerprintGW := fingerprintgateway.New(fingerprintContract)
-	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
-	programResolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, activityPeriodProgramRepo, programRepo)
+	periodResolver := resolver.NewSessionPeriodResolver(sessionRepo, scheduleRepo, activityPeriodRepo)
+	programResolver := resolver.NewSessionProgramResolver(sessionRepo, scheduleRepo, activityPeriodProgramRepo, programRepo)
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,

@@ -7,6 +7,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	periodRepo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	"sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/constant"
 	"sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/entity"
@@ -28,7 +29,7 @@ func NewCreateHerregistrasiDocumentRequirementUseCase(
 
 func (uc *CreateHerregistrasiDocumentRequirementUseCase) Execute(ctx context.Context, periodID string, req dto.CreateHerregistrasiDocumentRequirementRequest) (*dto.HerregistrasiDocumentRequirementResponse, error) {
 	if _, err := uc.periodRepo.FindByID(ctx, periodID); err != nil {
-		return nil, application.WrapRepoErr(err, application.PeriodNotFoundCode)
+		return nil, application.WrapRepoErr(err, resolver.PeriodNotFoundCode)
 	}
 
 	isRequired := true

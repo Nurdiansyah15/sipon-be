@@ -9,6 +9,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	periodRepo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	reqRepo "sipon-be/internal/modules/akademik/domain/herregistrasi_document_requirement/repository"
 	docEntity "sipon-be/internal/modules/akademik/domain/herregistrasi_document/entity"
@@ -46,14 +47,14 @@ func NewConfirmHerregistrasiDocumentUseCase(
 }
 
 func (uc *ConfirmHerregistrasiDocumentUseCase) Execute(ctx context.Context, userID string, req dto.HerregistrasiDocumentConfirmRequest) (*dto.HerregistrasiDocumentResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	period, err := uc.periodRepo.FindOpen(ctx)
 	if err != nil {
-		return nil, application.WrapRepoErr(err, application.PeriodNotFoundCode)
+		return nil, application.WrapRepoErr(err, resolver.PeriodNotFoundCode)
 	}
 
 	reg, err := uc.registrationRepo.FindBySantriAndPeriod(ctx, info.SantriID, period.ID)

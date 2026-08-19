@@ -5,6 +5,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	docConst "sipon-be/internal/modules/akademik/domain/herregistrasi_document/constant"
 	docRepo "sipon-be/internal/modules/akademik/domain/herregistrasi_document/repository"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
@@ -33,7 +34,7 @@ func NewDeleteHerregistrasiDocumentUseCase(
 }
 
 func (uc *DeleteHerregistrasiDocumentUseCase) Execute(ctx context.Context, userID, documentID string) error {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return err
 	}

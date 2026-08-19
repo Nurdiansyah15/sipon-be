@@ -1,4 +1,4 @@
-package application
+package resolver
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	apRepo "sipon-be/internal/modules/akademik/domain/activity_period/repository"
 	schRepo "sipon-be/internal/modules/akademik/domain/activity_schedule/repository"
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
+	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -41,7 +42,7 @@ func (r *SessionPeriodResolver) Resolve(ctx context.Context, sessionID string) (
 		return "", err
 	}
 	if period.AcademicPeriodID == "" {
-		return "", kernel.New(ErrCodeUnprocessableEntity)
+		return "", kernel.New(application.ErrCodeUnprocessableEntity)
 	}
 	return period.AcademicPeriodID, nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	apEntity "sipon-be/internal/modules/akademik/domain/activity_period/entity"
 	appEntity "sipon-be/internal/modules/akademik/domain/activity_period_program/entity"
 	schEntity "sipon-be/internal/modules/akademik/domain/activity_schedule/entity"
@@ -67,8 +68,8 @@ func newSyncUC(
 	sessionRepo := &fakeSessionRepo{session: session}
 	scheduleRepo := &fakeScheduleRepo{schedule: &schEntity.ActivitySchedule{ID: session.ActivityScheduleID, ActivityPeriodID: "ap-1"}}
 	apRepo := &fakeAPRepo{period: &apEntity.ActivityPeriod{ID: "ap-1", AcademicPeriodID: "period-1"}}
-	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, apRepo)
-	programResolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
+	periodResolver := resolver.NewSessionPeriodResolver(sessionRepo, scheduleRepo, apRepo)
+	programResolver := resolver.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
 	checkinUC := NewCheckinByNISUseCase(sessionRepo, kesantrian, periodResolver, registration, attendance, santriProgram, programResolver)
 	return NewSyncAttendanceFromFingerprintUseCase(sessionRepo, reader, checkinUC)
 }

@@ -14,8 +14,8 @@ import (
 	regConst "sipon-be/internal/modules/akademik/domain/santri_registration/constant"
 	regEntity "sipon-be/internal/modules/akademik/domain/santri_registration/entity"
 	spEntity "sipon-be/internal/modules/akademik/domain/santri_program/entity"
-	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 )
 
 func newCheckinUC(
@@ -30,8 +30,8 @@ func newCheckinUC(
 	sessionRepo := &fakeSessionRepo{session: session}
 	scheduleRepo := &fakeScheduleRepo{schedule: &schEntity.ActivitySchedule{ID: session.ActivityScheduleID, ActivityPeriodID: "ap-1"}}
 	apRepo := &fakeAPRepo{period: &apEntity.ActivityPeriod{ID: "ap-1", AcademicPeriodID: "period-1"}}
-	periodResolver := application.NewSessionPeriodResolver(sessionRepo, scheduleRepo, apRepo)
-	programResolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
+	periodResolver := resolver.NewSessionPeriodResolver(sessionRepo, scheduleRepo, apRepo)
+	programResolver := resolver.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
 	return NewCheckinByNISUseCase(sessionRepo, kesantrian, periodResolver, registration, attendance, santriProgram, programResolver)
 }
 

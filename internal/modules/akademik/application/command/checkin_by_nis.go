@@ -10,6 +10,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	sesConst "sipon-be/internal/modules/akademik/domain/activity_session/constant"
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 	attConst "sipon-be/internal/modules/akademik/domain/attendance/constant"
@@ -24,21 +25,21 @@ import (
 type CheckinByNISUseCase struct {
 	sessionRepo       sesRepo.ActivitySessionRepository
 	kesantrianReader  ports.KesantrianReader
-	periodResolver    *application.SessionPeriodResolver
+	periodResolver    *resolver.SessionPeriodResolver
 	registrationRepo  regRepo.SantriRegistrationRepository
 	attendanceRepo    attRepo.AttendanceRepository
 	santriProgramRepo spRepo.SantriProgramRepository
-	programResolver   *application.SessionProgramResolver
+	programResolver   *resolver.SessionProgramResolver
 }
 
 func NewCheckinByNISUseCase(
 	sessionRepo sesRepo.ActivitySessionRepository,
 	kesantrianReader ports.KesantrianReader,
-	periodResolver *application.SessionPeriodResolver,
+	periodResolver *resolver.SessionPeriodResolver,
 	registrationRepo regRepo.SantriRegistrationRepository,
 	attendanceRepo attRepo.AttendanceRepository,
 	santriProgramRepo spRepo.SantriProgramRepository,
-	programResolver *application.SessionProgramResolver,
+	programResolver *resolver.SessionProgramResolver,
 ) *CheckinByNISUseCase {
 	return &CheckinByNISUseCase{
 		sessionRepo:       sessionRepo,

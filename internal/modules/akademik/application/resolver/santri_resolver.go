@@ -1,8 +1,9 @@
-package application
+package resolver
 
 import (
 	"context"
 
+	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/ports"
 	"sipon-be/internal/shared/kernel"
 )
@@ -21,17 +22,17 @@ const PeriodNotFoundCode kernel.Code = "ACADEMIC_PERIOD_NOT_FOUND"
 // error.
 func ResolveSantriByUserID(ctx context.Context, reader ports.KesantrianReader, userID string) (*ports.SantriBasicInfo, error) {
 	if userID == "" {
-		return nil, kernel.New(ErrCodeUnauthorized)
+		return nil, kernel.New(application.ErrCodeUnauthorized)
 	}
 	info, err := reader.GetSantriByUserID(ctx, userID)
 	if err != nil {
-		if IsNotFoundErr(err, santriNotFoundCode) {
-			return nil, kernel.New(ErrCodeNotFound)
+		if application.IsNotFoundErr(err, santriNotFoundCode) {
+			return nil, kernel.New(application.ErrCodeNotFound)
 		}
-		return nil, kernel.Wrap(ErrCodeInternal, err)
+		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
 	if info == nil {
-		return nil, kernel.New(ErrCodeNotFound)
+		return nil, kernel.New(application.ErrCodeNotFound)
 	}
 	return info, nil
 }

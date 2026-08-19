@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	actEntity "sipon-be/internal/modules/akademik/domain/activity/entity"
 	actRepo "sipon-be/internal/modules/akademik/domain/activity/repository"
 	periodRepo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
@@ -55,7 +56,7 @@ func NewGetMyAttendanceUseCase(
 }
 
 func (uc *GetMyAttendanceUseCase) Execute(ctx context.Context, userID string, q dto.MyAttendanceListQuery) (*dto.MyAttendanceResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (uc *GetMyAttendanceUseCase) Execute(ctx context.Context, userID string, q 
 	} else {
 		period, err := uc.periodRepo.FindOpen(ctx)
 		if err != nil {
-			if application.IsNotFoundErr(err, application.PeriodNotFoundCode) {
+			if application.IsNotFoundErr(err, resolver.PeriodNotFoundCode) {
 				return resp, nil
 			}
 			return nil, kernel.Wrap(application.ErrCodeInternal, err)

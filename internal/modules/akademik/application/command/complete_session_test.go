@@ -10,7 +10,7 @@ import (
 	sesConst "sipon-be/internal/modules/akademik/domain/activity_session/constant"
 	sesEntity "sipon-be/internal/modules/akademik/domain/activity_session/entity"
 	attConst "sipon-be/internal/modules/akademik/domain/attendance/constant"
-	"sipon-be/internal/modules/akademik/application"
+	"sipon-be/internal/modules/akademik/application/resolver"
 )
 
 func newCompleteUC(
@@ -22,7 +22,7 @@ func newCompleteUC(
 ) *CompleteSessionUseCase {
 	sessionRepo := &fakeSessionRepo{session: session}
 	scheduleRepo := &fakeScheduleRepo{schedule: &schEntity.ActivitySchedule{ID: session.ActivityScheduleID, ActivityPeriodID: "ap-1"}}
-	resolver := application.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
+	resolver := resolver.NewSessionProgramResolver(sessionRepo, scheduleRepo, appProgram, program)
 	return NewCompleteSessionUseCase(sessionRepo, attendance, santriProgram, resolver)
 }
 

@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	regRepo "sipon-be/internal/modules/akademik/domain/santri_registration/repository"
 	"sipon-be/internal/shared/kernel"
 )
@@ -16,13 +17,13 @@ import (
 // for the session's academic period (regardless of program assignment).
 type ListEligibleSessionSantriUseCase struct {
 	registrationRepo regRepo.SantriRegistrationRepository
-	periodResolver   *application.SessionPeriodResolver
+	periodResolver   *resolver.SessionPeriodResolver
 	kesantrianReader ports.KesantrianReader
 }
 
 func NewListEligibleSessionSantriUseCase(
 	registrationRepo regRepo.SantriRegistrationRepository,
-	periodResolver *application.SessionPeriodResolver,
+	periodResolver *resolver.SessionPeriodResolver,
 	kesantrianReader ports.KesantrianReader,
 ) *ListEligibleSessionSantriUseCase {
 	return &ListEligibleSessionSantriUseCase{

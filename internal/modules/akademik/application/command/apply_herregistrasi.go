@@ -8,6 +8,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	periodRepo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	regConst "sipon-be/internal/modules/akademik/domain/santri_registration/constant"
 	regEntity "sipon-be/internal/modules/akademik/domain/santri_registration/entity"
@@ -38,14 +39,14 @@ func NewApplyHerregistrasiUseCase(
 }
 
 func (uc *ApplyHerregistrasiUseCase) Execute(ctx context.Context, userID string) (*dto.SantriRegistrationResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}
 
 	period, err := uc.periodRepo.FindOpen(ctx)
 	if err != nil {
-		if application.IsNotFoundErr(err, application.PeriodNotFoundCode) {
+		if application.IsNotFoundErr(err, resolver.PeriodNotFoundCode) {
 			return nil, kernel.New(application.ErrCodeNotFound)
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

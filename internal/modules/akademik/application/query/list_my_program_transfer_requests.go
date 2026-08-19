@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	progRepo "sipon-be/internal/modules/akademik/domain/program/repository"
 	ptrRepo "sipon-be/internal/modules/akademik/domain/program_transfer_request/repository"
 	"sipon-be/internal/shared/kernel"
@@ -29,7 +30,7 @@ func NewListMyProgramTransferRequestsUseCase(
 }
 
 func (uc *ListMyProgramTransferRequestsUseCase) Execute(ctx context.Context, userID string) ([]dto.ProgramTransferRequestResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}

@@ -8,6 +8,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
+	"sipon-be/internal/modules/akademik/application/helper"
 	"sipon-be/internal/modules/akademik/application/ports"
 	schConst "sipon-be/internal/modules/akademik/domain/activity_schedule/constant"
 	schEntity "sipon-be/internal/modules/akademik/domain/activity_schedule/entity"
@@ -88,7 +89,7 @@ func (uc *GenerateSessionsFromScheduleUseCase) Execute(ctx context.Context, sche
 		yearDates = append(yearDates, schEntity.YearlyDate{Month: y.Month, Day: y.Day})
 	}
 
-	dates := application.ExpandScheduleDates(schedule, weekDays, monthDays, yearDates, fromDate, toDate)
+	dates := helper.ExpandScheduleDates(schedule, weekDays, monthDays, yearDates, fromDate, toDate)
 
 	existing, err := uc.sessionRepo.ListByScheduleIDs(ctx, []string{schedule.ID})
 	if err != nil {

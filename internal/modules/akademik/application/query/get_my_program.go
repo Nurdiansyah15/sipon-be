@@ -6,6 +6,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	progRepo "sipon-be/internal/modules/akademik/domain/program/repository"
 	spConst "sipon-be/internal/modules/akademik/domain/santri_program/constant"
 	spRepo "sipon-be/internal/modules/akademik/domain/santri_program/repository"
@@ -28,7 +29,7 @@ func NewGetMyProgramUseCase(
 }
 
 func (uc *GetMyProgramUseCase) Execute(ctx context.Context, userID string) (*dto.MyProgramResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}

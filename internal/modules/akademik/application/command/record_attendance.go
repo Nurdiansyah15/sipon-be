@@ -9,6 +9,7 @@ import (
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
 	"sipon-be/internal/modules/akademik/domain/attendance/constant"
 	"sipon-be/internal/modules/akademik/domain/attendance/entity"
@@ -22,7 +23,7 @@ type RecordAttendanceUseCase struct {
 	attendanceRepo   attRepo.AttendanceRepository
 	sessionRepo      sesRepo.ActivitySessionRepository
 	registrationRepo regRepo.SantriRegistrationRepository
-	periodResolver   *application.SessionPeriodResolver
+	periodResolver   *resolver.SessionPeriodResolver
 	kesantrianReader ports.KesantrianReader
 }
 
@@ -30,7 +31,7 @@ func NewRecordAttendanceUseCase(
 	attendanceRepo attRepo.AttendanceRepository,
 	sessionRepo sesRepo.ActivitySessionRepository,
 	registrationRepo regRepo.SantriRegistrationRepository,
-	periodResolver *application.SessionPeriodResolver,
+	periodResolver *resolver.SessionPeriodResolver,
 	kesantrianReader ports.KesantrianReader,
 ) *RecordAttendanceUseCase {
 	return &RecordAttendanceUseCase{

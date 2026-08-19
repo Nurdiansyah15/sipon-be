@@ -7,6 +7,7 @@ import (
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/akademik/application/dto"
 	"sipon-be/internal/modules/akademik/application/ports"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	periodRepo "sipon-be/internal/modules/akademik/domain/academic_period/repository"
 	progRepo "sipon-be/internal/modules/akademik/domain/program/repository"
 	regConst "sipon-be/internal/modules/akademik/domain/santri_registration/constant"
@@ -41,7 +42,7 @@ func NewGetMySummaryUseCase(
 }
 
 func (uc *GetMySummaryUseCase) Execute(ctx context.Context, userID string) (*dto.MySummaryResponse, error) {
-	info, err := application.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
+	info, err := resolver.ResolveSantriByUserID(ctx, uc.kesantrianReader, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func (uc *GetMySummaryUseCase) Execute(ctx context.Context, userID string) (*dto
 
 	period, err := uc.periodRepo.FindOpen(ctx)
 	if err != nil {
-		if application.IsNotFoundErr(err, application.PeriodNotFoundCode) {
+		if application.IsNotFoundErr(err, resolver.PeriodNotFoundCode) {
 			return resp, nil
 		}
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)

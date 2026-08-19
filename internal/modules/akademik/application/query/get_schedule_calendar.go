@@ -6,6 +6,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
+	"sipon-be/internal/modules/akademik/application/helper"
 	actEntity "sipon-be/internal/modules/akademik/domain/activity/entity"
 	actRepo "sipon-be/internal/modules/akademik/domain/activity/repository"
 	apEntity "sipon-be/internal/modules/akademik/domain/activity_period/entity"
@@ -194,7 +195,7 @@ func (uc *GetScheduleCalendarUseCase) expand(
 	byDate map[string][]dto.ScheduleCalendarItem,
 	item dto.ScheduleCalendarItem,
 ) {
-	dates := application.ExpandScheduleDates(s, rec.weeklyDays, rec.monthlyDays, rec.yearlyDates, from, to)
+	dates := helper.ExpandScheduleDates(s, rec.weeklyDays, rec.monthlyDays, rec.yearlyDates, from, to)
 	for _, d := range dates {
 		appendItem(byDate, d, item)
 	}

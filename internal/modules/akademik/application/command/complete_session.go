@@ -8,6 +8,7 @@ import (
 
 	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/dto"
+	"sipon-be/internal/modules/akademik/application/resolver"
 	sesConst "sipon-be/internal/modules/akademik/domain/activity_session/constant"
 	sesEntity "sipon-be/internal/modules/akademik/domain/activity_session/entity"
 	sesRepo "sipon-be/internal/modules/akademik/domain/activity_session/repository"
@@ -26,14 +27,14 @@ type CompleteSessionUseCase struct {
 	sessionRepo       sesRepo.ActivitySessionRepository
 	attendanceRepo    attRepo.AttendanceRepository
 	santriProgramRepo spRepo.SantriProgramRepository
-	programResolver   *application.SessionProgramResolver
+	programResolver   *resolver.SessionProgramResolver
 }
 
 func NewCompleteSessionUseCase(
 	sessionRepo sesRepo.ActivitySessionRepository,
 	attendanceRepo attRepo.AttendanceRepository,
 	santriProgramRepo spRepo.SantriProgramRepository,
-	programResolver *application.SessionProgramResolver,
+	programResolver *resolver.SessionProgramResolver,
 ) *CompleteSessionUseCase {
 	return &CompleteSessionUseCase{
 		sessionRepo:       sessionRepo,
