@@ -16,7 +16,8 @@ import (
 	"sipon-be/internal/modules/messaging/domain/message/valueobject"
 	messagejobEntity "sipon-be/internal/modules/messaging/domain/message_job/entity"
 	messagingpolicy "sipon-be/internal/modules/messaging/domain/message_job/policy"
-	"sipon-be/internal/modules/messaging/interfaces/rabbitmq"
+	"sipon-be/internal/modules/messaging/infrastructure/rabbitmq"
+	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 )
 
 // e2eOutboxRepo meniru event_outbox in-memory dengan claim-once, seolah-olah
@@ -85,7 +86,7 @@ func TestPilot_EndToEnd_Integration(t *testing.T) {
 	}
 	defer pub.Close()
 
-	consumer, err := rabbitmq.NewConsumer(dsn, 1)
+	consumer, err := rabbitmqconsumer.NewConsumer(dsn, 1)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}

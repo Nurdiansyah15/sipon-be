@@ -30,7 +30,8 @@ import (
 	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 	outboxRepo "sipon-be/internal/modules/messaging/domain/event_outbox/repository"
 	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
-	"sipon-be/internal/modules/messaging/interfaces/rabbitmq"
+	"sipon-be/internal/modules/messaging/infrastructure/rabbitmq"
+	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 	psbModule "sipon-be/internal/modules/psb"
 	schedulerModule "sipon-be/internal/modules/scheduler"
 	"sipon-be/internal/modules/scheduler/application"
@@ -188,7 +189,7 @@ func main() {
 		}()
 
 		// Message Consumer: RabbitMQ -> message_jobs -> module handler.
-		consumer, err := rabbitmq.NewConsumer(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Prefetch)
+		consumer, err := rabbitmqconsumer.NewConsumer(cfg.RabbitMQ.DSN, cfg.RabbitMQ.Prefetch)
 		if err != nil {
 			lg.Error("gagal init RabbitMQ consumer", slog.Any("error", err))
 			os.Exit(1)

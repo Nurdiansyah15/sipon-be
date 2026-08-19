@@ -1,4 +1,4 @@
-package rabbitmq
+package rabbitmq_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 
 	"sipon-be/internal/modules/messaging/application/ports"
 	"sipon-be/internal/modules/messaging/domain/message/valueobject"
+	"sipon-be/internal/modules/messaging/infrastructure/rabbitmq"
+	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 )
 
 // TestPublisherConsumer_Integration memverifikasi publisher confirm + consumer
@@ -25,7 +27,7 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	routing := "integ.test"
 
 	// 1. Topology
-	topo, err := NewTopology(Options{
+	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
 		DSN: dsn, Exchange: exchange, DLXExchange: dlx,
 		RetryDelays: []time.Duration{time.Minute},
 	})
@@ -38,7 +40,7 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	_ = topo.Close()
 
 	// 2. Publisher (confirm)
-	pub, err := NewPublisher(dsn, exchange, 5*time.Second)
+	pub, err := rabbitmq.NewPublisher(dsn, exchange, 5*time.Second)
 	if err != nil {
 		t.Fatalf("NewPublisher: %v", err)
 	}
@@ -53,7 +55,7 @@ func TestPublisherConsumer_Integration(t *testing.T) {
 	}
 
 	// 3. Consumer (manual ack)
-	cons, err := NewConsumer(dsn, 1)
+	cons, err := rabbitmqconsumer.NewConsumer(dsn, 1)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}

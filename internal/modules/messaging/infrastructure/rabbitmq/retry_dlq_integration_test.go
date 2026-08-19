@@ -1,4 +1,4 @@
-package rabbitmq
+package rabbitmq_test
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 
 	"sipon-be/internal/modules/messaging/application/ports"
 	"sipon-be/internal/modules/messaging/domain/message/valueobject"
+	"sipon-be/internal/modules/messaging/infrastructure/rabbitmq"
+	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
 )
 
 // TestRetryTTLRedelivery_Integration membuktikan message yang masuk retry queue
@@ -28,7 +30,7 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 	routing := "retry.test"
 	delay := time.Second
 
-	topo, err := NewTopology(Options{
+	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
 		DSN: dsn, Exchange: exchange, DLXExchange: dlx,
 		RetryDelays: []time.Duration{delay},
 	})
@@ -40,7 +42,7 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 	}
 	_ = topo.Close()
 
-	pub, err := NewPublisher(dsn, exchange, 5*time.Second)
+	pub, err := rabbitmq.NewPublisher(dsn, exchange, 5*time.Second)
 	if err != nil {
 		t.Fatalf("NewPublisher: %v", err)
 	}
@@ -52,7 +54,7 @@ func TestRetryTTLRedelivery_Integration(t *testing.T) {
 		t.Fatalf("PublishToQueue: %v", err)
 	}
 
-	cons, err := NewConsumer(dsn, 1)
+	cons, err := rabbitmqconsumer.NewConsumer(dsn, 1)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
@@ -102,7 +104,7 @@ func TestDLQ_Integration(t *testing.T) {
 	queue := fmt.Sprintf("sipon.worker.dlqtest.%d", ns)
 	routing := "dlq.test"
 
-	topo, err := NewTopology(Options{
+	topo, err := rabbitmq.NewTopology(rabbitmq.Options{
 		DSN: dsn, Exchange: exchange, DLXExchange: dlx,
 		RetryDelays: []time.Duration{time.Minute},
 	})
@@ -114,7 +116,7 @@ func TestDLQ_Integration(t *testing.T) {
 	}
 	_ = topo.Close()
 
-	pub, err := NewPublisher(dsn, exchange, 5*time.Second)
+	pub, err := rabbitmq.NewPublisher(dsn, exchange, 5*time.Second)
 	if err != nil {
 		t.Fatalf("NewPublisher: %v", err)
 	}
@@ -126,7 +128,7 @@ func TestDLQ_Integration(t *testing.T) {
 	}
 
 	// 1. Konsumen utama men-nack tanpa requeue (simulasi fatal/max retry).
-	cons, err := NewConsumer(dsn, 1)
+	cons, err := rabbitmqconsumer.NewConsumer(dsn, 1)
 	if err != nil {
 		t.Fatalf("NewConsumer: %v", err)
 	}
@@ -150,7 +152,7 @@ func TestDLQ_Integration(t *testing.T) {
 	}
 
 	// 2. Konsumen DLQ harus menerima message yang sama.
-	consDLQ, err := NewConsumer(dsn, 1)
+	consDLQ, err := rabbitmqconsumer.NewConsumer(dsn, 1)
 	if err != nil {
 		t.Fatalf("NewConsumer dlq: %v", err)
 	}
