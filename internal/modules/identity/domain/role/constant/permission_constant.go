@@ -34,6 +34,7 @@ const (
 	PermissionManageFeedback        PermissionKey = "manage_feedback"
 	PermissionManagePersuratan      PermissionKey = "manage_persuratan"
 	PermissionManageAkademik        PermissionKey = "manage_akademik"
+	PermissionManageNotification    PermissionKey = "manage_notification"
 )
 
 type PermissionDefinition struct {
@@ -68,6 +69,7 @@ var AllPermissionDefinitions = []PermissionDefinition{
 	{Key: PermissionManageFeedback, DisplayName: "Manage Feedback", Description: "Allows moderating feedback: takedown/restore feedback and comments that are inappropriate"},
 	{Key: PermissionManagePersuratan, DisplayName: "Manage Persuratan", Description: "Allows managing correspondence: letter types, outgoing letters, and linked documents"},
 	{Key: PermissionManageAkademik, DisplayName: "Manage Akademik", Description: "Allows managing academic domain: programs, periods, registrations, activities, schedules, sessions, and attendance"},
+	{Key: PermissionManageNotification, DisplayName: "Manage Notification", Description: "Allows sending broadcast notifications to users"},
 }
 
 func AllPermissionKeys() []PermissionKey {
@@ -114,6 +116,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageFeedback,
 		PermissionManagePersuratan,
 		PermissionManageAkademik,
+		PermissionManageNotification,
 	},
 	SuperAdminRoleName: {
 		PermissionAssignRole,
@@ -140,6 +143,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionManageFeedback,
 		PermissionManagePersuratan,
 		PermissionManageAkademik,
+		PermissionManageNotification,
 	},
 	AdminRoleName: {
 		PermissionManageUsers,
@@ -162,6 +166,7 @@ var RolePermissions = map[RoleName][]PermissionKey{
 		PermissionClosePeriod,
 		PermissionManageFeedback,
 		PermissionManagePersuratan,
+		PermissionManageNotification,
 	},
 	MemberRoleName: {},
 }
@@ -304,5 +309,10 @@ var DefaultPermissionsInit = map[PermissionKey]PermissionDefinition{
 		Key:         PermissionManageAkademik,
 		DisplayName: "Manage Akademik",
 		Description: "Allows managing academic domain: programs, periods, registrations, activities, schedules, sessions, and attendance",
+	},
+	PermissionManageNotification: {
+		Key:         PermissionManageNotification,
+		DisplayName: "Manage Notification",
+		Description: "Allows sending broadcast notifications to users",
 	},
 }

@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"sipon-be/internal/modules/identity/application"
 	"sipon-be/internal/modules/identity/application/dto"
@@ -15,10 +17,13 @@ import (
 	"github.com/google/uuid"
 )
 
+const routingLoginSucceeded = "identity.user.login_succeeded"
+
 type LoginUseCase struct {
-	userRepo userrepo.UserRepository
-	hasher   ports.PasswordHasher
-	tokenGen ports.TokenGenerator
+	userRepo    userrepo.UserRepository
+	hasher      ports.PasswordHasher
+	tokenGen    ports.TokenGenerator
+	outboxWriter ports.OutboxWriter
 }
 
 func NewLoginUseCase(
@@ -31,6 +36,11 @@ func NewLoginUseCase(
 		hasher:   hasher,
 		tokenGen: tokenGen,
 	}
+}
+
+// SetOutboxWriter memasang outbox writer untuk publikasi event login.
+func (uc *LoginUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
 }
 
 func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto.LoginResponse, error) {
@@ -101,6 +111,14 @@ func (uc *LoginUseCase) Execute(ctx context.Context, req dto.LoginRequest) (*dto
 	user.ResetFailedAttempts()
 	if err := uc.userRepo.Update(ctx, user); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "gagal memperbarui data pengguna", err)
+	}
+
+	// Publish login event ke outbox (best-effort).
+	if uc.outboxWriter != nil {
+		payload, _ := json.Marshal(map[string]string{"user_id": user.ID})
+		if err := uc.outboxWriter.Save(ctx, routingLoginSucceeded, payload); err != nil {
+			slog.Warn("login: gagal publish login_succeeded event", "user_id", user.ID, "error", err)
+		}
 	}
 
 	sessionID := uuid.NewString()

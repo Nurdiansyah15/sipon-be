@@ -32,6 +32,7 @@ import (
 	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
 	"sipon-be/internal/modules/messaging/infrastructure/rabbitmq"
 	rabbitmqconsumer "sipon-be/internal/modules/messaging/interfaces/rabbitmq"
+	notificationModule "sipon-be/internal/modules/notification"
 	psbModule "sipon-be/internal/modules/psb"
 	schedulerModule "sipon-be/internal/modules/scheduler"
 	schedulerPorts "sipon-be/internal/modules/scheduler/application/ports"
@@ -109,6 +110,9 @@ func main() {
 		identity.AuthMiddleware(), identity.PrincipalMiddleware())
 	kesantrian.SetAkademikProvisioner(akademik)
 
+	notification := notificationModule.NewModule(db, cfg,
+		identity.AuthMiddleware(), identity.PrincipalMiddleware())
+
 	// Registrasi handler asynchronous via messaging.Contract, sama seperti modul
 	// lain diintegrasikan lewat Contract-nya masing-masing (mis. scheduler.Contract).
 	// Setiap module memanggil RegisterMessageHandlers; cmd/worker hanya composition
@@ -134,6 +138,7 @@ func main() {
 	register("feedback", feedback.RegisterMessageHandlers)
 	register("fingerprint", fingerprint.RegisterMessageHandlers)
 	register("akademik", akademik.RegisterMessageHandlers)
+	register("notification", notification.RegisterMessageHandlers)
 
 	dispatcher := scheduler.Dispatcher()
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"log/slog"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	identityModule "sipon-be/internal/modules/identity"
 	kesantrianModule "sipon-be/internal/modules/kesantrian"
 	keuanganModule "sipon-be/internal/modules/keuangan"
+	notificationModule "sipon-be/internal/modules/notification"
 	psbModule "sipon-be/internal/modules/psb"
 	schedulerModule "sipon-be/internal/modules/scheduler"
 	"sipon-be/internal/shared/config"
@@ -29,6 +31,8 @@ import (
 	"sipon-be/internal/shared/logger"
 	"sipon-be/internal/shared/middleware"
 	"sipon-be/internal/shared/timeutil"
+	outboxPersistence "sipon-be/internal/modules/messaging/infrastructure/persistence"
+	outboxEntity "sipon-be/internal/modules/messaging/domain/event_outbox/entity"
 )
 
 func main() {
@@ -61,6 +65,16 @@ func main() {
 	defer redisClient.Close()
 
 	identity := identityModule.NewModule(db, redisClient, cfg)
+
+	// Wire outbox writer ke identity untuk publikasi login_succeeded event.
+	outboxRepo := outboxPersistence.NewPostgresOutboxRepository(db)
+	identity.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
+
+	notification := notificationModule.NewModule(
+		db, cfg,
+		identity.AuthMiddleware(),
+		identity.PrincipalMiddleware(),
+	)
 
 	dokumenAset := dokumenAsetModule.NewModule(
 		db, cfg,
@@ -180,6 +194,7 @@ func main() {
 	feedback.RegisterRoutes(engine)
 	fingerprint.RegisterRoutes(engine)
 	akademik.RegisterRoutes(engine)
+	notification.RegisterRoutes(engine)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.App.Port,
@@ -211,4 +226,16 @@ func main() {
 		os.Exit(1)
 	}
 	lg.Info("server stopped")
+}
+
+// outboxWriterAdapter menghubungkan identity ke outbox messaging.
+type outboxWriterAdapter struct {
+	repo interface {
+		Save(ctx context.Context, entry *outboxEntity.OutboxEntry) error
+	}
+}
+
+func (a *outboxWriterAdapter) Save(ctx context.Context, routingKey string, payload json.RawMessage) error {
+	entry := outboxEntity.NewOutboxEntry(routingKey, payload, "")
+	return a.repo.Save(ctx, entry)
 }

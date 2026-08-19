@@ -3,10 +3,13 @@ package mq
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
+	"sipon-be/internal/modules/akademik/application"
 	"sipon-be/internal/modules/akademik/application/command"
 	"sipon-be/internal/modules/messaging"
+	"sipon-be/internal/shared/kernel"
 )
 
 // Dependencies adalah usecase yang dipanggil handler MQ akademik. Hanya berisi
@@ -31,6 +34,9 @@ func (h handlers) handleFingerprintSync(ctx context.Context, msg messaging.Messa
 	}
 
 	if _, err := h.deps.FingerprintSync.Execute(ctx, p.SessionID); err != nil {
+		if isUnprocessable(err) {
+			return messaging.NewFatalError(err)
+		}
 		return messaging.NewRetryableError(err)
 	}
 	return nil
@@ -46,7 +52,15 @@ func (h handlers) handleSessionAutoClose(ctx context.Context, msg messaging.Mess
 	}
 
 	if err := h.deps.SessionAutoClose.Execute(ctx, p.SessionID); err != nil {
+		if isUnprocessable(err) {
+			return messaging.NewFatalError(err)
+		}
 		return messaging.NewRetryableError(err)
 	}
 	return nil
+}
+
+func isUnprocessable(err error) bool {
+	var ke *kernel.AppError
+	return errors.As(err, &ke) && ke.Code == application.ErrCodeUnprocessableEntity
 }

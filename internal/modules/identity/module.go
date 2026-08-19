@@ -46,6 +46,9 @@ type Module struct {
 	addNISLoginIdentityUC  *command.AddNISLoginIdentityUseCase
 	updateFullnameUC       *command.UpdateFullnameUseCase
 
+	// loginUC backs event-driven notification on login success.
+	loginUC *command.LoginUseCase
+
 	// getUserScopeSetUC backs Contract.GetUserScopeSet — see contract.go.
 	getUserScopeSetUC *query.GetUserScopeSetUseCase
 
@@ -307,6 +310,7 @@ func NewModule(db *sql.DB, redisClient *redis.Client, cfg *config.Config) *Modul
 		createAccountWithNISUC:  createAccountWithNISUC,
 		addNISLoginIdentityUC:   addNISLoginIdentityUC,
 		updateFullnameUC:        updateFullnameUC,
+		loginUC:                 loginUC,
 		getUserScopeSetUC:       getUserScopeSetUC,
 		getUserScopeAccessUC:    getUserScopeAccessUC,
 		canAccessResourceUC:     canAccessResourceUC,
@@ -442,6 +446,12 @@ func (m *Module) GetUserScopeAccessIDs(ctx context.Context, userID, scopeType st
 
 func (m *Module) EnsurePendingUploadLifecycle(ctx context.Context, expireDays int) error {
 	return m.fileUploader.EnsurePendingUploadLifecycle(ctx, expireDays)
+}
+
+// SetOutboxWriter memasang outbox writer ke login usecase untuk publikasi
+// event login_succeeded. Dipanggil dari cmd/api/main.go setelah Module dibuat.
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.loginUC.SetOutboxWriter(w)
 }
 
 func (m *Module) RegisterMessageHandlers(_ messaging.Contract) ([]messaging.Binding, error) {
