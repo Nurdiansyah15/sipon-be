@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
 
@@ -12,6 +13,7 @@ notifApp "sipon-be/internal/modules/notification/application"
 notifMQ "sipon-be/internal/modules/notification/interfaces/mq"
 
 	"sipon-be/internal/modules/notification/infrastructure/persistence"
+	"sipon-be/internal/modules/notification/infrastructure/external"
 	notifHTTP "sipon-be/internal/modules/notification/interfaces/http"
 	"sipon-be/internal/shared/config"
 	messaging "sipon-be/internal/modules/messaging"
@@ -33,8 +35,15 @@ func NewModule(
 	notifRepo := persistence.NewPostgresNotificationRepository(db)
 	deliveryRepo := persistence.NewPostgresDeliveryAttemptRepository(db)
 	prefRepo := persistence.NewPostgresPreferenceRepository(db)
+	deviceRepo := persistence.NewPostgresDeviceRegistrationRepository(db)
 
-	dispatcher := notifApp.NewDispatcher(notifRepo, deliveryRepo, prefRepo, slog.Default())
+	pushSender, err := external.NewFCMPushSender(context.Background(), &cfg.FCM)
+	if err != nil {
+		slog.Warn("gagal init FCM push sender, push dinonaktifkan", slog.Any("error", err))
+		pushSender = &external.NoopPushSender{}
+	}
+
+	dispatcher := notifApp.NewDispatcher(notifRepo, deliveryRepo, prefRepo, deviceRepo, pushSender, slog.Default())
 
 	listInbox := query.NewListInboxUseCase(deliveryRepo)
 	unreadCount := query.NewUnreadCountUseCase(deliveryRepo)
@@ -44,9 +53,14 @@ func NewModule(
 	markAllRead := command.NewMarkAllNotificationsReadUseCase(deliveryRepo)
 	sendBroadcast := command.NewSendNotificationUseCase(dispatcher)
 
+	registerDevice := command.NewRegisterDeviceUseCase(deviceRepo)
+	unregisterDevice := command.NewUnregisterDeviceUseCase(deviceRepo)
+	listDevices := command.NewListDevicesUseCase(deviceRepo)
+
 	handler := notifHTTP.NewNotificationHandler(
 		listInbox, unreadCount, getPreference, updatePref,
 		markRead, markAllRead, sendBroadcast,
+		registerDevice, unregisterDevice, listDevices,
 	)
 
 	mqDeps := notifMQ.Dependencies{Dispatcher: dispatcher}

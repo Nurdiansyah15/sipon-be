@@ -23,6 +23,12 @@ type Config struct {
 	Worker      WorkerConfig
 	Google      GoogleConfig
 	RabbitMQ    RabbitMQConfig
+	FCM         FCMConfig
+}
+
+type FCMConfig struct {
+	CredentialsPath string
+	ProjectID       string
 }
 
 type GoogleConfig struct {
@@ -211,6 +217,10 @@ func Load() (*Config, error) {
 			Prefetch:       parseInt("RABBITMQ_PREFETCH", 10),
 			PublishTimeout: time.Duration(parseInt("RABBITMQ_PUBLISH_TIMEOUT_SECONDS", 10)) * time.Second,
 			RetryDelays:    parseRetryDelays("RABBITMQ_RETRY_DELAYS", "60,300,1800"),
+		},
+		FCM: FCMConfig{
+			CredentialsPath: getEnv("FCM_CREDENTIALS_PATH", ""),
+			ProjectID:       getEnv("FCM_PROJECT_ID", ""),
 		},
 	}
 	return cfg, nil

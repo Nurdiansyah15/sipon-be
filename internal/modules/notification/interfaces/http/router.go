@@ -16,6 +16,9 @@ func RegisterRoutes(router *gin.RouterGroup, h *NotificationHandler, jwtAuth, pr
 		grp.POST("/read-all", h.MarkAllRead)
 		grp.GET("/preferences", h.GetPreference)
 		grp.PUT("/preferences", h.UpdatePreference)
+		grp.POST("/devices", h.RegisterDevice)
+		grp.DELETE("/devices", h.UnregisterDevice)
+		grp.GET("/devices", h.ListDevices)
 	}
 
 	admin := router.Group("/api/v1/web/notification/admin")
