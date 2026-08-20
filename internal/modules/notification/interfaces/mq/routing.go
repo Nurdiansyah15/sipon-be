@@ -18,6 +18,12 @@ const (
 
 	RoutingArticlePublished = "article.published"
 	RoutingArticlesScraped  = "article.scraped"
+
+	RoutingKeuanganInvoiceIssued       = "keuangan.invoice.issued"
+	RoutingKeuanganInvoiceCancelled    = "keuangan.invoice.cancelled"
+	RoutingKeuanganPaymentSubmitted    = "keuangan.payment.submitted"
+	RoutingKeuanganPaymentVerified     = "keuangan.payment.verified"
+	RoutingKeuanganPaymentRejected     = "keuangan.payment.rejected"
 )
 
 var Bindings = []messaging.Binding{
@@ -33,4 +39,9 @@ var Bindings = []messaging.Binding{
 	{Queue: QueueNotification, RoutingKey: RoutingPsbNISGenerated},
 	{Queue: QueueNotification, RoutingKey: RoutingArticlePublished},
 	{Queue: QueueNotification, RoutingKey: RoutingArticlesScraped},
+	{Queue: QueueNotification, RoutingKey: RoutingKeuanganInvoiceIssued},
+	{Queue: QueueNotification, RoutingKey: RoutingKeuanganInvoiceCancelled},
+	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentSubmitted},
+	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentVerified},
+	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentRejected},
 }

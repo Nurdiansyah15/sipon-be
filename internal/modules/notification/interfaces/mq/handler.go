@@ -400,3 +400,137 @@ func (h handlers) handleArticlesScraped(ctx context.Context, msg messaging.Messa
 
 	return h.broadcast(ctx, tmpl)
 }
+
+// ─── Keuangan handlers ────────────────────────────────────────────────────
+
+const keuanganTagihanClickAction = "/keuangan/tagihan"
+
+func (h handlers) handleKeuanganInvoiceIssued(ctx context.Context, msg messaging.Message) error {
+	var p KeuanganInvoiceEventPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingKeuanganInvoiceIssued, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: "Tagihan Baru",
+		Body:  fmt.Sprintf("Tagihan baru dengan nomor %s telah diterbitkan untuk Anda.", p.InvoiceNumber),
+		Payload: notifvo.NotificationPayload{
+			Module:      "keuangan",
+			EventType:   "invoice_issued",
+			EntityID:    p.InvoiceID,
+			ClickAction: fmt.Sprintf("%s/%s", keuanganTagihanClickAction, p.InvoiceID),
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+func (h handlers) handleKeuanganInvoiceCancelled(ctx context.Context, msg messaging.Message) error {
+	var p KeuanganInvoiceEventPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingKeuanganInvoiceCancelled, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: "Tagihan Dibatalkan",
+		Body:  fmt.Sprintf("Tagihan dengan nomor %s telah dibatalkan.", p.InvoiceNumber),
+		Payload: notifvo.NotificationPayload{
+			Module:      "keuangan",
+			EventType:   "invoice_cancelled",
+			EntityID:    p.InvoiceID,
+			ClickAction: fmt.Sprintf("%s/%s", keuanganTagihanClickAction, p.InvoiceID),
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+func (h handlers) handleKeuanganPaymentSubmitted(ctx context.Context, msg messaging.Message) error {
+	var p KeuanganPaymentEventPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingKeuanganPaymentSubmitted, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: "Pembayaran Diajukan",
+		Body:  "Pembayaran Anda telah diajukan dan sedang menunggu verifikasi oleh admin.",
+		Payload: notifvo.NotificationPayload{
+			Module:      "keuangan",
+			EventType:   "payment_submitted",
+			EntityID:    p.InvoiceID,
+			ClickAction: fmt.Sprintf("%s/%s", keuanganTagihanClickAction, p.InvoiceID),
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+func (h handlers) handleKeuanganPaymentVerified(ctx context.Context, msg messaging.Message) error {
+	var p KeuanganPaymentEventPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingKeuanganPaymentVerified, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: "Pembayaran Terverifikasi",
+		Body:  "Pembayaran Anda telah diverifikasi oleh admin. Terima kasih!",
+		Payload: notifvo.NotificationPayload{
+			Module:      "keuangan",
+			EventType:   "payment_verified",
+			EntityID:    p.InvoiceID,
+			ClickAction: fmt.Sprintf("%s/%s", keuanganTagihanClickAction, p.InvoiceID),
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+func (h handlers) handleKeuanganPaymentRejected(ctx context.Context, msg messaging.Message) error {
+	var p KeuanganPaymentEventPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingKeuanganPaymentRejected, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: "Pembayaran Ditolak",
+		Body:  "Pembayaran Anda ditolak oleh admin. Silakan hubungi bagian keuangan untuk informasi lebih lanjut.",
+		Payload: notifvo.NotificationPayload{
+			Module:      "keuangan",
+			EventType:   "payment_rejected",
+			EntityID:    p.InvoiceID,
+			ClickAction: fmt.Sprintf("%s/%s", keuanganTagihanClickAction, p.InvoiceID),
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}

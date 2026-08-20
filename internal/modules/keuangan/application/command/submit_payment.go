@@ -2,13 +2,16 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	invConst "sipon-be/internal/modules/keuangan/domain/invoice/constant"
 	invRepo "sipon-be/internal/modules/keuangan/domain/invoice/repository"
 	payConst "sipon-be/internal/modules/keuangan/domain/payment/constant"
@@ -18,12 +21,30 @@ import (
 )
 
 type SubmitPaymentUseCase struct {
-	paymentRepo payRepo.PaymentRepository
-	invoiceRepo invRepo.InvoiceRepository
+	paymentRepo  payRepo.PaymentRepository
+	invoiceRepo  invRepo.InvoiceRepository
+	outboxWriter ports.OutboxWriter
 }
 
 func NewSubmitPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository) *SubmitPaymentUseCase {
 	return &SubmitPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo}
+}
+
+func (uc *SubmitPaymentUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *SubmitPaymentUseCase) publishPaymentSubmitted(ctx context.Context, userID, invoiceID string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"user_id":    userID,
+		"invoice_id": invoiceID,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingPaymentSubmitted, payload); err != nil {
+		slog.Warn("keuangan: gagal publish event", "routing_key", RoutingPaymentSubmitted, "invoice_id", invoiceID, "error", err)
+	}
 }
 
 func (uc *SubmitPaymentUseCase) Execute(ctx context.Context, userID string, req dto.SubmitPaymentRequest) (*dto.PaymentResponse, error) {
@@ -84,6 +105,8 @@ func (uc *SubmitPaymentUseCase) Execute(ctx context.Context, userID string, req 
 	if err := uc.paymentRepo.Save(ctx, payment); err != nil {
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	uc.publishPaymentSubmitted(ctx, userID, req.InvoiceID)
 
 	return toPaymentResponse(payment), nil
 }

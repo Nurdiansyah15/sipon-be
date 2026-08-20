@@ -115,3 +115,30 @@ func (p ArticlesScrapedPayload) Validate() error {
 	}
 	return nil
 }
+
+// KeuanganInvoiceEventPayload dipakai untuk event invoice (issued, cancelled).
+type KeuanganInvoiceEventPayload struct {
+	UserID        string `json:"user_id"`
+	InvoiceID     string `json:"invoice_id"`
+	InvoiceNumber string `json:"invoice_number"`
+}
+
+func (p KeuanganInvoiceEventPayload) Validate() error {
+	if p.UserID == "" || p.InvoiceID == "" {
+		return errors.New("user_id dan invoice_id wajib diisi")
+	}
+	return nil
+}
+
+// KeuanganPaymentEventPayload dipakai untuk event payment (submitted, verified, rejected).
+type KeuanganPaymentEventPayload struct {
+	UserID    string `json:"user_id"`
+	InvoiceID string `json:"invoice_id"`
+}
+
+func (p KeuanganPaymentEventPayload) Validate() error {
+	if p.UserID == "" || p.InvoiceID == "" {
+		return errors.New("user_id dan invoice_id wajib diisi")
+	}
+	return nil
+}

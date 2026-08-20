@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
@@ -23,10 +25,29 @@ type CancelInvoiceUseCase struct {
 	feeRepo     feeRepo.FeeComponentRepository
 	transactor  ports.Transactor
 	autoPosting *journalService.AutoPostingService
+	outboxWriter ports.OutboxWriter
 }
 
 func NewCancelInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *CancelInvoiceUseCase {
 	return &CancelInvoiceUseCase{invoiceRepo: invoiceRepo, feeRepo: feeRepo, transactor: transactor, autoPosting: autoPosting}
+}
+
+func (uc *CancelInvoiceUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *CancelInvoiceUseCase) publishInvoiceCancelled(ctx context.Context, userID, invoiceID, invoiceNumber string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"user_id":        userID,
+		"invoice_id":     invoiceID,
+		"invoice_number": invoiceNumber,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingInvoiceCancelled, payload); err != nil {
+		slog.Warn("keuangan: gagal publish event", "routing_key", RoutingInvoiceCancelled, "invoice_id", invoiceID, "error", err)
+	}
 }
 
 func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string, cancelledBy string) (*dto.InvoiceResponse, error) {
@@ -83,6 +104,8 @@ func (uc *CancelInvoiceUseCase) Execute(ctx context.Context, id string, cancelle
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	uc.publishInvoiceCancelled(ctx, resp.UserID, resp.ID, resp.InvoiceNumber)
 
 	return resp, nil
 }

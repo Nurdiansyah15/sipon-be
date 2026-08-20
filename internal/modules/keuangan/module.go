@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"sipon-be/internal/modules/keuangan/application/command"
+	"sipon-be/internal/modules/keuangan/application/ports"
 	"sipon-be/internal/modules/keuangan/application/query"
 	journalService "sipon-be/internal/modules/keuangan/domain/journal/service"
 	"sipon-be/internal/modules/keuangan/infrastructure/kesantriangateway"
@@ -19,11 +20,17 @@ import (
 )
 
 type Module struct {
-	handler        *keuanganHTTP.KeuanganHandler
-	transactor     *persistence.PostgresTransactor
-	invoiceRepo    *persistence.PostgresInvoiceRepository
-	jwtAuth        gin.HandlerFunc
-	principalLoad  gin.HandlerFunc
+	handler           *keuanganHTTP.KeuanganHandler
+	transactor        *persistence.PostgresTransactor
+	invoiceRepo       *persistence.PostgresInvoiceRepository
+	jwtAuth           gin.HandlerFunc
+	principalLoad     gin.HandlerFunc
+	createInvoice     *command.CreateInvoiceUseCase
+	createInvoiceBatch *command.CreateInvoiceBatchUseCase
+	cancelInvoice     *command.CancelInvoiceUseCase
+	verifyPayment     *command.VerifyPaymentUseCase
+	rejectPayment     *command.RejectPaymentUseCase
+	submitPayment     *command.SubmitPaymentUseCase
 }
 
 func NewModule(
@@ -76,7 +83,7 @@ func NewModule(
 	applyAdjustmentUC := command.NewApplyAdjustmentUseCase(adjustmentRepo, invoiceRepo, feeComponentRepo, transactor, autoPostingService)
 	createManualPaymentUC := command.NewCreateManualPaymentUseCase(paymentRepo, invoiceRepo, accountRepo)
 	verifyPaymentUC := command.NewVerifyPaymentUseCase(paymentRepo, invoiceRepo, feeComponentRepo, accountRepo, transactor, autoPostingService)
-	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo)
+	rejectPaymentUC := command.NewRejectPaymentUseCase(paymentRepo, invoiceRepo)
 	updateSettingUC := command.NewUpdateKeuanganSettingUseCase(keuanganSettingRepo, accountRepo)
 	submitPaymentUC := command.NewSubmitPaymentUseCase(paymentRepo, invoiceRepo)
 	presignPaymentProofUC := command.NewCreatePaymentProofPresignUseCase(fileUploader)
@@ -191,17 +198,34 @@ func NewModule(
 	)
 
 	return &Module{
-		handler:       handler,
-		transactor:    transactor,
-		invoiceRepo:   invoiceRepo,
-		jwtAuth:       jwtAuth,
-		principalLoad: principalLoad,
+		handler:            handler,
+		transactor:         transactor,
+		invoiceRepo:        invoiceRepo,
+		jwtAuth:            jwtAuth,
+		principalLoad:      principalLoad,
+		createInvoice:      createInvoiceUC,
+		createInvoiceBatch: createInvoiceBatchUC,
+		cancelInvoice:      cancelInvoiceUC,
+		verifyPayment:      verifyPaymentUC,
+		rejectPayment:      rejectPaymentUC,
+		submitPayment:      submitPaymentUC,
 	}
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {
 	grp := router.Group("/")
 	keuanganHTTP.RegisterRoutes(grp, m.handler, m.jwtAuth, m.principalLoad)
+}
+
+// SetOutboxWriter memasang outbox writer ke seluruh use case yang mempublish
+// event notifikasi (invoice issued/cancelled, payment submitted/verified/rejected).
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.createInvoice.SetOutboxWriter(w)
+	m.createInvoiceBatch.SetOutboxWriter(w)
+	m.cancelInvoice.SetOutboxWriter(w)
+	m.verifyPayment.SetOutboxWriter(w)
+	m.rejectPayment.SetOutboxWriter(w)
+	m.submitPayment.SetOutboxWriter(w)
 }
 
 func (m *Module) GetOutstandingInvoices(ctx context.Context, santriID string) (*OutstandingSummary, error) {

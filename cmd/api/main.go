@@ -120,6 +120,9 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	// Wire outbox writer ke keuangan untuk publikasi event invoice/payment.
+	keuangan.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
+
 	feedback := feedbackModule.NewModule(
 		db, cfg,
 		identity, // identity.Contract

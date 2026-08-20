@@ -2,7 +2,9 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"sipon-be/internal/modules/keuangan/application"
 	"sipon-be/internal/modules/keuangan/application/dto"
@@ -22,16 +24,34 @@ import (
 )
 
 type VerifyPaymentUseCase struct {
-	paymentRepo payRepo.PaymentRepository
-	invoiceRepo invRepo.InvoiceRepository
-	feeRepo     feeRepo.FeeComponentRepository
-	accountRepo accRepo.AccountRepository
-	transactor  ports.Transactor
-	autoPosting *journalService.AutoPostingService
+	paymentRepo  payRepo.PaymentRepository
+	invoiceRepo  invRepo.InvoiceRepository
+	feeRepo      feeRepo.FeeComponentRepository
+	accountRepo  accRepo.AccountRepository
+	transactor   ports.Transactor
+	autoPosting  *journalService.AutoPostingService
+	outboxWriter ports.OutboxWriter
 }
 
 func NewVerifyPaymentUseCase(paymentRepo payRepo.PaymentRepository, invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, accountRepo accRepo.AccountRepository, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *VerifyPaymentUseCase {
 	return &VerifyPaymentUseCase{paymentRepo: paymentRepo, invoiceRepo: invoiceRepo, feeRepo: feeRepo, accountRepo: accountRepo, transactor: transactor, autoPosting: autoPosting}
+}
+
+func (uc *VerifyPaymentUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *VerifyPaymentUseCase) publishPaymentVerified(ctx context.Context, userID, invoiceID string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"user_id":    userID,
+		"invoice_id": invoiceID,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingPaymentVerified, payload); err != nil {
+		slog.Warn("keuangan: gagal publish event", "routing_key", RoutingPaymentVerified, "invoice_id", invoiceID, "error", err)
+	}
 }
 
 func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, verifiedBy string, debitAccountID string) (*dto.PaymentResponse, error) {
@@ -170,6 +190,8 @@ func (uc *VerifyPaymentUseCase) Execute(ctx context.Context, paymentID string, v
 		}
 		return nil, kernel.WrapMsg(application.ErrCodeInternal, "terjadi kesalahan internal", err)
 	}
+
+	uc.publishPaymentVerified(ctx, inv.UserID, inv.ID)
 
 	return toPaymentResponse(payment), nil
 }

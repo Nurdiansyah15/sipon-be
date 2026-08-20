@@ -2,8 +2,10 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -38,6 +40,7 @@ type CreateInvoiceBatchUseCase struct {
 	kesantrianReader  ports.KesantrianReader
 	transactor        ports.Transactor
 	autoPosting       *journalService.AutoPostingService
+	outboxWriter      ports.OutboxWriter
 }
 
 func NewCreateInvoiceBatchUseCase(
@@ -63,6 +66,24 @@ func NewCreateInvoiceBatchUseCase(
 		kesantrianReader:  kesantrianReader,
 		transactor:        transactor,
 		autoPosting:       autoPosting,
+	}
+}
+
+func (uc *CreateInvoiceBatchUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *CreateInvoiceBatchUseCase) publishInvoiceIssued(ctx context.Context, userID, invoiceID, invoiceNumber string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"user_id":        userID,
+		"invoice_id":     invoiceID,
+		"invoice_number": invoiceNumber,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingInvoiceIssued, payload); err != nil {
+		slog.Warn("keuangan: gagal publish event", "routing_key", RoutingInvoiceIssued, "invoice_id", invoiceID, "error", err)
 	}
 }
 
@@ -288,6 +309,7 @@ func (uc *CreateInvoiceBatchUseCase) processTarget(
 			}
 			createdCount++
 			lastInvoiceID = inv.ID
+			uc.publishInvoiceIssued(txCtx, et.userID, inv.ID, inv.InvoiceNumber)
 		}
 
 		switch {

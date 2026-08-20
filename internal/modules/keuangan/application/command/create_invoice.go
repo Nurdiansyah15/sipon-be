@@ -2,8 +2,10 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +38,7 @@ type CreateInvoiceUseCase struct {
 	kesantrianReader  ports.KesantrianReader
 	transactor        ports.Transactor
 	autoPosting       *journalService.AutoPostingService
+	outboxWriter      ports.OutboxWriter
 }
 
 func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeRepo.FeeComponentRepository, assignmentRepo billRepo.SantriBillingAssignmentRepository, billingPeriodRepo bpRepo.BillingPeriodRepository, kesantrianReader ports.KesantrianReader, transactor ports.Transactor, autoPosting *journalService.AutoPostingService) *CreateInvoiceUseCase {
@@ -47,6 +50,24 @@ func NewCreateInvoiceUseCase(invoiceRepo invRepo.InvoiceRepository, feeRepo feeR
 		kesantrianReader:  kesantrianReader,
 		transactor:        transactor,
 		autoPosting:       autoPosting,
+	}
+}
+
+func (uc *CreateInvoiceUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+func (uc *CreateInvoiceUseCase) publishInvoiceIssued(ctx context.Context, userID, invoiceID, invoiceNumber string) {
+	if uc.outboxWriter == nil {
+		return
+	}
+	payload, _ := json.Marshal(map[string]string{
+		"user_id":        userID,
+		"invoice_id":     invoiceID,
+		"invoice_number": invoiceNumber,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingInvoiceIssued, payload); err != nil {
+		slog.Warn("keuangan: gagal publish event", "routing_key", RoutingInvoiceIssued, "invoice_id", invoiceID, "error", err)
 	}
 }
 
@@ -202,6 +223,10 @@ func (uc *CreateInvoiceUseCase) Execute(ctx context.Context, cmd CreateInvoiceCm
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if cmd.Issue {
+		uc.publishInvoiceIssued(ctx, inv.UserID, inv.ID, inv.InvoiceNumber)
 	}
 
 	return toInvoiceResponse(inv, billingPeriod), nil
