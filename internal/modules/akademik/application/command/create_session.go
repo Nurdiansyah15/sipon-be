@@ -28,7 +28,8 @@ func NewCreateSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository, sche
 }
 
 func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessionRequest) (*dto.ActivitySessionResponse, error) {
-	if _, err := uc.scheduleRepo.FindByID(ctx, req.ActivityScheduleID); err != nil {
+	schedule, err := uc.scheduleRepo.FindByID(ctx, req.ActivityScheduleID)
+	if err != nil {
 		return nil, application.WrapRepoErr(err, constant.CodeActivitySessionNotFound)
 	}
 
@@ -40,6 +41,11 @@ func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessi
 	if err != nil {
 		return nil, kernel.New(application.ErrCodeBadRequest)
 	}
+
+	// Aplikasikan early/late minutes dari jadwal: start dimajukan (early) dan
+	// end dimundurkan (late).
+	startsAt = startsAt.Add(-time.Duration(schedule.EarlyMinutes) * time.Minute)
+	endsAt = endsAt.Add(time.Duration(schedule.LateMinutes) * time.Minute)
 
 	session, err := entity.NewActivitySession(uuid.NewString(), req.ActivityScheduleID, startsAt, endsAt)
 	if err != nil {

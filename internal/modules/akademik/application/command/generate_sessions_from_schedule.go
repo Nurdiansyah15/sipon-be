@@ -118,8 +118,10 @@ func (uc *GenerateSessionsFromScheduleUseCase) Execute(ctx context.Context, sche
 	skipped := 0
 	err = uc.transactor.WithTx(ctx, func(txCtx context.Context) error {
 		for _, d := range dates {
-			startsAt := clockOn(d, startClock)
-			endsAt := clockOn(d, endClock)
+			// Aplikasikan early/late minutes: start dimajukan (early) dan end
+			// dimundurkan (late) secara global untuk semua sesi dari generate ini.
+			startsAt := schedule.EffectiveStart(clockOn(d, startClock))
+			endsAt := schedule.EffectiveEnd(clockOn(d, endClock))
 			if _, ok := existingStarts[startsAt.UTC()]; ok {
 				skipped++
 				continue

@@ -29,7 +29,7 @@ func TestNewActivitySchedule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s, err := entity.NewActivitySchedule(tt.id, tt.periodID, tt.typ, tt.startTime, tt.endTime, nil, nil)
+			s, err := entity.NewActivitySchedule(tt.id, tt.periodID, tt.typ, tt.startTime, tt.endTime, nil, nil, 0, 0)
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
@@ -47,20 +47,20 @@ func TestNewActivitySchedule(t *testing.T) {
 }
 
 func TestActivityScheduleUpdate(t *testing.T) {
-	s, _ := entity.NewActivitySchedule("sch-1", "ap-1", constant.ActivityScheduleTypeWeekly, "19:30:00", "21:00:00", nil, nil)
+	s, _ := entity.NewActivitySchedule("sch-1", "ap-1", constant.ActivityScheduleTypeWeekly, "19:30:00", "21:00:00", nil, nil, 0, 0)
 
-	if err := s.Update("20:00:00", "21:30:00", nil, nil); err != nil {
+	if err := s.Update("20:00:00", "21:30:00", nil, nil, nil, nil); err != nil {
 		t.Fatalf("update failed: %v", err)
 	}
 	if s.StartTime != "20:00:00" || s.EndTime != "21:30:00" {
 		t.Errorf("expected updated times, got %s-%s", s.StartTime, s.EndTime)
 	}
 
-	if err := s.Update("21:00:00", "20:30:00", nil, nil); err == nil {
+	if err := s.Update("21:00:00", "20:30:00", nil, nil, nil, nil); err == nil {
 		t.Error("expected error when end before start")
 	}
 
-	if err := s.Update("19:00", "21:00:00", nil, nil); err == nil {
+	if err := s.Update("19:00", "21:00:00", nil, nil, nil, nil); err == nil {
 		t.Error("expected error on malformed time")
 	}
 }

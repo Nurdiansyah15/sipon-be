@@ -15,12 +15,30 @@ type ActivitySchedule struct {
 	EndDate          *time.Time
 	StartTime        string
 	EndTime          string
+	EarlyMinutes     int
+	LateMinutes      int
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        *time.Time
 }
 
-func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivityScheduleType, startTime, endTime string, startDate, endDate *time.Time) (*ActivitySchedule, error) {
+// EffectiveStart returns StartTime offset backward by EarlyMinutes.
+func (s *ActivitySchedule) EffectiveStart(baseDate time.Time) time.Time {
+	loc := baseDate.Location()
+	t, _ := time.Parse("15:04:05", s.StartTime)
+	return time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(),
+		t.Hour(), t.Minute()-s.EarlyMinutes, t.Second(), 0, loc)
+}
+
+// EffectiveEnd returns EndTime offset forward by LateMinutes.
+func (s *ActivitySchedule) EffectiveEnd(baseDate time.Time) time.Time {
+	loc := baseDate.Location()
+	t, _ := time.Parse("15:04:05", s.EndTime)
+	return time.Date(baseDate.Year(), baseDate.Month(), baseDate.Day(),
+		t.Hour(), t.Minute()+s.LateMinutes, t.Second(), 0, loc)
+}
+
+func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivityScheduleType, startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes int) (*ActivitySchedule, error) {
 	if id == "" || activityPeriodID == "" {
 		return nil, kernel.New(constant.CodeActivityScheduleNotFound)
 	}
@@ -43,6 +61,12 @@ func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivitySched
 	if startDate != nil && endDate != nil && endDate.Before(*startDate) {
 		return nil, kernel.New(constant.CodeActivityScheduleInvalid)
 	}
+	if earlyMinutes < 0 {
+		earlyMinutes = 0
+	}
+	if lateMinutes < 0 {
+		lateMinutes = 0
+	}
 	now := time.Now()
 	return &ActivitySchedule{
 		ID:               id,
@@ -52,12 +76,14 @@ func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivitySched
 		EndDate:          endDate,
 		StartTime:        startTime,
 		EndTime:          endTime,
+		EarlyMinutes:     earlyMinutes,
+		LateMinutes:      lateMinutes,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}, nil
 }
 
-func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate *time.Time) error {
+func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes *int) error {
 	if startTime != "" {
 		if err := validateTime(startTime); err != nil {
 			return err
@@ -81,6 +107,18 @@ func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate 
 	}
 	if s.StartDate != nil && s.EndDate != nil && s.EndDate.Before(*s.StartDate) {
 		return kernel.New(constant.CodeActivityScheduleInvalid)
+	}
+	if earlyMinutes != nil {
+		s.EarlyMinutes = *earlyMinutes
+		if s.EarlyMinutes < 0 {
+			s.EarlyMinutes = 0
+		}
+	}
+	if lateMinutes != nil {
+		s.LateMinutes = *lateMinutes
+		if s.LateMinutes < 0 {
+			s.LateMinutes = 0
+		}
 	}
 	s.UpdatedAt = time.Now()
 	return nil

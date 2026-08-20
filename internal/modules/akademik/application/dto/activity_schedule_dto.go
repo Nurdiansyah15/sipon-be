@@ -9,6 +9,8 @@ type CreateScheduleRequest struct {
 	EndDate          *string `json:"end_date,omitempty"`
 	StartTime        string  `json:"start_time" binding:"required"`
 	EndTime          string  `json:"end_time" binding:"required"`
+	EarlyMinutes     *int    `json:"early_minutes,omitempty"`
+	LateMinutes      *int    `json:"late_minutes,omitempty"`
 
 	WeeklyDays  []string       `json:"weekly_days,omitempty"`
 	MonthlyDays []int          `json:"monthly_days,omitempty"`
@@ -25,6 +27,8 @@ type UpdateScheduleRequest struct {
 	EndDate   *string `json:"end_date,omitempty"`
 	StartTime *string `json:"start_time,omitempty"`
 	EndTime   *string `json:"end_time,omitempty"`
+	EarlyMinutes *int   `json:"early_minutes,omitempty"`
+	LateMinutes  *int   `json:"late_minutes,omitempty"`
 
 	WeeklyDays  []string       `json:"weekly_days,omitempty"`
 	MonthlyDays []int          `json:"monthly_days,omitempty"`
@@ -41,6 +45,8 @@ type ActivityScheduleResponse struct {
 	EndDate          *string   `json:"end_date,omitempty"`
 	StartTime        string    `json:"start_time"`
 	EndTime          string    `json:"end_time"`
+	EarlyMinutes     int       `json:"early_minutes"`
+	LateMinutes      int       `json:"late_minutes"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
 }
@@ -55,6 +61,8 @@ type ActivityScheduleDetailResponse struct {
 	EndDate          *string        `json:"end_date,omitempty"`
 	StartTime        string         `json:"start_time"`
 	EndTime          string         `json:"end_time"`
+	EarlyMinutes     int            `json:"early_minutes"`
+	LateMinutes      int            `json:"late_minutes"`
 	WeeklyDays       []string       `json:"weekly_days,omitempty"`
 	MonthlyDays      []int          `json:"monthly_days,omitempty"`
 	YearlyDates      []YearlyDateIn `json:"yearly_dates,omitempty"`

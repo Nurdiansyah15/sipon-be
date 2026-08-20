@@ -68,6 +68,8 @@ func (uc *ListActivitySchedulesUseCase) Execute(ctx context.Context, activityPer
 			EndDate:          resp.EndDate,
 			StartTime:        resp.StartTime,
 			EndTime:          resp.EndTime,
+			EarlyMinutes:     resp.EarlyMinutes,
+			LateMinutes:      resp.LateMinutes,
 			CreatedAt:        resp.CreatedAt,
 			UpdatedAt:        resp.UpdatedAt,
 		}
