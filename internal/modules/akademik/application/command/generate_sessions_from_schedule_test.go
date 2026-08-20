@@ -35,6 +35,7 @@ func TestGenerateSessionsFromScheduleDaily(t *testing.T) {
 		&fakeScheduleRepo{schedule: sch},
 		&fakeSessionRepo{},
 		fakeTransactor{},
+		nil, // scheduleAutoOpenUC — skip auto-open scheduling in unit tests
 	)
 
 	resp, err := uc.Execute(context.Background(), "sch-1", dto.GenerateSessionsRequest{
@@ -77,6 +78,7 @@ func TestGenerateSessionsFromScheduleSkipsExisting(t *testing.T) {
 		&fakeScheduleRepo{schedule: sch},
 		&fakeSessionRepo{existing: []*sesEntity.ActivitySession{existing}},
 		fakeTransactor{},
+		nil,
 	)
 
 	resp, err := uc.Execute(context.Background(), "sch-1", dto.GenerateSessionsRequest{
@@ -112,6 +114,7 @@ func TestGenerateSessionsFromScheduleWeekly(t *testing.T) {
 		},
 		&fakeSessionRepo{},
 		fakeTransactor{},
+		nil,
 	)
 
 	// 2026-08-01 .. 2026-08-31 → Senin & Jumat, total 9 hari.
@@ -141,6 +144,7 @@ func TestGenerateSessionsInvalidDateRange(t *testing.T) {
 		&fakeScheduleRepo{schedule: sch},
 		&fakeSessionRepo{},
 		fakeTransactor{},
+		nil,
 	)
 	_, err := uc.Execute(context.Background(), "sch-1", dto.GenerateSessionsRequest{
 		FromDate: "2026-08-31",

@@ -25,3 +25,15 @@ func (p SessionAutoClosePayload) Validate() error {
 	}
 	return nil
 }
+
+// SessionAutoOpenPayload adalah DTO payload untuk akademik.session.auto_open.
+type SessionAutoOpenPayload struct {
+	SessionID string `json:"session_id"`
+}
+
+func (p SessionAutoOpenPayload) Validate() error {
+	if p.SessionID == "" {
+		return errors.New("session_id wajib diisi")
+	}
+	return nil
+}

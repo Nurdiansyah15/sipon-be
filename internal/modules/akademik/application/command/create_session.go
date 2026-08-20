@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,12 +18,13 @@ import (
 )
 
 type CreateSessionUseCase struct {
-	sessionRepo  sesRepo.ActivitySessionRepository
-	scheduleRepo schRepo.ActivityScheduleRepository
+	sessionRepo       sesRepo.ActivitySessionRepository
+	scheduleRepo      schRepo.ActivityScheduleRepository
+	scheduleAutoOpenUC *ScheduleAutoOpenUseCase
 }
 
-func NewCreateSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository, scheduleRepo schRepo.ActivityScheduleRepository) *CreateSessionUseCase {
-	return &CreateSessionUseCase{sessionRepo: sessionRepo, scheduleRepo: scheduleRepo}
+func NewCreateSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository, scheduleRepo schRepo.ActivityScheduleRepository, scheduleAutoOpenUC *ScheduleAutoOpenUseCase) *CreateSessionUseCase {
+	return &CreateSessionUseCase{sessionRepo: sessionRepo, scheduleRepo: scheduleRepo, scheduleAutoOpenUC: scheduleAutoOpenUC}
 }
 
 func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessionRequest) (*dto.ActivitySessionResponse, error) {
@@ -46,6 +48,14 @@ func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessi
 	if err := uc.sessionRepo.Save(ctx, session); err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
+
+	if uc.scheduleAutoOpenUC != nil {
+		if err := uc.scheduleAutoOpenUC.Execute(ctx, session.ID, session.StartsAt); err != nil {
+			slog.Warn("akademik: gagal schedule auto-open",
+				"session_id", session.ID, "starts_at", session.StartsAt, "error", err)
+		}
+	}
+
 	return MapSessionToResponse(session), nil
 }
 

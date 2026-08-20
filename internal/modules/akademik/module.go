@@ -34,6 +34,7 @@ type Module struct {
 
 	syncFingerprintUC  *command.SyncAttendanceFromFingerprintUseCase
 	autoCloseSessionUC *command.AutoCloseSessionUseCase
+	autoOpenSessionUC  *command.AutoOpenSessionUseCase
 }
 
 func NewModule(
@@ -147,12 +148,14 @@ func NewModule(
 			SessionAutoClose: akademikMQ.RoutingSessionAutoClose,
 		},
 	)
-	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo)
-	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor)
+	scheduleAutoOpenUC := command.NewScheduleAutoOpenUseCase(schedulerGW, akademikMQ.RoutingSessionAutoOpen)
+	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo, scheduleAutoOpenUC)
+	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor, scheduleAutoOpenUC)
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo, scheduleJobsUC)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
 	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, schedulerGW, akademikMQ.RoutingFingerprintSync)
+	autoOpenSessionUC := command.NewAutoOpenSessionUseCase(sessionRepo, openSessionUC)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
@@ -229,6 +232,7 @@ func NewModule(
 		getSantriProgramUC:    getSantriProgramUC,
 		syncFingerprintUC:     syncFingerprintUC,
 		autoCloseSessionUC:    autoCloseSessionUC,
+		autoOpenSessionUC:     autoOpenSessionUC,
 	}
 }
 
@@ -274,5 +278,6 @@ func (m *Module) RegisterMessageHandlers(registry messaging.Contract) ([]messagi
 	return akademikMQ.RegisterHandlers(registry, akademikMQ.Dependencies{
 		FingerprintSync:  m.syncFingerprintUC,
 		SessionAutoClose: m.autoCloseSessionUC,
+		SessionAutoOpen:  m.autoOpenSessionUC,
 	})
 }

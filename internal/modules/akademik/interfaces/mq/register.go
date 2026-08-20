@@ -23,6 +23,9 @@ func RegisterHandlers(registry messaging.Contract, deps Dependencies) ([]messagi
 	if err := registry.Register(LegacyRoutingSessionAutoClose, h.handleSessionAutoClose); err != nil {
 		return nil, err
 	}
+	if err := registry.Register(RoutingSessionAutoOpen, h.handleSessionAutoOpen); err != nil {
+		return nil, err
+	}
 
 	return Bindings, nil
 }

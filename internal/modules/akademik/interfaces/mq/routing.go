@@ -6,6 +6,7 @@ import "sipon-be/internal/modules/messaging"
 const (
 	RoutingFingerprintSync  = "akademik.fingerprint.sync"
 	RoutingSessionAutoClose = "akademik.session.auto_close"
+	RoutingSessionAutoOpen  = "akademik.session.auto_open"
 
 	// Queue untuk consumer role scheduler.
 	QueueScheduler = "sipon.worker.scheduler"
@@ -24,6 +25,7 @@ const (
 var Bindings = []messaging.Binding{
 	{Queue: QueueScheduler, RoutingKey: RoutingFingerprintSync},
 	{Queue: QueueScheduler, RoutingKey: RoutingSessionAutoClose},
+	{Queue: QueueScheduler, RoutingKey: RoutingSessionAutoOpen},
 	{Queue: QueueScheduler, RoutingKey: LegacyRoutingFingerprintSync},
 	{Queue: QueueScheduler, RoutingKey: LegacyRoutingSessionAutoClose},
 }

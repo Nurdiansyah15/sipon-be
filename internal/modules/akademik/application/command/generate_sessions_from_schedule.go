@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,22 +24,26 @@ import (
 // GenerateSessionsFromScheduleUseCase membuat banyak sesi sekaligus dari satu
 // jadwal berdasarkan recurrence pattern-nya untuk rentang tanggal tertentu.
 // Waktu sesi diambil dari start_time/end_time jadwal. Sesi yang sudah ada pada
-// tanggal+waktu yang sama di-skip (idempotent).
+// tanggal+waktu yang sama di-skip (idempotent). Setiap sesi yang dibuat akan
+// dijadwalkan auto-open job pada waktu StartsAt-nya.
 type GenerateSessionsFromScheduleUseCase struct {
-	scheduleRepo schRepo.ActivityScheduleRepository
-	sessionRepo  sesRepo.ActivitySessionRepository
-	transactor   ports.Transactor
+	scheduleRepo       schRepo.ActivityScheduleRepository
+	sessionRepo        sesRepo.ActivitySessionRepository
+	transactor         ports.Transactor
+	scheduleAutoOpenUC *ScheduleAutoOpenUseCase
 }
 
 func NewGenerateSessionsFromScheduleUseCase(
 	scheduleRepo schRepo.ActivityScheduleRepository,
 	sessionRepo sesRepo.ActivitySessionRepository,
 	transactor ports.Transactor,
+	scheduleAutoOpenUC *ScheduleAutoOpenUseCase,
 ) *GenerateSessionsFromScheduleUseCase {
 	return &GenerateSessionsFromScheduleUseCase{
-		scheduleRepo: scheduleRepo,
-		sessionRepo:  sessionRepo,
-		transactor:   transactor,
+		scheduleRepo:       scheduleRepo,
+		sessionRepo:        sessionRepo,
+		transactor:         transactor,
+		scheduleAutoOpenUC: scheduleAutoOpenUC,
 	}
 }
 
@@ -132,6 +137,16 @@ func (uc *GenerateSessionsFromScheduleUseCase) Execute(ctx context.Context, sche
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// Jadwalkan auto-open job untuk setiap sesi yang baru dibuat.
+	if uc.scheduleAutoOpenUC != nil {
+		for _, s := range created {
+			if err := uc.scheduleAutoOpenUC.Execute(ctx, s.ID, s.StartsAt); err != nil {
+				slog.Warn("akademik: gagal schedule auto-open",
+					"session_id", s.ID, "starts_at", s.StartsAt, "error", err)
+			}
+		}
 	}
 
 	resp := &dto.GenerateSessionsResponse{
