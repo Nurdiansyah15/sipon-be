@@ -19,6 +19,7 @@ type Dependencies struct {
 	FingerprintSync  *command.SyncAttendanceFromFingerprintUseCase
 	SessionAutoClose *command.AutoCloseSessionUseCase
 	SessionAutoOpen  *command.AutoOpenSessionUseCase
+	SessionReminder  *command.SessionReminderUseCase
 }
 
 type handlers struct {
@@ -71,6 +72,24 @@ func (h handlers) handleSessionAutoOpen(ctx context.Context, msg messaging.Messa
 	}
 
 	if err := h.deps.SessionAutoOpen.Execute(ctx, p.SessionID); err != nil {
+		if isUnprocessable(err) {
+			return messaging.NewFatalError(err)
+		}
+		return messaging.NewRetryableError(err)
+	}
+	return nil
+}
+
+func (h handlers) handleSessionReminder(ctx context.Context, msg messaging.Message) error {
+	var p SessionReminderPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingSessionReminder, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	if err := h.deps.SessionReminder.Execute(ctx, p.SessionID); err != nil {
 		if isUnprocessable(err) {
 			return messaging.NewFatalError(err)
 		}

@@ -26,6 +26,7 @@ func RegisterHandlers(registry messaging.Contract, deps Dependencies) ([]messagi
 		{RoutingKeuanganPaymentSubmitted, h.handleKeuanganPaymentSubmitted},
 		{RoutingKeuanganPaymentVerified, h.handleKeuanganPaymentVerified},
 		{RoutingKeuanganPaymentRejected, h.handleKeuanganPaymentRejected},
+		{RoutingAkademikSessionReminder, h.handleAkademikSessionReminder},
 	}
 
 	for _, r := range registrations {

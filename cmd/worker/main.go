@@ -155,6 +155,9 @@ func main() {
 	// Wire outbox writer ke article untuk publikasi event article published/scraped.
 	article.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
 
+	// Wire outbox writer ke akademik untuk publikasi event notifikasi reminder sesi.
+	akademik.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
+
 	metrics := &msgApp.Metrics{}
 	if !cfg.RabbitMQ.Enabled {
 		lg.Error("pipeline outbox membutuhkan RABBITMQ_ENABLED=true")

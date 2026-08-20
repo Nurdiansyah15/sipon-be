@@ -31,6 +31,7 @@ type GenerateSessionsFromScheduleUseCase struct {
 	sessionRepo        sesRepo.ActivitySessionRepository
 	transactor         ports.Transactor
 	scheduleAutoOpenUC *ScheduleAutoOpenUseCase
+	scheduleReminderUC *ScheduleReminderUseCase
 }
 
 func NewGenerateSessionsFromScheduleUseCase(
@@ -38,12 +39,14 @@ func NewGenerateSessionsFromScheduleUseCase(
 	sessionRepo sesRepo.ActivitySessionRepository,
 	transactor ports.Transactor,
 	scheduleAutoOpenUC *ScheduleAutoOpenUseCase,
+	scheduleReminderUC *ScheduleReminderUseCase,
 ) *GenerateSessionsFromScheduleUseCase {
 	return &GenerateSessionsFromScheduleUseCase{
 		scheduleRepo:       scheduleRepo,
 		sessionRepo:        sessionRepo,
 		transactor:         transactor,
 		scheduleAutoOpenUC: scheduleAutoOpenUC,
+		scheduleReminderUC: scheduleReminderUC,
 	}
 }
 
@@ -147,6 +150,16 @@ func (uc *GenerateSessionsFromScheduleUseCase) Execute(ctx context.Context, sche
 			if err := uc.scheduleAutoOpenUC.Execute(ctx, s.ID, s.StartsAt); err != nil {
 				slog.Warn("akademik: gagal schedule auto-open",
 					"session_id", s.ID, "starts_at", s.StartsAt, "error", err)
+			}
+		}
+	}
+
+	// Jadwalkan reminder job untuk setiap sesi yang baru dibuat (jika aktif).
+	if uc.scheduleReminderUC != nil {
+		for _, s := range created {
+			if err := uc.scheduleReminderUC.Execute(ctx, s.ID, s.StartsAt, schedule.ReminderEarlyMinutes); err != nil {
+				slog.Warn("akademik: gagal schedule reminder",
+					"session_id", s.ID, "error", err)
 			}
 		}
 	}

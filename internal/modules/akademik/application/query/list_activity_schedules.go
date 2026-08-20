@@ -70,6 +70,7 @@ func (uc *ListActivitySchedulesUseCase) Execute(ctx context.Context, activityPer
 			EndTime:          resp.EndTime,
 			EarlyMinutes:     resp.EarlyMinutes,
 			LateMinutes:      resp.LateMinutes,
+			ReminderEarlyMinutes: resp.ReminderEarlyMinutes,
 			CreatedAt:        resp.CreatedAt,
 			UpdatedAt:        resp.UpdatedAt,
 		}

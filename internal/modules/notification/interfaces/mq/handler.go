@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"sipon-be/internal/modules/messaging"
 	"sipon-be/internal/modules/notification/application"
@@ -37,6 +38,18 @@ const psbRiwayatClickAction = "/psb/riwayat"
 // sebagai retryable (RabbitMQ akan redeliver sesuai kebijakan retry consumer).
 func (h handlers) dispatch(ctx context.Context, tmpl application.NotificationTemplate, userID string) error {
 	target := application.Target{Mode: application.TargetModeUnicast, RecipientID: userID}
+	if err := h.deps.Dispatcher.Dispatch(ctx, tmpl, target); err != nil {
+		return messaging.NewRetryableError(err)
+	}
+	return nil
+}
+
+// dispatchMany mengirim tmpl secara multicast ke daftar userID.
+func (h handlers) dispatchMany(ctx context.Context, tmpl application.NotificationTemplate, userIDs []string) error {
+	if len(userIDs) == 0 {
+		return nil
+	}
+	target := application.Target{Mode: application.TargetModeMulticast, RecipientIDs: userIDs}
 	if err := h.deps.Dispatcher.Dispatch(ctx, tmpl, target); err != nil {
 		return messaging.NewRetryableError(err)
 	}
@@ -533,4 +546,61 @@ func (h handlers) handleKeuanganPaymentRejected(ctx context.Context, msg messagi
 	}
 
 	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
+// ─── Akademik reminder handlers ───────────────────────────────────────────
+
+func (h handlers) handleAkademikSessionReminder(ctx context.Context, msg messaging.Message) error {
+	var p AkademikSessionReminderPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingAkademikSessionReminder, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	name := p.ActivityName
+	if name == "" {
+		name = "Kegiatan"
+	}
+
+	title := fmt.Sprintf("%s — Reminder Sesi", name)
+	body := fmt.Sprintf("%s akan dimulai pada %s. Jangan lupa hadir tepat waktu.", name, formatSessionTime(p.StartsAt))
+
+	if startsAt, err := time.Parse(time.RFC3339, p.StartsAt); err == nil {
+		until := time.Until(startsAt)
+		if until < 15*time.Minute {
+			title = fmt.Sprintf("%s — Sesi Segera Dimulai", name)
+			body = fmt.Sprintf("%s akan segera dimulai. Jangan lupa hadir tepat waktu.", name)
+		}
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: title,
+		Body:  body,
+		Payload: notifvo.NotificationPayload{
+			Module:      "akademik",
+			EventType:   "session_reminder",
+			EntityID:    p.SessionID,
+			ClickAction: "/akademik",
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatchMany(ctx, tmpl, p.UserIDs)
+}
+
+// formatSessionTime memformat waktu mulai sesi dalam Bahasa Indonesia yang
+// mudah dibaca, mis. "Senin, 20 Agustus 2026 pukul 08.00".
+func formatSessionTime(v string) string {
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return v
+	}
+	dayNames := [...]string{"Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"}
+	monthNames := [...]string{"Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"}
+	return fmt.Sprintf("%s, %d %s %d pukul %02d.%02d",
+		dayNames[t.Weekday()], t.Day(), monthNames[t.Month()-1], t.Year(), t.Hour(), t.Minute())
 }

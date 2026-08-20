@@ -154,6 +154,9 @@ func main() {
 		identity.PrincipalMiddleware(),
 	)
 
+	// Wire outbox writer ke akademik untuk publikasi event notifikasi reminder sesi.
+	akademik.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
+
 	// Late-binding: akademik bergantung pada kesantrian di konstruktor, sehingga
 	// kesantrian menerima kontrak akademik setelah akademik terbentuk. Lihat
 	// docs/plan/santri-program-mapping.md.

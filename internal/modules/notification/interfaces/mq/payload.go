@@ -142,3 +142,22 @@ func (p KeuanganPaymentEventPayload) Validate() error {
 	}
 	return nil
 }
+
+// AkademikSessionReminderPayload dipakai untuk reminder sesi kegiatan — dikirim
+// ke banyak user (multicast) yang sudah herregistrasi pada periode terkait.
+type AkademikSessionReminderPayload struct {
+	SessionID    string   `json:"session_id"`
+	UserIDs      []string `json:"user_ids"`
+	ActivityName string   `json:"activity_name,omitempty"`
+	StartsAt     string   `json:"starts_at,omitempty"`
+}
+
+func (p AkademikSessionReminderPayload) Validate() error {
+	if p.SessionID == "" {
+		return errors.New("session_id wajib diisi")
+	}
+	if len(p.UserIDs) == 0 {
+		return errors.New("user_ids wajib diisi")
+	}
+	return nil
+}

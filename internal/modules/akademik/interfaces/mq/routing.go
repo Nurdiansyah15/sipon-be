@@ -7,6 +7,11 @@ const (
 	RoutingFingerprintSync  = "akademik.fingerprint.sync"
 	RoutingSessionAutoClose = "akademik.session.auto_close"
 	RoutingSessionAutoOpen  = "akademik.session.auto_open"
+	RoutingSessionReminder  = "akademik.session.reminder"
+
+	// RoutingSessionReminderNotify adalah routing key event notifikasi yang
+	// dipublish akademik ke outbox dan dikonsumsi modul notification (multicast).
+	RoutingSessionReminderNotify = "akademik.session.reminder_notify"
 
 	// Queue untuk consumer role scheduler.
 	QueueScheduler = "sipon.worker.scheduler"
@@ -26,6 +31,7 @@ var Bindings = []messaging.Binding{
 	{Queue: QueueScheduler, RoutingKey: RoutingFingerprintSync},
 	{Queue: QueueScheduler, RoutingKey: RoutingSessionAutoClose},
 	{Queue: QueueScheduler, RoutingKey: RoutingSessionAutoOpen},
+	{Queue: QueueScheduler, RoutingKey: RoutingSessionReminder},
 	{Queue: QueueScheduler, RoutingKey: LegacyRoutingFingerprintSync},
 	{Queue: QueueScheduler, RoutingKey: LegacyRoutingSessionAutoClose},
 }

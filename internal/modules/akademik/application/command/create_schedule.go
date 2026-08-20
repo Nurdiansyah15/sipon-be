@@ -50,7 +50,7 @@ func (uc *CreateScheduleUseCase) Execute(ctx context.Context, req dto.CreateSche
 
 	schedule, err := entity.NewActivitySchedule(uuid.NewString(), req.ActivityPeriodID,
 		constant.ActivityScheduleType(req.Type), req.StartTime, req.EndTime, startDate, endDate,
-		intValue(req.EarlyMinutes), intValue(req.LateMinutes))
+		intValue(req.EarlyMinutes), intValue(req.LateMinutes), intValue(req.ReminderEarlyMinutes))
 	if err != nil {
 		return nil, application.WrapBadRequestErr(err, constant.CodeActivityScheduleInvalid)
 	}
@@ -137,6 +137,7 @@ func MapScheduleToDetailResponse(s *entity.ActivitySchedule) *dto.ActivitySchedu
 		EndTime:          s.EndTime,
 		EarlyMinutes:     s.EarlyMinutes,
 		LateMinutes:      s.LateMinutes,
+		ReminderEarlyMinutes: s.ReminderEarlyMinutes,
 		CreatedAt:        timeutil.ToPlatform(s.CreatedAt),
 		UpdatedAt:        timeutil.ToPlatform(s.UpdatedAt),
 	}

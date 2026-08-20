@@ -21,10 +21,11 @@ type CreateSessionUseCase struct {
 	sessionRepo       sesRepo.ActivitySessionRepository
 	scheduleRepo      schRepo.ActivityScheduleRepository
 	scheduleAutoOpenUC *ScheduleAutoOpenUseCase
+	scheduleReminderUC *ScheduleReminderUseCase
 }
 
-func NewCreateSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository, scheduleRepo schRepo.ActivityScheduleRepository, scheduleAutoOpenUC *ScheduleAutoOpenUseCase) *CreateSessionUseCase {
-	return &CreateSessionUseCase{sessionRepo: sessionRepo, scheduleRepo: scheduleRepo, scheduleAutoOpenUC: scheduleAutoOpenUC}
+func NewCreateSessionUseCase(sessionRepo sesRepo.ActivitySessionRepository, scheduleRepo schRepo.ActivityScheduleRepository, scheduleAutoOpenUC *ScheduleAutoOpenUseCase, scheduleReminderUC *ScheduleReminderUseCase) *CreateSessionUseCase {
+	return &CreateSessionUseCase{sessionRepo: sessionRepo, scheduleRepo: scheduleRepo, scheduleAutoOpenUC: scheduleAutoOpenUC, scheduleReminderUC: scheduleReminderUC}
 }
 
 func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessionRequest) (*dto.ActivitySessionResponse, error) {
@@ -59,6 +60,13 @@ func (uc *CreateSessionUseCase) Execute(ctx context.Context, req dto.CreateSessi
 		if err := uc.scheduleAutoOpenUC.Execute(ctx, session.ID, session.StartsAt); err != nil {
 			slog.Warn("akademik: gagal schedule auto-open",
 				"session_id", session.ID, "starts_at", session.StartsAt, "error", err)
+		}
+	}
+
+	if uc.scheduleReminderUC != nil {
+		if err := uc.scheduleReminderUC.Execute(ctx, session.ID, session.StartsAt, schedule.ReminderEarlyMinutes); err != nil {
+			slog.Warn("akademik: gagal schedule reminder",
+				"session_id", session.ID, "error", err)
 		}
 	}
 

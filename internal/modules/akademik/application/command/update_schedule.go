@@ -43,7 +43,7 @@ func (uc *UpdateScheduleUseCase) Execute(ctx context.Context, id string, req dto
 	if req.EndTime != nil {
 		endTime = *req.EndTime
 	}
-	if err := schedule.Update(startTime, endTime, startDate, endDate, req.EarlyMinutes, req.LateMinutes); err != nil {
+	if err := schedule.Update(startTime, endTime, startDate, endDate, req.EarlyMinutes, req.LateMinutes, req.ReminderEarlyMinutes); err != nil {
 		return nil, application.WrapBadRequestErr(err, constant.CodeActivityScheduleInvalid)
 	}
 

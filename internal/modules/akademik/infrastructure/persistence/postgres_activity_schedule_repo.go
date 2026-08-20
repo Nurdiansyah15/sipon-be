@@ -15,13 +15,13 @@ import (
 
 const activityScheduleColumns = `
 	id, activity_period_id, type, start_date, end_date, start_time::text, end_time::text,
-	early_minutes, late_minutes,
+	early_minutes, late_minutes, reminder_early_minutes,
 	created_at, updated_at, deleted_at
 `
 
 const activityScheduleInsertColumns = `
 	id, activity_period_id, type, start_date, end_date, start_time, end_time,
-	early_minutes, late_minutes,
+	early_minutes, late_minutes, reminder_early_minutes,
 	created_at, updated_at, deleted_at
 `
 
@@ -36,9 +36,9 @@ func NewPostgresActivityScheduleRepository(db *sql.DB) *PostgresActivitySchedule
 func (r *PostgresActivityScheduleRepository) Save(ctx context.Context, s *entity.ActivitySchedule) error {
 	execer := execerFromContext(ctx, r.db)
 	_, err := execer.ExecContext(ctx,
-		`INSERT INTO activity_schedules (`+activityScheduleInsertColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+		`INSERT INTO activity_schedules (`+activityScheduleInsertColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
 		s.ID, s.ActivityPeriodID, string(s.Type), nullTimeVal(s.StartDate), nullTimeVal(s.EndDate),
-		s.StartTime, s.EndTime, s.EarlyMinutes, s.LateMinutes,
+		s.StartTime, s.EndTime, s.EarlyMinutes, s.LateMinutes, s.ReminderEarlyMinutes,
 		s.CreatedAt, s.UpdatedAt, nullTimeVal(s.DeletedAt),
 	)
 	if err != nil {
@@ -50,9 +50,9 @@ func (r *PostgresActivityScheduleRepository) Save(ctx context.Context, s *entity
 func (r *PostgresActivityScheduleRepository) Update(ctx context.Context, s *entity.ActivitySchedule) error {
 	execer := execerFromContext(ctx, r.db)
 	res, err := execer.ExecContext(ctx,
-		`UPDATE activity_schedules SET start_date=$1, end_date=$2, start_time=$3, end_time=$4, early_minutes=$5, late_minutes=$6, updated_at=$7, deleted_at=$8 WHERE id=$9 AND deleted_at IS NULL`,
+		`UPDATE activity_schedules SET start_date=$1, end_date=$2, start_time=$3, end_time=$4, early_minutes=$5, late_minutes=$6, reminder_early_minutes=$7, updated_at=$8, deleted_at=$9 WHERE id=$10 AND deleted_at IS NULL`,
 		nullTimeVal(s.StartDate), nullTimeVal(s.EndDate), s.StartTime, s.EndTime,
-		s.EarlyMinutes, s.LateMinutes, s.UpdatedAt, nullTimeVal(s.DeletedAt), s.ID,
+		s.EarlyMinutes, s.LateMinutes, s.ReminderEarlyMinutes, s.UpdatedAt, nullTimeVal(s.DeletedAt), s.ID,
 	)
 	if err != nil {
 		return kernel.Wrap(constant.CodeActivitySchedulePersistenceFailed, fmt.Errorf("update activity schedule: %w", err))
@@ -261,12 +261,12 @@ func scanActivitySchedule(sc scanner) (*entity.ActivitySchedule, error) {
 	var (
 		id, activityPeriodID, typ, startTime, endTime string
 		startDate, endDate                            sql.NullTime
-		earlyMinutes, lateMinutes                     int
+		earlyMinutes, lateMinutes, reminderEarlyMinutes int
 		createdAt, updatedAt                          time.Time
 		deletedAt                                     sql.NullTime
 	)
 	err := sc.Scan(&id, &activityPeriodID, &typ, &startDate, &endDate, &startTime, &endTime,
-		&earlyMinutes, &lateMinutes,
+		&earlyMinutes, &lateMinutes, &reminderEarlyMinutes,
 		&createdAt, &updatedAt, &deletedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -284,6 +284,7 @@ func scanActivitySchedule(sc scanner) (*entity.ActivitySchedule, error) {
 		EndTime:          endTime,
 		EarlyMinutes:     earlyMinutes,
 		LateMinutes:      lateMinutes,
+		ReminderEarlyMinutes: reminderEarlyMinutes,
 		CreatedAt:        createdAt,
 		UpdatedAt:        updatedAt,
 		DeletedAt:        timeFromNull(deletedAt),

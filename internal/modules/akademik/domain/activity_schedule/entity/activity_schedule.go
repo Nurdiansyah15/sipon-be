@@ -17,6 +17,7 @@ type ActivitySchedule struct {
 	EndTime          string
 	EarlyMinutes     int
 	LateMinutes      int
+	ReminderEarlyMinutes int
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	DeletedAt        *time.Time
@@ -38,7 +39,7 @@ func (s *ActivitySchedule) EffectiveEnd(baseDate time.Time) time.Time {
 		t.Hour(), t.Minute()+s.LateMinutes, t.Second(), 0, loc)
 }
 
-func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivityScheduleType, startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes int) (*ActivitySchedule, error) {
+func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivityScheduleType, startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes, reminderEarlyMinutes int) (*ActivitySchedule, error) {
 	if id == "" || activityPeriodID == "" {
 		return nil, kernel.New(constant.CodeActivityScheduleNotFound)
 	}
@@ -67,6 +68,9 @@ func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivitySched
 	if lateMinutes < 0 {
 		lateMinutes = 0
 	}
+	if reminderEarlyMinutes < 0 {
+		reminderEarlyMinutes = 0
+	}
 	now := time.Now()
 	return &ActivitySchedule{
 		ID:               id,
@@ -78,12 +82,13 @@ func NewActivitySchedule(id, activityPeriodID string, typ constant.ActivitySched
 		EndTime:          endTime,
 		EarlyMinutes:     earlyMinutes,
 		LateMinutes:      lateMinutes,
+		ReminderEarlyMinutes: reminderEarlyMinutes,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	}, nil
 }
 
-func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes *int) error {
+func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate *time.Time, earlyMinutes, lateMinutes, reminderEarlyMinutes *int) error {
 	if startTime != "" {
 		if err := validateTime(startTime); err != nil {
 			return err
@@ -118,6 +123,12 @@ func (s *ActivitySchedule) Update(startTime, endTime string, startDate, endDate 
 		s.LateMinutes = *lateMinutes
 		if s.LateMinutes < 0 {
 			s.LateMinutes = 0
+		}
+	}
+	if reminderEarlyMinutes != nil {
+		s.ReminderEarlyMinutes = *reminderEarlyMinutes
+		if s.ReminderEarlyMinutes < 0 {
+			s.ReminderEarlyMinutes = 0
 		}
 	}
 	s.UpdatedAt = time.Now()

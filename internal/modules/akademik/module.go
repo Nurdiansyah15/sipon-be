@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"sipon-be/internal/modules/akademik/application/command"
+	"sipon-be/internal/modules/akademik/application/ports"
 	"sipon-be/internal/modules/akademik/application/query"
 	"sipon-be/internal/modules/akademik/application/resolver"
 	"sipon-be/internal/modules/akademik/infrastructure/external"
@@ -35,6 +36,12 @@ type Module struct {
 	syncFingerprintUC  *command.SyncAttendanceFromFingerprintUseCase
 	autoCloseSessionUC *command.AutoCloseSessionUseCase
 	autoOpenSessionUC  *command.AutoOpenSessionUseCase
+	sessionReminderUC  *command.SessionReminderUseCase
+
+	// NotifyRoutingKey adalah routing key event notifikasi yang dipublish
+	// modul akademik ke outbox untuk dikonsumsi modul notification.
+	notifyRoutingKey string
+	outboxWriter     ports.OutboxWriter
 }
 
 func NewModule(
@@ -149,13 +156,18 @@ func NewModule(
 		},
 	)
 	scheduleAutoOpenUC := command.NewScheduleAutoOpenUseCase(schedulerGW, akademikMQ.RoutingSessionAutoOpen)
-	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo, scheduleAutoOpenUC)
-	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor, scheduleAutoOpenUC)
+	scheduleReminderUC := command.NewScheduleReminderUseCase(schedulerGW, akademikMQ.RoutingSessionReminder)
+	createSessionUC := command.NewCreateSessionUseCase(sessionRepo, scheduleRepo, scheduleAutoOpenUC, scheduleReminderUC)
+	generateSessionsUC := command.NewGenerateSessionsFromScheduleUseCase(scheduleRepo, sessionRepo, transactor, scheduleAutoOpenUC, scheduleReminderUC)
 	openSessionUC := command.NewOpenSessionUseCase(sessionRepo, scheduleJobsUC)
 	cancelSessionUC := command.NewCancelSessionUseCase(sessionRepo)
 	completeSessionUC := command.NewCompleteSessionUseCase(sessionRepo, attendanceRepo, santriProgramRepo, programResolver)
 	autoCloseSessionUC := command.NewAutoCloseSessionUseCase(completeSessionUC, schedulerGW, akademikMQ.RoutingFingerprintSync)
 	autoOpenSessionUC := command.NewAutoOpenSessionUseCase(sessionRepo, openSessionUC)
+	sessionReminderUC := command.NewSessionReminderUseCase(
+		sessionRepo, scheduleRepo, periodResolver, registrationRepo, activityPeriodRepo, activityRepo,
+		kesantrianGW, nil, akademikMQ.RoutingSessionReminderNotify,
+	)
 	listSessionsUC := query.NewListActivitySessionsUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo)
 	getSessionUC := query.NewGetActivitySessionUseCase(sessionRepo, scheduleRepo, activityPeriodRepo, activityRepo, attendanceRepo, registrationRepo)
 
@@ -233,6 +245,8 @@ func NewModule(
 		syncFingerprintUC:     syncFingerprintUC,
 		autoCloseSessionUC:    autoCloseSessionUC,
 		autoOpenSessionUC:     autoOpenSessionUC,
+		sessionReminderUC:     sessionReminderUC,
+		notifyRoutingKey:      akademikMQ.RoutingSessionReminderNotify,
 	}
 }
 
@@ -279,5 +293,15 @@ func (m *Module) RegisterMessageHandlers(registry messaging.Contract) ([]messagi
 		FingerprintSync:  m.syncFingerprintUC,
 		SessionAutoClose: m.autoCloseSessionUC,
 		SessionAutoOpen:  m.autoOpenSessionUC,
+		SessionReminder:  m.sessionReminderUC,
 	})
+}
+
+// SetOutboxWriter memasang outbox writer untuk publikasi event notifikasi
+// reminder sesi. Dipanggil dari composition root (cmd/api & cmd/worker).
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.outboxWriter = w
+	if m.sessionReminderUC != nil {
+		m.sessionReminderUC.SetOutboxWriter(w)
+	}
 }

@@ -37,3 +37,15 @@ func (p SessionAutoOpenPayload) Validate() error {
 	}
 	return nil
 }
+
+// SessionReminderPayload adalah DTO payload untuk akademik.session.reminder.
+type SessionReminderPayload struct {
+	SessionID string `json:"session_id"`
+}
+
+func (p SessionReminderPayload) Validate() error {
+	if p.SessionID == "" {
+		return errors.New("session_id wajib diisi")
+	}
+	return nil
+}

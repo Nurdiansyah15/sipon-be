@@ -24,6 +24,8 @@ const (
 	RoutingKeuanganPaymentSubmitted    = "keuangan.payment.submitted"
 	RoutingKeuanganPaymentVerified     = "keuangan.payment.verified"
 	RoutingKeuanganPaymentRejected     = "keuangan.payment.rejected"
+
+	RoutingAkademikSessionReminder = "akademik.session.reminder_notify"
 )
 
 var Bindings = []messaging.Binding{
@@ -44,4 +46,5 @@ var Bindings = []messaging.Binding{
 	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentSubmitted},
 	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentVerified},
 	{Queue: QueueNotification, RoutingKey: RoutingKeuanganPaymentRejected},
+	{Queue: QueueNotification, RoutingKey: RoutingAkademikSessionReminder},
 }

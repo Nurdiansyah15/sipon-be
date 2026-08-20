@@ -26,6 +26,9 @@ func RegisterHandlers(registry messaging.Contract, deps Dependencies) ([]messagi
 	if err := registry.Register(RoutingSessionAutoOpen, h.handleSessionAutoOpen); err != nil {
 		return nil, err
 	}
+	if err := registry.Register(RoutingSessionReminder, h.handleSessionReminder); err != nil {
+		return nil, err
+	}
 
 	return Bindings, nil
 }
