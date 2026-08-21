@@ -7,21 +7,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-notifApp "sipon-be/internal/modules/notification/application"
+	notifApp "sipon-be/internal/modules/notification/application"
 	"sipon-be/internal/modules/notification/application/command"
+	"sipon-be/internal/modules/notification/application/ports"
 	"sipon-be/internal/modules/notification/application/query"
-notifMQ "sipon-be/internal/modules/notification/interfaces/mq"
+	notifMQ "sipon-be/internal/modules/notification/interfaces/mq"
 
-	"sipon-be/internal/modules/notification/infrastructure/persistence"
+	messaging "sipon-be/internal/modules/messaging"
 	"sipon-be/internal/modules/notification/infrastructure/external"
+	"sipon-be/internal/modules/notification/infrastructure/persistence"
 	notifHTTP "sipon-be/internal/modules/notification/interfaces/http"
 	"sipon-be/internal/shared/config"
-	messaging "sipon-be/internal/modules/messaging"
 )
 
 type Module struct {
-	handler *notifHTTP.NotificationHandler
-	mqDeps  notifMQ.Dependencies
+	handler       *notifHTTP.NotificationHandler
+	sendBroadcast *command.SendNotificationUseCase
+	mqDeps        notifMQ.Dependencies
 	jwtAuth       gin.HandlerFunc
 	principalLoad gin.HandlerFunc
 }
@@ -51,7 +53,7 @@ func NewModule(
 	updatePref := command.NewUpdatePreferenceUseCase(prefRepo)
 	markRead := command.NewMarkNotificationReadUseCase(deliveryRepo)
 	markAllRead := command.NewMarkAllNotificationsReadUseCase(deliveryRepo)
-	sendBroadcast := command.NewSendNotificationUseCase(dispatcher)
+	sendBroadcast := command.NewSendNotificationUseCase()
 
 	registerDevice := command.NewRegisterDeviceUseCase(deviceRepo)
 	unregisterDevice := command.NewUnregisterDeviceUseCase(deviceRepo)
@@ -67,6 +69,7 @@ func NewModule(
 
 	return &Module{
 		handler:       handler,
+		sendBroadcast: sendBroadcast,
 		mqDeps:        mqDeps,
 		jwtAuth:       jwtAuth,
 		principalLoad: principalLoad,
@@ -75,6 +78,10 @@ func NewModule(
 
 func (m *Module) SetUserProvider(p notifMQ.UserProvider) {
 	m.mqDeps.UserProvider = p
+}
+
+func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
+	m.sendBroadcast.SetOutboxWriter(w)
 }
 
 func (m *Module) RegisterRoutes(router gin.IRouter) {

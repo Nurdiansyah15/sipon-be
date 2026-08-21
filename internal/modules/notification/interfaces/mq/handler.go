@@ -353,6 +353,48 @@ func (h handlers) broadcast(ctx context.Context, tmpl application.NotificationTe
 	return nil
 }
 
+func (h handlers) handleAdminBroadcast(ctx context.Context, msg messaging.Message) error {
+	var p BroadcastPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingAdminBroadcast, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationType(p.Type),
+		Title: p.Title,
+		Body:  p.Body,
+		Payload: notifvo.NotificationPayload{
+			Module:    "announcement",
+			EventType: "broadcast",
+			Bypass:    true,
+		},
+		Channels: parseBroadcastChannels(p.Channels),
+		Bypass:   true,
+	}
+
+	return h.broadcast(ctx, tmpl)
+}
+
+func parseBroadcastChannels(raw []string) []notifconstant.NotificationChannel {
+	if len(raw) == 0 {
+		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+	}
+	channels := make([]notifconstant.NotificationChannel, 0, len(raw))
+	for _, c := range raw {
+		ch := notifconstant.NotificationChannel(c)
+		if ch.IsValid() {
+			channels = append(channels, ch)
+		}
+	}
+	if len(channels) == 0 {
+		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+	}
+	return channels
+}
+
 func (h handlers) handleArticlePublished(ctx context.Context, msg messaging.Message) error {
 	var p ArticlePublishedPayload
 	if err := json.Unmarshal(msg.Payload, &p); err != nil {

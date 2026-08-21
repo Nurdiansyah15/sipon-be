@@ -79,6 +79,9 @@ func main() {
 	// Wire user provider ke notification untuk broadcast notifikasi article.
 	notification.SetUserProvider(identity)
 
+	// Wire outbox writer ke notification untuk publikasi event broadcast admin.
+	notification.SetOutboxWriter(&outboxWriterAdapter{repo: outboxRepo})
+
 	dokumenAset := dokumenAsetModule.NewModule(
 		db, cfg,
 		identity.AuthMiddleware(),

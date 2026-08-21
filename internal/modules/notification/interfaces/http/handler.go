@@ -13,16 +13,16 @@ import (
 )
 
 type NotificationHandler struct {
-	listInbox       *query.ListInboxUseCase
-	unreadCount     *query.UnreadCountUseCase
-	getPreference   *query.GetPreferenceUseCase
-	updatePref      *command.UpdatePreferenceUseCase
-	markRead        *command.MarkNotificationReadUseCase
-	markAllRead     *command.MarkAllNotificationsReadUseCase
-	sendBroadcast   *command.SendNotificationUseCase
-	registerDevice  *command.RegisterDeviceUseCase
+	listInbox        *query.ListInboxUseCase
+	unreadCount      *query.UnreadCountUseCase
+	getPreference    *query.GetPreferenceUseCase
+	updatePref       *command.UpdatePreferenceUseCase
+	markRead         *command.MarkNotificationReadUseCase
+	markAllRead      *command.MarkAllNotificationsReadUseCase
+	sendBroadcast    *command.SendNotificationUseCase
+	registerDevice   *command.RegisterDeviceUseCase
 	unregisterDevice *command.UnregisterDeviceUseCase
-	listDevices     *command.ListDevicesUseCase
+	listDevices      *command.ListDevicesUseCase
 }
 
 func NewNotificationHandler(
@@ -38,16 +38,16 @@ func NewNotificationHandler(
 	listDevices *command.ListDevicesUseCase,
 ) *NotificationHandler {
 	return &NotificationHandler{
-		listInbox:       listInbox,
-		unreadCount:     unreadCount,
-		getPreference:   getPreference,
-		updatePref:      updatePref,
-		markRead:        markRead,
-		markAllRead:     markAllRead,
-		sendBroadcast:   sendBroadcast,
-		registerDevice:  registerDevice,
+		listInbox:        listInbox,
+		unreadCount:      unreadCount,
+		getPreference:    getPreference,
+		updatePref:       updatePref,
+		markRead:         markRead,
+		markAllRead:      markAllRead,
+		sendBroadcast:    sendBroadcast,
+		registerDevice:   registerDevice,
 		unregisterDevice: unregisterDevice,
-		listDevices:     listDevices,
+		listDevices:      listDevices,
 	}
 }
 
@@ -127,7 +127,7 @@ func (h *NotificationHandler) Broadcast(c *gin.Context) {
 		httperror.Handle(c, err)
 		return
 	}
-	if err := h.sendBroadcast.Execute(c.Request.Context(), "broadcast", "", nil, req); err != nil {
+	if err := h.sendBroadcast.Execute(c.Request.Context(), req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}

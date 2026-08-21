@@ -10,6 +10,7 @@ func RegisterHandlers(registry messaging.Contract, deps Dependencies) ([]messagi
 		handler    messaging.HandlerFunc
 	}{
 		{RoutingLoginSucceeded, h.handleLoginSucceeded},
+		{RoutingAdminBroadcast, h.handleAdminBroadcast},
 		{RoutingPsbPendaftaranSubmitted, h.handlePsbPendaftaranSubmitted},
 		{RoutingPsbDaftarUlangSubmitted, h.handlePsbDaftarUlangSubmitted},
 		{RoutingPsbDokumenVerified, h.handlePsbDokumenVerified},

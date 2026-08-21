@@ -2,6 +2,28 @@ package mq
 
 import "errors"
 
+// BroadcastPayload dipakai saat admin mengirim broadcast notifikasi ke semua
+// user aktif lewat endpoint admin.
+type BroadcastPayload struct {
+	Type     string   `json:"type"`
+	Title    string   `json:"title"`
+	Body     string   `json:"body"`
+	Channels []string `json:"channels"`
+}
+
+func (p BroadcastPayload) Validate() error {
+	if p.Type == "" {
+		return errors.New("type wajib diisi")
+	}
+	if p.Title == "" {
+		return errors.New("title wajib diisi")
+	}
+	if p.Body == "" {
+		return errors.New("body wajib diisi")
+	}
+	return nil
+}
+
 type LoginSucceededPayload struct {
 	UserID string `json:"user_id"`
 }

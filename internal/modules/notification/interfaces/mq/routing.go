@@ -1,10 +1,15 @@
 package mq
 
-import "sipon-be/internal/modules/messaging"
+import (
+	"sipon-be/internal/modules/messaging"
+	"sipon-be/internal/modules/notification/application/command"
+)
 
 const (
 	RoutingLoginSucceeded = "identity.user.login_succeeded"
 	QueueNotification     = "sipon.worker.notification"
+
+	RoutingAdminBroadcast = command.RoutingAdminBroadcast
 
 	RoutingPsbPendaftaranSubmitted         = "psb.pendaftaran.submitted"
 	RoutingPsbDaftarUlangSubmitted         = "psb.daftar_ulang.submitted"
@@ -19,11 +24,11 @@ const (
 	RoutingArticlePublished = "article.published"
 	RoutingArticlesScraped  = "article.scraped"
 
-	RoutingKeuanganInvoiceIssued       = "keuangan.invoice.issued"
-	RoutingKeuanganInvoiceCancelled    = "keuangan.invoice.cancelled"
-	RoutingKeuanganPaymentSubmitted    = "keuangan.payment.submitted"
-	RoutingKeuanganPaymentVerified     = "keuangan.payment.verified"
-	RoutingKeuanganPaymentRejected     = "keuangan.payment.rejected"
+	RoutingKeuanganInvoiceIssued    = "keuangan.invoice.issued"
+	RoutingKeuanganInvoiceCancelled = "keuangan.invoice.cancelled"
+	RoutingKeuanganPaymentSubmitted = "keuangan.payment.submitted"
+	RoutingKeuanganPaymentVerified  = "keuangan.payment.verified"
+	RoutingKeuanganPaymentRejected  = "keuangan.payment.rejected"
 
 	RoutingAkademikSessionReminder = "akademik.session.reminder_notify"
 
@@ -32,6 +37,7 @@ const (
 
 var Bindings = []messaging.Binding{
 	{Queue: QueueNotification, RoutingKey: RoutingLoginSucceeded},
+	{Queue: QueueNotification, RoutingKey: RoutingAdminBroadcast},
 	{Queue: QueueNotification, RoutingKey: RoutingPsbPendaftaranSubmitted},
 	{Queue: QueueNotification, RoutingKey: RoutingPsbDaftarUlangSubmitted},
 	{Queue: QueueNotification, RoutingKey: RoutingPsbDokumenVerified},

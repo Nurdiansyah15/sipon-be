@@ -2,66 +2,41 @@ package command
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
 
-	"sipon-be/internal/modules/notification/application"
 	"sipon-be/internal/modules/notification/application/dto"
-notifconstant "sipon-be/internal/modules/notification/domain/notification/constant"
-notifvo "sipon-be/internal/modules/notification/domain/valueobject"
+	"sipon-be/internal/modules/notification/application/ports"
 )
 
-// SendNotificationUseCase mengirim notifikasi via dispatcher.
+// SendNotificationUseCase mempublish broadcast admin ke outbox; fanout ke
+// semua user aktif dieksekusi oleh worker lewat handler notification.broadcast.
 type SendNotificationUseCase struct {
-	dispatcher *application.Dispatcher
+	outboxWriter ports.OutboxWriter
 }
 
-func NewSendNotificationUseCase(dispatcher *application.Dispatcher) *SendNotificationUseCase {
-	return &SendNotificationUseCase{dispatcher: dispatcher}
+func NewSendNotificationUseCase() *SendNotificationUseCase {
+	return &SendNotificationUseCase{}
 }
 
-func (uc *SendNotificationUseCase) Execute(
-	ctx context.Context,
-	mode application.TargetMode,
-	recipientID string,
-	recipientIDs []string,
-	req dto.BroadcastRequest,
-) error {
-	channels := parseChannels(req.Channels)
-
-	tmpl := application.NotificationTemplate{
-		Type: notifconstant.NotificationType(req.Type),
-		Title: req.Title,
-		Body:  req.Body,
-		Payload: notifvo.NotificationPayload{
-			Module:    "announcement",
-			EventType: "broadcast",
-			Bypass:    true,
-		},
-		Channels: channels,
-		Bypass:   true,
-	}
-
-	target := application.Target{
-		Mode:         mode,
-		RecipientID:  recipientID,
-		RecipientIDs: recipientIDs,
-	}
-
-	return uc.dispatcher.Dispatch(ctx, tmpl, target)
+func (uc *SendNotificationUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
 }
 
-func parseChannels(raw []string) []notifconstant.NotificationChannel {
-	if len(raw) == 0 {
-		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+func (uc *SendNotificationUseCase) Execute(ctx context.Context, req dto.BroadcastRequest) error {
+	if uc.outboxWriter == nil {
+		return errors.New("notification: outbox writer belum dipasang")
 	}
-	channels := make([]notifconstant.NotificationChannel, 0, len(raw))
-	for _, c := range raw {
-		ch := notifconstant.NotificationChannel(c)
-		if ch.IsValid() {
-			channels = append(channels, ch)
-		}
+
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return err
 	}
-	if len(channels) == 0 {
-		return []notifconstant.NotificationChannel{notifconstant.NotificationChannelInApp}
+
+	if err := uc.outboxWriter.Save(ctx, RoutingAdminBroadcast, payload); err != nil {
+		slog.Warn("notification: gagal publish broadcast admin", slog.Any("error", err))
+		return err
 	}
-	return channels
+	return nil
 }
