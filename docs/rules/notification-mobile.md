@@ -41,9 +41,10 @@ modul notifikasi backend (`sipon-be`). Ini melengkapi
 ## 3. Payload Push & Perilaku OS
 
 1. **`data` key kontrak** — aplikasi wajib membaca `module`, `event_type`,
-   `entity_id`, `click_action`, `extra` persis sesuai spec. `extra` adalah
-   string JSON — wajib di-parse, dan **tahan terhadap null/malformed** (pakai
-   try-catch; gagal parse → abaikan, tetap boleh routing via `click_action`).
+   `entity_id`, `click_action`, `delivery_id`, `extra` persis sesuai spec.
+   `extra` adalah string JSON — wajib di-parse, dan **tahan terhadap
+   null/malformed** (pakai try-catch; gagal parse → abaikan, tetap boleh
+   routing via `click_action`).
 2. **Foreground** — FCM default tidak menampilkan tray notification saat app di
    depan. Aplikasi memilih: tampilkan local notification sendiri **atau** cukup
    refresh badge inbox + tampilkan in-app banner.
@@ -69,7 +70,11 @@ modul notifikasi backend (`sipon-be`). Ini melengkapi
    `handleClickAction(action, entityId)` agar perilaku konsisten.
 5. **Auto mark-read saat navigasi**: ketika user membuka notifikasi (dari push
    maupun inbox), tandai dibaca via `POST /:id/read` (bila id delivery attempt
-   tersedia) agar badge konsisten.
+   tersedia) agar badge konsisten. Pada push, id-nya ada di `data.delivery_id`;
+   pada inbox, `NotificationItem.id`.
+6. **Badge APNs dikirim backend** = jumlah unread inbox (bukan 1 statis). App
+   tidak perlu menghitung sendiri badge iOS; cukup tampilkan angka dari
+   `GET /unread-count` bila ingin badge di UI.
 
 ## 5. Preferensi & DND
 

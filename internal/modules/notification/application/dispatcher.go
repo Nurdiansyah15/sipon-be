@@ -225,7 +225,7 @@ func (d *Dispatcher) dispatchToMany(ctx context.Context, tmpl NotificationTempla
 					da.MarkFailed("NO_ACTIVE_DEVICE")
 					_ = d.deliveryRepo.Save(ctx, da)
 				} else {
-					msgs := d.buildPushMessages(devices, tmpl)
+					msgs := d.buildPushMessages(ctx, devices, tmpl, rid, da.ID)
 					allPushMsgs = append(allPushMsgs, msgs...)
 					pushEntries = append(pushEntries, pushEntry{attempt: da, messages: msgs})
 				}
@@ -270,7 +270,7 @@ func (d *Dispatcher) sendPush(ctx context.Context, notif *notifentity.Notificati
 		return
 	}
 
-	msgs := d.buildPushMessages(devices, tmpl)
+	msgs := d.buildPushMessages(ctx, devices, tmpl, recipientID, da.ID)
 	results, err := d.pushSender.SendBatch(ctx, msgs)
 	d.deactivateInvalidTokens(ctx, results)
 
@@ -290,17 +290,25 @@ func (d *Dispatcher) sendPush(ctx context.Context, notif *notifentity.Notificati
 	}
 }
 
-func (d *Dispatcher) buildPushMessages(devices []*deviceEntity.DeviceRegistration, tmpl NotificationTemplate) []external.PushMessage {
+func (d *Dispatcher) buildPushMessages(ctx context.Context, devices []*deviceEntity.DeviceRegistration, tmpl NotificationTemplate, recipientID, deliveryID string) []external.PushMessage {
 	msgs := make([]external.PushMessage, 0, len(devices))
 	data := map[string]string{
 		"module":       tmpl.Payload.Module,
 		"event_type":   tmpl.Payload.EventType,
 		"entity_id":    tmpl.Payload.EntityID,
 		"click_action": tmpl.Payload.ClickAction,
+		"delivery_id":  deliveryID,
 	}
 	if tmpl.Payload.Extra != nil {
 		b, _ := json.Marshal(tmpl.Payload.Extra)
 		data["extra"] = string(b)
+	}
+
+	// Badge APNs = jumlah notifikasi in-app yang belum dibaca (termasuk yang
+	// barusan dikirim bila channel in_app ikut aktif).
+	unread := 0
+	if n, err := d.deliveryRepo.CountUnreadInApp(ctx, recipientID); err == nil {
+		unread = int(n)
 	}
 
 	for _, dev := range devices {
@@ -315,6 +323,7 @@ func (d *Dispatcher) buildPushMessages(devices []*deviceEntity.DeviceRegistratio
 				}
 				return "normal"
 			}(),
+			UnreadCount: unread,
 		})
 	}
 	return msgs

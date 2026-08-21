@@ -70,7 +70,7 @@ Outbox Relay (worker) → RabbitMQ → Message Consumer
   ▼
 notification handler (worker) → Dispatcher.Dispatch (channel in_app + push)
   ├─► delivery_attempts (in_app)  → dibaca app via GET /inbox + unread-count
-  └─► FCM Send (title/body + data {module,event_type,entity_id,click_action,extra})
+  └─► FCM Send (title/body + data {module,event_type,entity_id,click_action,delivery_id,extra})
        └─► device_registrations[provider_token]  ──►  OS tray (bg/terminated)
                                                         ▼ (user tap)
                                               app handle data.click_action
@@ -87,22 +87,25 @@ App buka / app foreground → GET /inbox + GET /unread-count (badge)
 
 ## Rencana `sipon-be` (penyempurnaan kecil)
 
-Backend sudah siap untuk mayoritas kebutuhan. Pekerjaan yang tersisa:
+> **Status: SELESAI** — bagian backend untuk integrasi mobile sudah
+> diimplementasikan di `sipon-be`. Sisa pekerjaan hanya verifikasi bersama
+> aplikasi (smoke test perangkat nyata) yang menunggu sisi `sipon-app`.
 
-1. **Audit & lengkapi `click_action`** untuk semua event notifikasi agar mobile
-   bisa routing. Target akhir: tidak ada event bernilai kosong tanpa alasan.
-   - `identity.user.login_succeeded` — biarkan kosong (fallback inbox).
-   - Event lain sudah punya `click_action` (lihat tabel di spec Bab 5).
-2. **(Opsional) `data` push menambah `delivery_id`** — ID delivery attempt agar
-   app bisa langsung mark-read saat notifikasi diketuk tanpa fetch inbox.
-   Dispatcher `buildPushMessages` perlu menambahkan key ini (per-notif).
-3. **(Opsional) Perbaiki badge APNs** — saat ini `badge=1` statis di
-   `fcm_sender.go`; pertimbangkan badge = `unread-count` (butuh query di
-   dispatcher). Boleh dijadwalkan fase lanjutan.
-4. **Pastikan worker mendeklarasikan binding notifikasi** — sudah ada
-   (`cmd/worker/main.go` register `notification`). Tidak ada perubahan wajib.
-5. **Uji dengan aplikasi nyata** (smoke test) — kirim broadcast/push ke token
-   dev, verifikasi title/body/data sampai perangkat (Bab Verifikasi).
+1. ✅ **Audit & lengkapi `click_action`** — semua event notifikasi sudah punya
+   `click_action` (lihat tabel di spec Bab 5), kecuali
+   `identity.user.login_succeeded` yang sengaja kosong (fallback inbox).
+2. ✅ **`data` push menambah `delivery_id`** — `Dispatcher.buildPushMessages`
+   menambahkan key `delivery_id` (delivery attempt id) ke payload push agar app
+   bisa langsung mark-read saat notifikasi diketuk tanpa fetch inbox.
+   `internal/modules/notification/application/dispatcher.go`.
+3. ✅ **Perbaiki badge APNs** — badge APNs tidak lagi statis `1`; sekarang
+   dihitung dari unread inbox per user (`CountUnreadInApp`) dan dikirim via
+   `PushMessage.UnreadCount`. `internal/modules/notification/infrastructure/external/fcm_sender.go`.
+4. ✅ **Worker mendeklarasikan binding notifikasi** — sudah ada sejak awal
+   (`cmd/worker/main.go` register `notification`).
+5. ⏳ **Uji dengan aplikasi nyata (smoke test)** — kirim broadcast/push ke token
+   dev, verifikasi title/body/data sampai perangkat. **Menunggu implementasi
+   `sipon-app`** (lihat Verifikasi).
 
 > Backend TIDAK perlu menambahkan endpoint baru untuk cakupan ini. Semua yang
 > dibutuhkan app sudah tersedia: device, inbox, unread-count, read, preferensi.
@@ -232,27 +235,28 @@ void routeFromNotification(
 
 ## Fase Pengerjaan
 
-1. **Fase 0 — Fondasi backend (sipon-be)**: audit `click_action`, (opsional)
-   `delivery_id` di data push, verifikasi FCM config & worker binding. Bukti:
-   push sampai perangkat dev.
-2. **Fase 1 — Fondasi app**: Firebase setup (core + messaging, config files),
+1. ✅ **Fase 0 — Fondasi backend (sipon-be)**: audit `click_action`,
+   `delivery_id` di data push, badge APNs dinamis, verifikasi FCM config &
+   worker binding. **Selesai.** Bukti: `go build`/`go vet`/`go test` lolos.
+2. ⏳ **Fase 1 — Fondasi app**: Firebase setup (core + messaging, config files),
    init di `main.dart`, izin notifikasi, channel Android, token flow
    (register device saat login, unregister saat logout).
-3. **Fase 2 — Inbox & badge**: model/repo/provider, halaman inbox, unread
+3. ⏳ **Fase 2 — Inbox & badge**: model/repo/provider, halaman inbox, unread
    badge, mark read/all, preferensi (halaman + validasi DND).
-4. **Fase 3 — Deep-link routing (cakupan akhir)**: helper `routeFromNotification`,
+4. ⏳ **Fase 3 — Deep-link routing (cakupan akhir)**: helper `routeFromNotification`,
    FCM foreground/background/terminated handler, stub halaman tujuan,
    auto mark-read saat navigasi.
-5. **Fase 4 — Polish & E2E**: pull-to-refresh, empty/error state, lokal notif
+5. ⏳ **Fase 4 — Polish & E2E**: pull-to-refresh, empty/error state, lokal notif
    foreground (opsional), test perangkat nyata.
 
 ## Verifikasi
 
 ### `sipon-be`
-1. `go build ./...`, `go vet ./...`, `go test ./internal/modules/...` lolos.
-2. Broadcast admin ke token dev → push muncul dengan `data.click_action` benar.
-3. Event `akademik.attendance.recorded` → push + inbox item `click_action`
-   `/akademik/absensi`.
+1. ✅ `go build ./...`, `go vet ./...`, `go test ./internal/modules/...` lolos.
+2. ⏳ Broadcast admin ke token dev → push muncul dengan `data.click_action` &
+   `data.delivery_id` benar. *(Butuh device/app — dilakukan bersama `sipon-app`.)*
+3. ⏳ Event `akademik.attendance.recorded` → push + inbox item `click_action`
+   `/akademik/absensi`. *(Butuh device/app.)*
 
 ### `sipon-app`
 1. `flutter pub get`, `flutter analyze` bersih.

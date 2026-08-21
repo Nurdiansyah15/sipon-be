@@ -244,6 +244,7 @@ Struktur FCM message:
     "event_type": "attendance_recorded",
     "entity_id": "<attendance_id>",
     "click_action": "/akademik/absensi",
+    "delivery_id": "<delivery_attempt_id>",
     "extra": "{\"session_id\":\"…\",\"source\":\"fingerprint\"}"
   },
   "android": {
@@ -252,7 +253,7 @@ Struktur FCM message:
   },
   "apns": {
     "headers": { "apns-priority": "10" },
-    "payload": { "aps": { "sound": "default", "content-available": true, "badge": 1 } }
+    "payload": { "aps": { "sound": "default", "content-available": true, "badge": "<unread_count>" } }
   }
 }
 ```
@@ -265,6 +266,7 @@ Struktur FCM message:
 | `event_type` | string | ya | contoh `attendance_recorded`, `payment_verified` |
 | `entity_id` | string | ya | id entitas terkait, bisa kosong |
 | `click_action` | string | ya (bisa `""`) | path tujuan; kosong → buka inbox |
+| `delivery_id` | string | ya | delivery attempt id — dipakai app untuk mark-read langsung (`POST /:id/read`) saat notifikasi diketuk |
 | `extra` | string (JSON) | opsional | JSON-encode dari `map[string]string`; parse dengan `jsonDecode` |
 
 ### Prioritas & preferensi
@@ -273,13 +275,16 @@ Struktur FCM message:
 - `bypass` **saat ini hanya menaikkan prioritas push**; preferensi
   `all_notifications_enabled` tetap dicek dispatcher (bila `false`, push dan
   in-app sama-sama tidak dibuat). DND belum di-enforce di fase ini.
+- **Badge APNs** = jumlah unread inbox (`GET /unread-count`, termasuk notifikasi
+  yang sedang dikirim). `0` berarti badge dikosongkan.
 
 ### Perilaku sisi aplikasi
 - App **foreground**: tampilkan sebagai local notification (atau update badge
   inbox saja sesuai kebijakan UX).
 - App **background / terminated**: tampilkan system tray (dilakukan OS);
   saat user mengetuk notifikasi, app dibuka dan handler menerima `data` untuk
-  routing (lihat Bab 5).
+  routing (lihat Bab 5). Gunakan `data.delivery_id` untuk langsung
+  `POST /:id/read` agar badge inbox konsisten tanpa menunggu fetch inbox.
 
 ---
 

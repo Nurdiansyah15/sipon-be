@@ -20,6 +20,8 @@ type PushMessage struct {
 	ImageURL *string
 	Payload  map[string]string
 	Priority string
+	// UnreadCount dipakai sebagai badge APNs (iOS). 0 = kosongkan badge.
+	UnreadCount int
 }
 
 // PushResult adalah status pengiriman untuk satu token.
@@ -117,7 +119,10 @@ func buildMessage(msg PushMessage) *messaging.Message {
 	if priority == "high" {
 		apnsPriority = "10"
 	}
-	badge := 1
+	badge := msg.UnreadCount
+	if badge < 0 {
+		badge = 0
+	}
 
 	return &messaging.Message{
 		Token: msg.Token,
