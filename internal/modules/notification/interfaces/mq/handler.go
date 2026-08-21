@@ -592,6 +592,52 @@ func (h handlers) handleAkademikSessionReminder(ctx context.Context, msg messagi
 	return h.dispatchMany(ctx, tmpl, p.UserIDs)
 }
 
+// ─── Akademik kehadiran (absensi) ─────────────────────────────────────────
+
+const akademikAbsensiClickAction = "/akademik/absensi"
+
+func (h handlers) handleAkademikAttendanceRecorded(ctx context.Context, msg messaging.Message) error {
+	var p AkademikAttendanceRecordedPayload
+	if err := json.Unmarshal(msg.Payload, &p); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("decode %s payload: %w", RoutingAkademikAttendanceRecorded, err))
+	}
+	if err := p.Validate(); err != nil {
+		return messaging.NewFatalError(fmt.Errorf("payload invalid: %w", err))
+	}
+
+	title := "Kehadiran Tercatat"
+	body := fmt.Sprintf("Selamat %s, kehadiran Anda berhasil tercatat.", p.Name)
+	if p.Name == "" {
+		body = "Kehadiran Anda berhasil tercatat."
+	}
+	if p.Source == "fingerprint" {
+		title = "Kehadiran Tercatat via Fingerprint"
+		body = "Kehadiran Anda tercatat melalui fingerprint."
+	}
+
+	tmpl := application.NotificationTemplate{
+		Type:  notifconstant.NotificationTypeSystem,
+		Title: title,
+		Body:  body,
+		Payload: notifvo.NotificationPayload{
+			Module:      "akademik",
+			EventType:   "attendance_recorded",
+			EntityID:    p.AttendanceID,
+			ClickAction: akademikAbsensiClickAction,
+			Extra: map[string]string{
+				"session_id": p.SessionID,
+				"santri_id":  p.SantriID,
+				"nis":        p.NIS,
+				"source":     p.Source,
+			},
+		},
+		Channels: pushChannels,
+		Bypass:   true,
+	}
+
+	return h.dispatch(ctx, tmpl, p.UserID)
+}
+
 // formatSessionTime memformat waktu mulai sesi dalam Bahasa Indonesia yang
 // mudah dibaca, mis. "Senin, 20 Agustus 2026 pukul 08.00".
 func formatSessionTime(v string) string {

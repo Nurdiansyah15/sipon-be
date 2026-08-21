@@ -37,6 +37,7 @@ type Module struct {
 	autoCloseSessionUC *command.AutoCloseSessionUseCase
 	autoOpenSessionUC  *command.AutoOpenSessionUseCase
 	sessionReminderUC  *command.SessionReminderUseCase
+	checkinUC          *command.CheckinByNISUseCase
 
 	// NotifyRoutingKey adalah routing key event notifikasi yang dipublish
 	// modul akademik ke outbox untuk dikonsumsi modul notification.
@@ -246,6 +247,7 @@ func NewModule(
 		autoCloseSessionUC:    autoCloseSessionUC,
 		autoOpenSessionUC:     autoOpenSessionUC,
 		sessionReminderUC:     sessionReminderUC,
+		checkinUC:             checkinUC,
 		notifyRoutingKey:      akademikMQ.RoutingSessionReminderNotify,
 	}
 }
@@ -298,10 +300,14 @@ func (m *Module) RegisterMessageHandlers(registry messaging.Contract) ([]messagi
 }
 
 // SetOutboxWriter memasang outbox writer untuk publikasi event notifikasi
-// reminder sesi. Dipanggil dari composition root (cmd/api & cmd/worker).
+// reminder sesi & kehadiran tercatat. Dipanggil dari composition root
+// (cmd/api & cmd/worker).
 func (m *Module) SetOutboxWriter(w ports.OutboxWriter) {
 	m.outboxWriter = w
 	if m.sessionReminderUC != nil {
 		m.sessionReminderUC.SetOutboxWriter(w)
+	}
+	if m.checkinUC != nil {
+		m.checkinUC.SetOutboxWriter(w)
 	}
 }

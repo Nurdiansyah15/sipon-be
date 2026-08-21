@@ -57,7 +57,7 @@ func (uc *SyncAttendanceFromFingerprintUseCase) Execute(ctx context.Context, ses
 
 	resp := &dto.SyncFingerprintResponse{TotalScans: len(scans)}
 	for _, scan := range scans {
-		_, err := uc.checkin.Execute(ctx, sessionID, scan.PIN)
+		_, err := uc.checkin.ExecuteWithSource(ctx, sessionID, scan.PIN, AttendanceSourceFingerprint)
 		switch {
 		case err == nil:
 			resp.Recorded++

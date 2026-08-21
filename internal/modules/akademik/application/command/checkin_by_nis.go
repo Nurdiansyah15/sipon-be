@@ -2,6 +2,7 @@ package command
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
@@ -30,6 +31,7 @@ type CheckinByNISUseCase struct {
 	attendanceRepo    attRepo.AttendanceRepository
 	santriProgramRepo spRepo.SantriProgramRepository
 	programResolver   *resolver.SessionProgramResolver
+	outboxWriter      ports.OutboxWriter
 }
 
 func NewCheckinByNISUseCase(
@@ -52,7 +54,20 @@ func NewCheckinByNISUseCase(
 	}
 }
 
+// SetOutboxWriter memasang outbox writer untuk publikasi event notifikasi
+// kehadiran yang tercatat (check-in manual NIS maupun sinkronisasi fingerprint).
+func (uc *CheckinByNISUseCase) SetOutboxWriter(w ports.OutboxWriter) {
+	uc.outboxWriter = w
+}
+
+// Execute adalah alias check-in manual via input NIS.
 func (uc *CheckinByNISUseCase) Execute(ctx context.Context, sessionID, nis string) (*dto.CheckinResponse, error) {
+	return uc.ExecuteWithSource(ctx, sessionID, nis, AttendanceSourceNIS)
+}
+
+// ExecuteWithSource mencatat kehadiran santri via NIS dengan menandai sumber
+// pencatatan (manual NIS / sinkronisasi fingerprint) untuk keperluan notifikasi.
+func (uc *CheckinByNISUseCase) ExecuteWithSource(ctx context.Context, sessionID, nis, source string) (*dto.CheckinResponse, error) {
 	session, err := uc.sessionRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, sesConst.CodeActivitySessionNotFound)
@@ -96,6 +111,8 @@ func (uc *CheckinByNISUseCase) Execute(ctx context.Context, sessionID, nis strin
 		return nil, application.WrapConflictErr(err, attConst.CodeAttendanceDuplicate)
 	}
 
+	uc.publishAttendanceRecorded(ctx, info, attendance.ID, sessionID, source)
+
 	resp := MapAttendanceToResponse(attendance)
 	resp.SantriNIS = info.NIS
 	resp.SantriName = info.Fullname
@@ -108,6 +125,37 @@ func (uc *CheckinByNISUseCase) Execute(ctx context.Context, sessionID, nis strin
 		Attendance: *resp,
 		Message:    fmt.Sprintf("Selamat, %s! Kehadiran tercatat.", name),
 	}, nil
+}
+
+// publishAttendanceRecorded menulis event notifikasi kehadiran tercatat ke
+// outbox. Event dikonsumsi modul notification untuk mengirim notifikasi
+// in-app/push kepada user santri yang bersangkutan.
+func (uc *CheckinByNISUseCase) publishAttendanceRecorded(ctx context.Context, info *ports.SantriBasicInfo, attendanceID, sessionID, source string) {
+	if uc.outboxWriter == nil || info == nil || info.UserID == "" {
+		return
+	}
+
+	name := ""
+	if info.Fullname != nil {
+		name = *info.Fullname
+	}
+	nis := ""
+	if info.NIS != nil {
+		nis = *info.NIS
+	}
+
+	payload, _ := json.Marshal(attendanceRecordedPayload{
+		UserID:       info.UserID,
+		AttendanceID: attendanceID,
+		SantriID:     info.SantriID,
+		NIS:          nis,
+		Name:         name,
+		SessionID:    sessionID,
+		Source:       source,
+	})
+	if err := uc.outboxWriter.Save(ctx, RoutingAttendanceRecorded, payload); err != nil {
+		slog.Warn("akademik: gagal publish event kehadiran tercatat", "session_id", sessionID, "santri_id", info.SantriID, "error", err)
+	}
 }
 
 func (uc *CheckinByNISUseCase) ensureHerreg(ctx context.Context, santriID, academicPeriodID string) error {

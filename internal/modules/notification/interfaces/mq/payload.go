@@ -161,3 +161,29 @@ func (p AkademikSessionReminderPayload) Validate() error {
 	}
 	return nil
 }
+
+// AkademikAttendanceRecordedPayload dipakai saat kehadiran santri tercatat —
+// baik lewat check-in manual via NIS (source "nis") maupun sinkronisasi
+// fingerprint (source "fingerprint").
+type AkademikAttendanceRecordedPayload struct {
+	UserID       string `json:"user_id"`
+	AttendanceID string `json:"attendance_id"`
+	SantriID     string `json:"santri_id"`
+	NIS          string `json:"nis"`
+	Name         string `json:"name"`
+	SessionID    string `json:"session_id"`
+	Source       string `json:"source"`
+}
+
+func (p AkademikAttendanceRecordedPayload) Validate() error {
+	if p.UserID == "" {
+		return errors.New("user_id wajib diisi")
+	}
+	if p.AttendanceID == "" {
+		return errors.New("attendance_id wajib diisi")
+	}
+	if p.SessionID == "" {
+		return errors.New("session_id wajib diisi")
+	}
+	return nil
+}
