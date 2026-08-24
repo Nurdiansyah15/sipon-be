@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"sipon-be/internal/modules/psb/domain/pendaftar/entity"
+	pendaftarscope "sipon-be/internal/modules/psb/domain/pendaftar/scope"
 )
 
 type PendaftarListQuery struct {
@@ -11,6 +12,9 @@ type PendaftarListQuery struct {
 	Status       *string
 	Page         int
 	Limit        int
+	// Scope membatasi daftar pendaftar sesuai akses scope user. Zero value
+	// (pendaftarscope.ScopeSet{}) diperlakukan sebagai tanpa filter.
+	Scope pendaftarscope.ScopeSet
 }
 
 type PendaftarListResult struct {

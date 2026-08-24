@@ -203,12 +203,13 @@ func (h *PsbHandler) DokumenDelete(c *gin.Context) {
 // --- Admin handlers ---
 
 func (h *PsbHandler) AdminListPendaftaran(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	var req dto.ListPendaftarQuery
 	if err := c.ShouldBindQuery(&req); err != nil {
 		httperror.Handle(c, err)
 		return
 	}
-	items, meta, err := h.listPendaftaran.Execute(c.Request.Context(), req)
+	items, meta, err := h.listPendaftaran.Execute(c.Request.Context(), userID, req)
 	if err != nil {
 		httperror.Handle(c, err)
 		return
@@ -217,8 +218,9 @@ func (h *PsbHandler) AdminListPendaftaran(c *gin.Context) {
 }
 
 func (h *PsbHandler) AdminGetPendaftaran(c *gin.Context) {
+	userID := middleware.GetUserID(c)
 	id := c.Param("id")
-	resp, err := h.getPendaftaran.ExecuteByID(c.Request.Context(), id)
+	resp, err := h.getPendaftaran.ExecuteByID(c.Request.Context(), userID, id)
 	if err != nil {
 		httperror.Handle(c, err)
 		return

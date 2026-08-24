@@ -5,6 +5,7 @@ import (
 
 	"sipon-be/internal/modules/psb/application"
 	"sipon-be/internal/modules/psb/application/dto"
+	ports "sipon-be/internal/modules/psb/application/ports"
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
 	pentity "sipon-be/internal/modules/psb/domain/pendaftar/entity"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
@@ -15,10 +16,11 @@ import (
 type GetPendaftaranUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	settingRepo    srepo.PsbSettingRepository
+	scopeReader    ports.ScopeReader
 }
 
-func NewGetPendaftaranUseCase(pendaftarRepo prepo.PendaftarRepository, settingRepo srepo.PsbSettingRepository) *GetPendaftaranUseCase {
-	return &GetPendaftaranUseCase{pendaftarRepo: pendaftarRepo, settingRepo: settingRepo}
+func NewGetPendaftaranUseCase(pendaftarRepo prepo.PendaftarRepository, settingRepo srepo.PsbSettingRepository, scopeReader ports.ScopeReader) *GetPendaftaranUseCase {
+	return &GetPendaftaranUseCase{pendaftarRepo: pendaftarRepo, settingRepo: settingRepo, scopeReader: scopeReader}
 }
 
 func (uc *GetPendaftaranUseCase) Execute(ctx context.Context, userID string) (*dto.PendaftarResponse, error) {
@@ -35,13 +37,38 @@ func (uc *GetPendaftaranUseCase) Execute(ctx context.Context, userID string) (*d
 	return mapPendaftarToResponse(p), nil
 }
 
-func (uc *GetPendaftaranUseCase) ExecuteByID(ctx context.Context, id string) (*dto.PendaftarResponse, error) {
+func (uc *GetPendaftaranUseCase) ExecuteByID(ctx context.Context, adminID, id string) (*dto.PendaftarResponse, error) {
 	p, err := uc.pendaftarRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, application.WrapRepoErr(err, pconstant.CodePendaftarNotFound)
 	}
 
+	if err := uc.ensureScopeAccess(ctx, adminID, p.Gender); err != nil {
+		return nil, err
+	}
+
 	return mapPendaftarToResponse(p), nil
+}
+
+// ensureScopeAccess menolak akses bila gender pendaftar berada di luar scope
+// yang boleh diakses user. Akses penuh (Unrestricted/None) mengizinkan semua.
+func (uc *GetPendaftaranUseCase) ensureScopeAccess(ctx context.Context, userID, gender string) error {
+	if uc.scopeReader == nil {
+		return nil
+	}
+	scopeSet, err := uc.scopeReader.GetPendaftarScopeSet(ctx, userID)
+	if err != nil {
+		return kernel.Wrap(application.ErrCodeInternal, err)
+	}
+	if scopeSet.IsNone() || scopeSet.IsAll() {
+		return nil
+	}
+	for _, option := range scopeSet.AllowedOptions() {
+		if option == gender {
+			return nil
+		}
+	}
+	return kernel.New(pconstant.CodePendaftarNotFound)
 }
 
 func mapPendaftarToResponse(p *pentity.Pendaftar) *dto.PendaftarResponse {

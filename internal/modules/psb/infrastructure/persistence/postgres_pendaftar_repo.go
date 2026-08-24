@@ -158,6 +158,16 @@ func (r *PostgresPendaftarRepository) List(ctx context.Context, q prepo.Pendafta
 		argIdx++
 	}
 
+	// Terjemahkan ScopeSet (kosakata domain pendaftar) ke kolom skema "gender".
+	if q.Scope.IsRestricted() {
+		if q.Scope.IsDenied() {
+			return &prepo.PendaftarListResult{Items: []*pentity.Pendaftar{}, Total: 0}, nil
+		}
+		where += fmt.Sprintf(` AND gender = ANY($%d)`, argIdx)
+		args = append(args, q.Scope.AllowedOptions())
+		argIdx++
+	}
+
 	var total int64
 	countRow := execer.QueryRowContext(ctx, `SELECT COUNT(*) FROM pendaftar `+where, args...)
 	if err := countRow.Scan(&total); err != nil {

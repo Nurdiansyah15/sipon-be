@@ -15,6 +15,7 @@ import (
 	"sipon-be/internal/modules/psb/infrastructure/external"
 	"sipon-be/internal/modules/psb/infrastructure/kesantriangateway"
 	"sipon-be/internal/modules/psb/infrastructure/persistence"
+	"sipon-be/internal/modules/psb/infrastructure/scopegateway"
 	psbHTTP "sipon-be/internal/modules/psb/interfaces/http"
 	"sipon-be/internal/shared/config"
 )
@@ -34,7 +35,7 @@ type Module struct {
 func NewModule(
 	db *sql.DB,
 	cfg *config.Config,
-	_ identity.Contract,
+	identityContract identity.Contract,
 	kesantrianContract kesantrian.Contract,
 	jwtAuth gin.HandlerFunc,
 	principalLoad gin.HandlerFunc,
@@ -46,6 +47,7 @@ func NewModule(
 	transactor := persistence.NewPostgresTransactor(db)
 
 	kesantrianGW := kesantriangateway.New(kesantrianContract)
+	scopeReader := scopegateway.New(identityContract)
 
 	fileUploader, _ := external.NewMinioFileUploader(
 		cfg.Minio.Endpoint,
@@ -59,8 +61,8 @@ func NewModule(
 	)
 
 	settingQuery := query.NewSettingQueryUseCase(settingRepo)
-	getPendaftaran := query.NewGetPendaftaranUseCase(pendaftarRepo, settingRepo)
-	listPendaftaran := query.NewListPendaftaranUseCase(pendaftarRepo)
+	getPendaftaran := query.NewGetPendaftaranUseCase(pendaftarRepo, settingRepo, scopeReader)
+	listPendaftaran := query.NewListPendaftaranUseCase(pendaftarRepo, scopeReader)
 	listReviews := query.NewListReviewsUseCase(reviewRepo)
 	dokumenList := query.NewDokumenListUseCase(pendaftarRepo, settingRepo, dokumenRepo)
 	dokumenAccess := query.NewDokumenAccessUseCase(pendaftarRepo, settingRepo, dokumenRepo, fileUploader)
