@@ -68,8 +68,8 @@ func NewModule(
 	dokumenAccess := query.NewDokumenAccessUseCase(pendaftarRepo, settingRepo, dokumenRepo, fileUploader)
 
 	upsertFormulir := command.NewUpsertFormulirUseCase(settingRepo, pendaftarRepo, dokumenRepo, fileUploader, kesantrianGW)
-	pendaftarAction := command.NewPendaftarActionUseCase(pendaftarRepo, dokumenRepo, fileUploader)
-	adminReview := command.NewAdminReviewUseCase(pendaftarRepo, reviewRepo, dokumenRepo)
+	pendaftarAction := command.NewPendaftarActionUseCase(pendaftarRepo, dokumenRepo, settingRepo, fileUploader)
+	adminReview := command.NewAdminReviewUseCase(pendaftarRepo, reviewRepo, dokumenRepo, settingRepo)
 	generateNIS := command.NewGenerateNISUseCase(pendaftarRepo, settingRepo, dokumenRepo, kesantrianGW)
 
 	dokumenPresign := command.NewDokumenPresignUseCase(fileUploader)
@@ -79,9 +79,10 @@ func NewModule(
 
 	manageSetting := command.NewManageSettingUseCase(settingRepo)
 	purgePeriod := command.NewPurgePeriodUseCase(settingRepo, pendaftarRepo, dokumenRepo, reviewRepo)
+	quotaUsage := query.NewQuotaUsageUseCase(settingRepo, pendaftarRepo)
 
 	handler := psbHTTP.NewPsbHandler(
-		settingQuery, getPendaftaran, listPendaftaran, listReviews,
+		settingQuery, getPendaftaran, listPendaftaran, listReviews, quotaUsage,
 		upsertFormulir, pendaftarAction, adminReview, generateNIS,
 		dokumenPresign, dokumenDelete, dokumenVerify, dokumenReject, dokumenList, dokumenAccess,
 		manageSetting, purgePeriod,

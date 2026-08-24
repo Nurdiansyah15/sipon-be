@@ -10,6 +10,7 @@ import (
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
 	pentity "sipon-be/internal/modules/psb/domain/pendaftar/entity"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
+	"sipon-be/internal/modules/psb/domain/quota"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -208,6 +209,90 @@ func (r *PostgresPendaftarRepository) HardDeleteBySettingID(ctx context.Context,
 		return 0, kernel.Wrap(pconstant.CodePendaftarPersistenceFailed, fmt.Errorf("hard delete pendaftar: %w", err))
 	}
 	return res.RowsAffected()
+}
+
+// FindProgramCode mengembalikan kode program dari program_id pendaftar. Nil
+// nil bila program_id kosong atau program tidak ditemukan.
+func (r *PostgresPendaftarRepository) FindProgramCode(ctx context.Context, programID string) (*string, error) {
+	execer := execerFromContext(ctx, r.db)
+	var code sql.NullString
+	err := execer.QueryRowContext(ctx,
+		`SELECT code FROM programs WHERE id=$1 AND deleted_at IS NULL`, programID).Scan(&code)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) || !code.Valid {
+			return nil, nil
+		}
+		return nil, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("find program code: %w", err))
+	}
+	return &code.String, nil
+}
+
+// quotaCountedStatuses membuat array status (string) yang menghabiskan kuota.
+func quotaCountedStatuses() []string {
+	statuses := make([]string, len(pconstant.QuotaCountedStatuses))
+	for i, s := range pconstant.QuotaCountedStatuses {
+		statuses[i] = string(s)
+	}
+	return statuses
+}
+
+// CountAcceptedByProgramAndGender menghitung pendaftar yang sudah diterima pada
+// satu setting untuk kombinasi kode program (dari program_id) + gender yang
+// sama — dipakai cek kuota saat submit/accept.
+func (r *PostgresPendaftarRepository) CountAcceptedByProgramAndGender(ctx context.Context, psbSettingID, programID, gender string) (int64, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	var count int64
+	err := execer.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM pendaftar p
+		JOIN programs pr ON pr.id = p.program_id
+		WHERE p.psb_setting_id=$1
+		  AND p.gender=$2
+		  AND p.status = ANY($3)
+		  AND p.deleted_at IS NULL
+		  AND pr.code = (SELECT code FROM programs WHERE id=$4 AND deleted_at IS NULL)`,
+		psbSettingID, gender, quotaCountedStatuses(), programID).Scan(&count)
+	if err != nil {
+		return 0, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("count accepted by program & gender: %w", err))
+	}
+	return count, nil
+}
+
+// QuotaUsage menghitung pemakaian kuota per kombinasi (key kuota) pada satu
+// setting dari data pendaftar yang sudah diterima.
+func (r *PostgresPendaftarRepository) QuotaUsage(ctx context.Context, psbSettingID string) (map[string]int64, error) {
+	execer := execerFromContext(ctx, r.db)
+
+	rows, err := execer.QueryContext(ctx, `
+		SELECT pr.code, p.gender, COUNT(*)
+		FROM pendaftar p
+		JOIN programs pr ON pr.id = p.program_id
+		WHERE p.psb_setting_id=$1
+		  AND p.status = ANY($2)
+		  AND p.deleted_at IS NULL
+		GROUP BY pr.code, p.gender`,
+		psbSettingID, quotaCountedStatuses())
+	if err != nil {
+		return nil, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("quota usage: %w", err))
+	}
+	defer rows.Close()
+
+	usage := make(map[string]int64)
+	for rows.Next() {
+		var code, gender string
+		var count int64
+		if err := rows.Scan(&code, &gender, &count); err != nil {
+			return nil, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("scan quota usage: %w", err))
+		}
+		if key, ok := quota.KeyFor(code, gender); ok {
+			usage[key] = count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, kernel.Wrap(pconstant.CodePendaftarQueryFailed, fmt.Errorf("iterate quota usage: %w", err))
+	}
+	return usage, nil
 }
 
 func scanPendaftar(sc scanner) (*pentity.Pendaftar, error) {

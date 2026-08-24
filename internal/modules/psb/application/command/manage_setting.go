@@ -9,6 +9,7 @@ import (
 
 	"sipon-be/internal/modules/psb/application"
 	"sipon-be/internal/modules/psb/application/dto"
+	"sipon-be/internal/modules/psb/domain/quota"
 	sentity "sipon-be/internal/modules/psb/domain/setting/entity"
 	srepo "sipon-be/internal/modules/psb/domain/setting/repository"
 	"sipon-be/internal/shared/kernel"
@@ -32,16 +33,19 @@ func (uc *ManageSettingUseCase) Create(ctx context.Context, req dto.CreateSettin
 		return nil, kernel.New(application.ErrCodeBadRequest)
 	}
 
-	quota := json.RawMessage("{}")
+	quotaRaw := json.RawMessage("{}")
 	if req.Quota != nil {
-		quota = req.Quota
+		quotaRaw = req.Quota
+	}
+	if err := quota.ValidateKeys(quotaRaw); err != nil {
+		return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, err.Error(), nil)
 	}
 	bankAccounts := json.RawMessage("[]")
 	if req.BankAccounts != nil {
 		bankAccounts = req.BankAccounts
 	}
 
-	s, err := sentity.NewPsbSetting(uuid.NewString(), req.Name, startPeriod, endPeriod, quota, bankAccounts, req.RegFee)
+	s, err := sentity.NewPsbSetting(uuid.NewString(), req.Name, startPeriod, endPeriod, quotaRaw, bankAccounts, req.RegFee)
 	if err != nil {
 		return nil, kernel.Wrap(application.ErrCodeInternal, err)
 	}
@@ -71,6 +75,9 @@ func (uc *ManageSettingUseCase) Update(ctx context.Context, id string, req dto.U
 		s.RegFee = *req.RegFee
 	}
 	if req.Quota != nil {
+		if err := quota.ValidateKeys(req.Quota); err != nil {
+			return nil, kernel.WrapMsg(application.ErrCodeUnprocessableEntity, err.Error(), nil)
+		}
 		s.Quota = req.Quota
 	}
 	if req.BankAccounts != nil {

@@ -16,6 +16,33 @@ const (
 	StatusSelesai                PendaftarStatus = "selesai"
 )
 
+// Gender pendaftar — nilai kolom "gender" (VARCHAR(2) CHECK ('1','2')).
+const (
+	GenderMale   = "1"
+	GenderFemale = "2"
+)
+
+// ProgramCode adalah kode program dari master `programs` (module akademik)
+// yang saat ini dikenal PSB. Nama jurusan & gender volatile, sehingga untuk
+// sementara kombinasi yang berlaku dijaga sebagai konstanta di sini — domain
+// quota (kuota per program × gender) memakai kosakata yang sama agar dua
+// domain ini konsisten saat memvalidasi pendaftar.
+const (
+	ProgramCodeTahfidz = "TAHFIDZ"
+	ProgramCodeKitab   = "KITAB"
+)
+
+// QuotaCountedStatuses adalah status pendaftar yang menghabiskan kuota
+// (rekalkulasi sisa kuota). Hanya pendaftar yang sudah "diterima" — ditolak
+// dan mengundurkan_diri melepas slot, sedangkan draft/diajukan/perlu_revisi
+// belum mengklaim slot.
+var QuotaCountedStatuses = []PendaftarStatus{
+	StatusDiterima,
+	StatusDaftarUlang,
+	StatusPerluRevisiDaftarUlang,
+	StatusSelesai,
+}
+
 const (
 	CodePendaftarNotFound          kernel.Code = "PENDAFTAR_NOT_FOUND"
 	CodePendaftarPersistenceFailed kernel.Code = "PENDAFTAR_PERSISTENCE_FAILED"

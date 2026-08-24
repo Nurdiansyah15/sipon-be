@@ -19,6 +19,7 @@ import (
 	rconstant "sipon-be/internal/modules/psb/domain/review/constant"
 	rentity "sipon-be/internal/modules/psb/domain/review/entity"
 	rrepo "sipon-be/internal/modules/psb/domain/review/repository"
+	srepo "sipon-be/internal/modules/psb/domain/setting/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
@@ -26,6 +27,7 @@ type AdminReviewUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	reviewRepo    rrepo.PendaftarReviewRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
+	settingRepo   srepo.PsbSettingRepository
 	outboxWriter  ports.OutboxWriter
 }
 
@@ -33,11 +35,13 @@ func NewAdminReviewUseCase(
 	pendaftarRepo prepo.PendaftarRepository,
 	reviewRepo rrepo.PendaftarReviewRepository,
 	dokumenRepo drepo.PendaftarDokumenRepository,
+	settingRepo srepo.PsbSettingRepository,
 ) *AdminReviewUseCase {
 	return &AdminReviewUseCase{
 		pendaftarRepo: pendaftarRepo,
 		reviewRepo:    reviewRepo,
 		dokumenRepo:   dokumenRepo,
+		settingRepo:   settingRepo,
 	}
 }
 
@@ -120,6 +124,14 @@ func (uc *AdminReviewUseCase) Accept(ctx context.Context, pendaftarID, adminID s
 			return nil, kernel.Wrap(application.ErrCodeUnprocessableEntity,
 				fmt.Errorf("dokumen %s belum diverifikasi", d.Kind))
 		}
+	}
+
+	programID := ""
+	if p.ProgramID != nil {
+		programID = *p.ProgramID
+	}
+	if err := ensureQuotaAvailable(ctx, uc.settingRepo, uc.pendaftarRepo, p.PsbSettingID, programID, p.Gender); err != nil {
+		return nil, err
 	}
 
 	if err := p.Accept(adminID); err != nil {

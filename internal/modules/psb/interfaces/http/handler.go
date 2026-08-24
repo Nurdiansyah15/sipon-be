@@ -16,6 +16,7 @@ type PsbHandler struct {
 	getPendaftaran *query.GetPendaftaranUseCase
 	listPendaftaran *query.ListPendaftaranUseCase
 	listReviews    *query.ListReviewsUseCase
+	quotaUsage     *query.QuotaUsageUseCase
 
 	upsertFormulir  *command.UpsertFormulirUseCase
 	pendaftarAction *command.PendaftarActionUseCase
@@ -38,6 +39,7 @@ func NewPsbHandler(
 	getPendaftaran *query.GetPendaftaranUseCase,
 	listPendaftaran *query.ListPendaftaranUseCase,
 	listReviews *query.ListReviewsUseCase,
+	quotaUsage *query.QuotaUsageUseCase,
 	upsertFormulir *command.UpsertFormulirUseCase,
 	pendaftarAction *command.PendaftarActionUseCase,
 	adminReview *command.AdminReviewUseCase,
@@ -56,6 +58,7 @@ func NewPsbHandler(
 		getPendaftaran:  getPendaftaran,
 		listPendaftaran: listPendaftaran,
 		listReviews:     listReviews,
+		quotaUsage:      quotaUsage,
 		upsertFormulir:  upsertFormulir,
 		pendaftarAction: pendaftarAction,
 		adminReview:     adminReview,
@@ -375,6 +378,27 @@ func (h *PsbHandler) AdminGenerateNIS(c *gin.Context) {
 }
 
 // --- Settings admin ---
+
+func (h *PsbHandler) AdminSettingQuota(c *gin.Context) {
+	id := c.Param("id")
+	items, err := h.quotaUsage.Execute(c.Request.Context(), id)
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "pemakaian kuota berhasil diambil", items)
+}
+
+// PublicQuota mengembalikan pemakaian & sisa kuota untuk setting yang sedang
+// berjalan — dipakai pendaftar untuk melihat sisa kuota sebelum mendaftar.
+func (h *PsbHandler) PublicQuota(c *gin.Context) {
+	items, err := h.quotaUsage.ExecuteActive(c.Request.Context())
+	if err != nil {
+		httperror.Handle(c, err)
+		return
+	}
+	respond.OK(c, "sisa kuota berhasil diambil", items)
+}
 
 func (h *PsbHandler) ListSettings(c *gin.Context) {
 	items, err := h.settingQuery.List(c.Request.Context())

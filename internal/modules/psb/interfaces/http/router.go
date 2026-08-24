@@ -11,6 +11,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *PsbHandler, jwtAuth, principalLo
 	psb.Use(jwtAuth, principalLoad)
 	{
 		psb.GET("/setting/active", h.GetActiveSetting)
+		psb.GET("/quota", h.PublicQuota)
 
 		psb.GET("/pendaftaran", h.GetPendaftaran)
 		psb.PUT("/pendaftaran", h.UpsertFormulir)
@@ -45,6 +46,7 @@ func RegisterRoutes(router *gin.RouterGroup, h *PsbHandler, jwtAuth, principalLo
 			settings.Use(middleware.RequirePermission("manage_psb_settings"))
 			{
 				settings.GET("", h.ListSettings)
+				settings.GET("/:id/quota", h.AdminSettingQuota)
 				settings.POST("", h.CreateSetting)
 				settings.PUT("/:id", h.UpdateSetting)
 				// TODO: dinonaktifkan sementara — hard-delete pendaftar/pendaftar_dokumen

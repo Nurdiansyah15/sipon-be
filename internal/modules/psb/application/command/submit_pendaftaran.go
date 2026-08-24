@@ -18,12 +18,14 @@ import (
 	pconstant "sipon-be/internal/modules/psb/domain/pendaftar/constant"
 	pentity "sipon-be/internal/modules/psb/domain/pendaftar/entity"
 	prepo "sipon-be/internal/modules/psb/domain/pendaftar/repository"
+	srepo "sipon-be/internal/modules/psb/domain/setting/repository"
 	"sipon-be/internal/shared/kernel"
 )
 
 type PendaftarActionUseCase struct {
 	pendaftarRepo prepo.PendaftarRepository
 	dokumenRepo   drepo.PendaftarDokumenRepository
+	settingRepo   srepo.PsbSettingRepository
 	fileUploader  ports.FileUploader
 	outboxWriter  ports.OutboxWriter
 }
@@ -31,11 +33,13 @@ type PendaftarActionUseCase struct {
 func NewPendaftarActionUseCase(
 	pendaftarRepo prepo.PendaftarRepository,
 	dokumenRepo drepo.PendaftarDokumenRepository,
+	settingRepo srepo.PsbSettingRepository,
 	fileUploader ports.FileUploader,
 ) *PendaftarActionUseCase {
 	return &PendaftarActionUseCase{
 		pendaftarRepo: pendaftarRepo,
 		dokumenRepo:   dokumenRepo,
+		settingRepo:   settingRepo,
 		fileUploader:  fileUploader,
 	}
 }
@@ -62,6 +66,14 @@ func (uc *PendaftarActionUseCase) SubmitPendaftaran(ctx context.Context, userID,
 	}
 
 	if err := validateProgramRequired(p); err != nil {
+		return nil, err
+	}
+
+	programID := ""
+	if p.ProgramID != nil {
+		programID = *p.ProgramID
+	}
+	if err := ensureQuotaAvailable(ctx, uc.settingRepo, uc.pendaftarRepo, p.PsbSettingID, programID, p.Gender); err != nil {
 		return nil, err
 	}
 
