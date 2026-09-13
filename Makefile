@@ -1,5 +1,11 @@
 .PHONY: help dev-up dev-down dev-all-up dev-all-down run minio-init migrate-up migrate-down migrate-fresh migrate-version migrate-force migrate-create seed seed-all seed-role seed-user build tidy test test-unit test-integration test-usecase lint swagger swagger-check
 
+ifeq ($(OS),Windows_NT)
+DOCKER ?= wsl docker
+else
+DOCKER ?= docker
+endif
+
 # ── Help ──────────────────────────────────────────────────────────────────────
 help:
 	@echo ""
@@ -41,46 +47,46 @@ help:
 
 # ── Development ───────────────────────────────────────────────────────────────
 dev-up:
-	docker compose -f docker-compose.dev.yml up -d --wait postgres redis
+	$(DOCKER) compose -f docker-compose.dev.yml up -d --wait postgres redis
 	@echo "postgres + redis berjalan dan healthy"
 
 dev-down:
-	docker compose -f docker-compose.dev.yml down
+	$(DOCKER) compose -f docker-compose.dev.yml down
 
 dev-all-up:
-	docker compose -f docker-compose.dev.yml down
-	docker compose -f docker-compose.dev.yml up -d --wait
+	$(DOCKER) compose -f docker-compose.dev.yml down
+	$(DOCKER) compose -f docker-compose.dev.yml up -d --wait
 
 # logs
 logs:
-	docker compose -f docker-compose.dev.yml logs -f --tail=100
+	$(DOCKER) compose -f docker-compose.dev.yml logs -f --tail=100
 # 	make minio-init
 
 dev-all-down:
-	docker compose -f docker-compose.dev.yml down -v
+	$(DOCKER) compose -f docker-compose.dev.yml down -v
 
 minio-init:
-	docker compose -f docker-compose.dev.yml run --rm minio-init
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm minio-init
 
 run:
-	docker compose -f docker-compose.dev.yml up app
+	$(DOCKER) compose -f docker-compose.dev.yml up app
 
 # ── Migrasi ───────────────────────────────────────────────────────────────────
 migrate-up:
-	docker compose -f docker-compose.dev.yml run --rm migrate up
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm migrate up
 
 migrate-down:
-	docker compose -f docker-compose.dev.yml run --rm migrate down 1
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm migrate down 1
 
 migrate-fresh:
-	docker compose -f docker-compose.dev.yml run --rm migrate fresh
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm migrate fresh
 
 migrate-version:
-	docker compose -f docker-compose.dev.yml run --rm migrate version
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm migrate version
 
 migrate-force:
 	@read -p "Force ke versi: " v; \
-	docker compose -f docker-compose.dev.yml run --rm migrate force $$v
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm migrate force $$v
 
 migrate-create:
 	@if [ -z "$(NAME)" ]; then \
@@ -98,29 +104,29 @@ migrate-create:
 
 # ── Seeder ────────────────────────────────────────────────────────────────────
 seed-all:
-	docker compose -f docker-compose.dev.yml run --rm seeder all
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm seeder all
 
 seed:
 	@if [ -z "$(NAME)" ]; then \
-		docker compose -f docker-compose.dev.yml run --rm seeder all; \
+		$(DOCKER) compose -f docker-compose.dev.yml run --rm seeder all; \
 	else \
-		docker compose -f docker-compose.dev.yml run --rm seeder $(NAME); \
+		$(DOCKER) compose -f docker-compose.dev.yml run --rm seeder $(NAME); \
 	fi
 
 seed-role:
-	docker compose -f docker-compose.dev.yml run --rm seeder role
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm seeder role
 
 seed-user:
-	docker compose -f docker-compose.dev.yml run --rm seeder user
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm seeder user
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 build:
-	docker compose -f docker-compose.dev.yml build devtools
+	$(DOCKER) compose -f docker-compose.dev.yml build devtools
 	@echo "Image devtools berhasil di-build"
 
 # ── Lainnya ───────────────────────────────────────────────────────────────────
 tidy:
-	docker compose -f docker-compose.dev.yml run --rm --no-deps devtools go mod tidy
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm --no-deps devtools go mod tidy
 
 test:
 	go test ./... -v -count=1 -timeout 180s
@@ -135,10 +141,10 @@ test-usecase:
 	go test ./internal/modules/.../application/... -v -count=1
 
 lint:
-	docker compose -f docker-compose.dev.yml run --rm --no-deps devtools golangci-lint run ./...
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm --no-deps devtools golangci-lint run ./...
 
 swagger:
-	docker compose -f docker-compose.dev.yml run --rm --no-deps -u $$(id -u):$$(id -g) devtools swag init -g cmd/api/main.go -o docs
+	$(DOCKER) compose -f docker-compose.dev.yml run --rm --no-deps -u $$(id -u):$$(id -g) devtools swag init -g cmd/api/main.go -o docs
 
 swagger-check:
-	docker compose -f docker-compose.dev.yml config >/dev/null
+	$(DOCKER) compose -f docker-compose.dev.yml config
